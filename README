@@ -1,0 +1,3 @@
+Lathe is meant to be a collection of utility libraries that don't really have a specific purpose other than to make their host language smoother to program in. In particular, I'm starting it up so that I have somewhere to post little things I'm doing in Arc, so that I can talk about them at the Arc forum.
+
+For now, these libraries don't require much in the way of build scripts or unusual dependencies. If you can set up Arc 3.1 and (load ...) them, that should do the trick.
