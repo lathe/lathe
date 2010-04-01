@@ -1,3 +1,37 @@
-Lathe is meant to be a collection of utility libraries that don't really have a specific purpose other than to make their host language smoother to program in. In particular, I'm starting it up so that I have somewhere to post little things I'm doing in Arc, so that I can talk about them at the Arc forum.
+Lathe is meant to be a collection of utility libraries that don't
+really have a specific purpose other than to make their host language
+smoother to program in (at least according to one opinion). In
+particular, I'm starting it up so that I have somewhere to post little
+things I'm doing in Arc, so that I can talk about them at the Arc
+forum. Other languages are not off-limits.
 
-For now, these libraries don't require much in the way of build scripts or unusual dependencies. If you can set up Arc 3.1 and (load ...) them, that should do the trick.
+Right now, this only contains a very young Arc module system based on
+renaming of global variables (arc/modules/), one example of a library
+that uses the module system (arc/amb.arc), and one very small example
+of loading that library using the module system
+(arc/examples/module-demo.arc), which doubles as the only test case to
+date.
+
+The examples (and therefore the test) don't cover everything the
+module system and the library have to offer. The code is fairly well
+commented, so reading those comments is probably the best way to get a
+feel for things.
+
+
+== Setup in Arc ==
+
+The code in the arc/ directory is currently targeted only at Arc 3.1,
+which you can download at http://ycombinator.com/arc/arc3.1.tar.
+Arc 3.1 itself depends on MzScheme. For more detailed help setting up
+Arc, including how to adjust it to work on Windows, arclanguage.org is
+a good resource.
+
+To use the arc/ directory code, download it, note what local directory
+you have it in, and add this to your libs.arc (here assuming you put
+the arc/ files in your Arc directory under lib/lathe/):
+
+  (= lathe-dir* "lib/lathe/")
+  (load:+ lathe-dir* "loadfirst/lathe-pg-arc3.1.arc")
+
+The lathe-dir* global variable is necessary; the lathe-pg-arc3.1.arc
+code uses it to determine where to load other lathe files from.
