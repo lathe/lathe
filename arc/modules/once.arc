@@ -1,6 +1,6 @@
 ; once.arc
 
-(unless (bound&eval 'once-has-been-loaded*) (tl
+(unless (bound&eval 'once-has-been-loaded*) (tldo
 
 
 (= once-has-been-loaded* t)
@@ -32,7 +32,7 @@
     (push id car.onces*)))
 
 (mac once-tl (id . body)
-  `(once ,id (tl ,@body)))
+  `(once ,id (tldo ,@body)))
 
 (def niceuniq (name)
   (sym:string (uniq) "-" name))
@@ -43,4 +43,4 @@
     `(let ,syms (niceuniq ',syms) ,@body)))
 
 
-))  ; end (unless (bound&eval 'once-has-been-loaded*) (tl ...))
+))  ; end (unless (bound&eval 'once-has-been-loaded*) (tldo ...))

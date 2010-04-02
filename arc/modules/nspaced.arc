@@ -67,7 +67,7 @@
            (= (,g-syms name) name))
 ;         ; Alternatively, we could use the global binding.
 ;         (= ,@(mappend [do `((,g-syms ',_) ',_)] hackable-names*))
-         (tl:let symfor [or (,g-syms _) (= (,g-syms _) niceuniq._)]
+         (tldo:let symfor [or (,g-syms _) (= (,g-syms _) niceuniq._)]
            (=mc local (what)
              (case type.what
                sym   symfor.what
@@ -94,9 +94,9 @@
                  (when (and (~bound result) bound.what)
                    (eval `(= ,result ,what)))))
              nil))
-         (tl ,@body))
-       (tl:= local ,g-old-local
-             save-to-local ,g-old-save)
+         (tldo ,@body))
+       (tldo:= local ,g-old-local
+               save-to-local ,g-old-save)
        (wipe ,g-syms ,g-old-local ,g-old-save))))
 
 ; This is a spoof form that imitates an nspaced form without actually
@@ -111,12 +111,12 @@
        (do
          (= ,g-old-local (bound&eval 'local)
             ,g-old-save (bound&eval 'save-to-local))
-         (tl
+         (tldo
            (= local (mc (what) what)
               save-to-local (mc _))
            ,@body))
-       (tl:= local ,g-old-local
-             save-to-local ,g-old-save)
+       (tldo:= local ,g-old-local
+               save-to-local ,g-old-save)
        (wipe ,g-old-local ,g-old-save))))
 
 ; Redefine def, mac, and safeset so that (def local.foo ...),

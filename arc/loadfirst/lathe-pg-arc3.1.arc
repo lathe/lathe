@@ -13,7 +13,7 @@
 
 ; The order things are loaded here is actually the *only* valid order.
 ;
-;  modulemisc  provides  'tl                         to  once
+;  modulemisc  provides  'tldo                       to  once
 ;  once        provides  'once                       to  nspaced
 ;  nspaced     provides  'nspaced                    to  import
 ;  import      provides  'import-sobj                to  package

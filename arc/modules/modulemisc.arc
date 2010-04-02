@@ -10,11 +10,11 @@
 ; context. This lets the code modify global bindings even if a lexical
 ; scope would shadow them. Furthermore, the lexical scope will be
 ; totally inaccessible.
-(mac tl body
+(mac tldo body
   `(do ,@(map [do `(eval ',_)] body)))
 
 
-(eval '(tl
+(eval '(tldo
 
 
 (mac mc (parms . body)
@@ -88,7 +88,7 @@
         old-setforms.expansion))))
 
 
-))  ; end (eval '(tl ...))
+))  ; end (eval '(tldo ...))
 
 
 )  ; end (unless (bound&eval 'modulemisc-has-been-loaded*) ...)
