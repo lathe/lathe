@@ -112,13 +112,13 @@
 ; (mac local.foo ...), (defmemo local.foo ...), and
 ; (defcache local.foo ...) can be used.
 (nspaced
-  (copy-to-local =mc def mac safeset expand)
-  (local:=mc def (name . rest)
-    `(,local!def ,(local:expand name) ,@rest))
-  (local:=mc mac (name . rest)
-    `(,local!mac ,(local:expand name) ,@rest))
-  (local:=mc safeset (var val)
-    `(,local!safeset ,(local:expand var) ,val)))
+  (copy-to-local def mac safeset)
+  (=mc def (name . rest)
+    `(,local!def ,expand.name ,@rest))
+  (=mc mac (name . rest)
+    `(,local!mac ,expand.name ,@rest))
+  (=mc safeset (var val)
+    `(,local!safeset ,expand.var ,val)))
 
 
 )
