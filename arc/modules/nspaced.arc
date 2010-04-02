@@ -57,26 +57,23 @@
 ; given to it.
 ;
 (def nspace ((o backing-table (table)))
-  (let symfor [or ._.backing-table (= ._.backing-table niceuniq._)]
+  (let symfor [if (and _ (isa _ 'sym) (~ssyntax _))
+                (or ._.backing-table (= ._.backing-table niceuniq._))
+                (err:+ "A nil, ssyntax, or non-symbol name was "
+                       "passed to a namespace.")]
     (each name hackable-names*
       (= .name.backing-table name))
     (mc (what)
-      (case type.what
-        sym   symfor.what
-        cons  (let (op . params) what
-                (unless (isa op 'sym)
-                  (err:+ "A cons expression with a non-symbol car "
-                         "was passed to a namespace."))
-                (case op quote
-                  (let (name) params
-                    (unless (isa name 'sym)
-                      (err:+ "A (quote name) expression with a "
-                             "non-symbol name was passed to a "
-                             "namespace."))
-                    `',symfor.name)
-                  `(,symfor.op ,@params)))
-              (err:+ "A non-symbol, non-cons expression was passed "
-                     "to a namespace.")))))
+      (if atom.what
+        .what.symfor
+        (let (op . params) what
+          (case op quote
+            (let (name . more) params
+              (when more
+                (err:+ "A (quote ...) expression with more than one "
+                       "parameter was passed to a namespace."))
+              `',.name.symfor)
+            `(,.op.symfor ,@params)))))))
 
 (mac nspaced body
   `(w/global local (nspace)
