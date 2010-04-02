@@ -105,14 +105,8 @@
 ; top level, and thereby use most code that's targeted at nspaced in a
 ; way that's closer to what you want without very much hassle.
 (mac not-nspaced body
-  (w/uniq g-old-local
-    `(after
-       (tldo
-         (= ,g-old-local (bound&eval 'local)
-            local (mc (what) what))
-         ,@body)
-       (tldo:= local ,g-old-local)
-       (wipe ,g-old-local))))
+  `(w/global local (mc (what) what)
+     (tldo ,@body)))
 
 ; Redefine def, mac, and safeset so that (def local.foo ...),
 ; (mac local.foo ...), (defmemo local.foo ...), and
