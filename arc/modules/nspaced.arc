@@ -68,12 +68,12 @@
                   (err:+ "A cons expression with a non-symbol car "
                          "was passed to a namespace."))
                 (case op quote
-                  (let (symwhat) params
-                    (unless (isa symwhat 'sym)
-                      (err:+ "A (quote foo) expression with a "
-                             "non-symbol foo was passed to a "
+                  (let (name) params
+                    (unless (isa name 'sym)
+                      (err:+ "A (quote name) expression with a "
+                             "non-symbol name was passed to a "
                              "namespace."))
-                    `',symfor.symwhat)
+                    `',symfor.name)
                   `(,symfor.op ,@params)))
               (err:+ "A non-symbol, non-cons expression was passed "
                      "to a namespace.")))))
@@ -82,21 +82,21 @@
   `(w/global local (nspace)
      (tldo ,@body)))
 
-(mac copy-to-local whats
-  (each what whats
-    (unless (and what (isa what 'sym) (~ssyntax what))
+(mac copy-to-local names
+  (each name names
+    (unless (and name (isa name 'sym) (~ssyntax name))
       (err:+ "A non-symbol or special symbol expression was passed "
              "to copy-to-local.")))
-  `(= ,@(mappend [do `((local ,_) ,_)] whats)))
+  `(= ,@(mappend [do `((local ,_) ,_)] names)))
 
-(mac copy-to-nspace (ns . whats)
-  (each what whats
-    (unless (and what (isa what 'sym) (~ssyntax what))
+(mac copy-to-nspace (ns . names)
+  (each name names
+    (unless (and name (isa name 'sym) (~ssyntax name))
       (err:+ "A non-symbol or special symbol expression was passed "
              "to copy-to-nspace.")))
   (w/uniq g-ns
     `(= ,g-ns ,ns
-        ,@(mappend [do `((,g-ns ,_) ,_)] whats)
+        ,@(mappend [do `((,g-ns ,_) ,_)] names)
         ,g-ns nil)))
 
 ; This is a spoof form that imitates an nspaced form without actually
