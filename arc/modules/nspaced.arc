@@ -57,12 +57,11 @@
 ; each one macro-expands the name given to it.
 ;
 (mac nspaced body
-  (w/uniq (g-syms g-old-local g-old-save)
+  (w/uniq (g-syms g-old-local)
     `(after
        (do
          (= ,g-syms (table)
-            ,g-old-local (bound&eval 'local)
-            ,g-old-save (bound&eval 'save-to-local))
+            ,g-old-local (bound&eval 'local))
          ; Use the lexical binding of hackable-names*.
          (each name hackable-names*
            (= (,g-syms name) name))
@@ -87,9 +86,8 @@
                      (err:+ "A non-symbol, non-cons expression was "
                             "passed to local."))))
          (tldo ,@body))
-       (tldo:= local ,g-old-local
-               save-to-local ,g-old-save)
-       (wipe ,g-syms ,g-old-local ,g-old-save))))
+       (tldo:= local ,g-old-local)
+       (wipe ,g-syms ,g-old-local))))
 
 (mac copy-to-local whats
   (each what whats
@@ -105,18 +103,14 @@
 ; top level, and thereby use most code that's targeted at nspaced in a
 ; way that's closer to what you want without very much hassle.
 (mac not-nspaced body
-  (w/uniq (g-old-local g-old-save)
+  (w/uniq g-old-local
     `(after
-       (do
+       (tldo
          (= ,g-old-local (bound&eval 'local)
-            ,g-old-save (bound&eval 'save-to-local))
-         (tldo
-           (= local (mc (what) what)
-              save-to-local (mc _))
-           ,@body))
-       (tldo:= local ,g-old-local
-               save-to-local ,g-old-save)
-       (wipe ,g-old-local ,g-old-save))))
+            local (mc (what) what))
+         ,@body)
+       (tldo:= local ,g-old-local)
+       (wipe ,g-old-local))))
 
 ; Redefine def, mac, and safeset so that (def local.foo ...),
 ; (mac local.foo ...), (defmemo local.foo ...), and
