@@ -19,17 +19,16 @@
 ; way that it changes the behavior of another function or macro
 ; protected by an nspaced form, there is an empty global list,
 ; hackable-names*, which can be extended with symbol names so that as
-; any nspaced form is compiled, those names will be used verbatim
-; rather than replaced with gensyms. The value of hackable-names* is
-; checked in the lexical environment of the nspaced form, so a simple
-; (let hackable-names* '(this that those) (nspaced ...)) will do.
+; any namespace is created, those names will be used verbatim rather
+; than replaced with gensyms.
 
 (once-tl "load nspaced.arc"
 
 
 (= hackable-names* '())
 
-; The (local ...) macro works in three ways:
+; A namespace macro, such as the 'local macro inside an nspaced form,
+; works in three ways:
 ;
 ;  - You can pass it a symbol, in which case it will mangle that
 ;    symbol. This is the usual case.
@@ -49,45 +48,48 @@
 ;    the expression (local my-macro) isn't a symbol globally bound
 ;    to a macro.
 ;
-; One downside of the 'local macro is that it can only be used in
-; places macros are expanded. That means that (assign local.foo bar)
-; doesn't work, and as such, anything which ultimately expands into
-; such a form without doing its own macro-expansion won't work either.
-; For that reason, mac, def, and safeset are redefined below so that
-; each one macro-expands the name given to it.
+; One downside of these macros is that they can naturally only be used
+; in places macros are expanded. That means that
+; (assign local.foo bar) doesn't work, and as such, anything which
+; ultimately expands into such a form without doing its own
+; macro-expansion won't work either. For that reason, mac, def, and
+; safeset are redefined below so that each one macro-expands the name
+; given to it.
 ;
+(def nspace ()
+  (withs (syms (table)
+          symfor [or ._.syms (= ._.syms niceuniq._)])
+    (each name hackable-names*
+      (= .name.syms name))
+    (mc (what)
+      (case type.what
+        sym   symfor.what
+        cons  (let (op . params) what
+                (unless (isa op 'sym)
+                  (err:+ "A cons expression with a non-symbol car "
+                         "was passed to a namespace."))
+                (case op quote
+                  (let (symwhat) params
+                    (unless (isa symwhat 'sym)
+                      (err:+ "A (quote foo) expression with a "
+                             "non-symbol foo was passed to a "
+                             "namespace."))
+                    `',symfor.symwhat)
+                  `(,symfor.op ,@params)))
+              (err:+ "A non-symbol, non-cons expression was passed "
+                     "to a namespace.")))))
+
 (mac nspaced body
-  (w/uniq (g-syms g-old-local)
+  `(w/global local (nspace)
+     (tldo ,@body)))
+
+(mac w/global (name val . body)
+  (w/uniq g-old-val
     `(after
        (do
-         (= ,g-syms (table)
-            ,g-old-local (bound&eval 'local))
-         ; Use the lexical binding of hackable-names*.
-         (each name hackable-names*
-           (= (,g-syms name) name))
-;         ; Alternatively, we could use the global binding.
-;         (= ,@(mappend [do `((,g-syms ',_) ',_)] hackable-names*))
-         (tldo:let symfor [or (,g-syms _) (= (,g-syms _) niceuniq._)]
-           (=mc local (what)
-             (case type.what
-               sym   symfor.what
-               cons  (let (op . params) what
-                       (unless (isa op 'sym)
-                         (err:+ "A cons expression with a non-symbol "
-                                "car was passed to local."))
-                       (case op quote
-                         (let (symwhat) params
-                           (unless (isa symwhat 'sym)
-                             (err:+ "A (quote foo) expression with a "
-                                    "non-symbol foo was passed to "
-                                    "local."))
-                           `',symfor.symwhat)
-                         `(,symfor.op ,@params)))
-                     (err:+ "A non-symbol, non-cons expression was "
-                            "passed to local."))))
-         (tldo ,@body))
-       (tldo:= local ,g-old-local)
-       (wipe ,g-syms ,g-old-local))))
+         (tldo:= ,g-old-val (bound&eval ',name) ,name ,val)
+         ,@body)
+       (tldo:= ,name ,g-old-val ,g-old-val nil))))
 
 (mac copy-to-local whats
   (each what whats
