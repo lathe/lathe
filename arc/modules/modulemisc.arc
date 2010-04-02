@@ -40,6 +40,18 @@
 (def call (f . args)
   (apply f args))
 
+; Set a global variable temporarily. This is neither thread-safe nor
+; continuation-safe, although it will restore the original value of
+; variable upon abnormal exits (as well as normal ones).
+(mac w/global (name val . body)
+  (w/uniq g-old-val
+    `(after
+       (do
+         (tldo:= ,g-old-val (bound&eval ',name) ,name ,val)
+         ,@body)
+       (tldo:= ,name ,g-old-val ,g-old-val nil))))
+
+
 ; Change 'load so that it returns the result of the final expression.
 (=fn load (file)
   (withs (stream infile.file eof (uniq))

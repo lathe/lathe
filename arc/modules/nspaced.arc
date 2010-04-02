@@ -83,14 +83,6 @@
   `(w/global local (nspace)
      (tldo ,@body)))
 
-(mac w/global (name val . body)
-  (w/uniq g-old-val
-    `(after
-       (do
-         (tldo:= ,g-old-val (bound&eval ',name) ,name ,val)
-         ,@body)
-       (tldo:= ,name ,g-old-val ,g-old-val nil))))
-
 (mac copy-to-local whats
   (each what whats
     (unless (and what (isa what 'sym) (~ssyntax what))
