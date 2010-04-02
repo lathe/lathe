@@ -3,10 +3,11 @@
 ; This is a utility to help with making more hygienic Arc code. Within
 ; an (nspaced ...) form, forms escaped using the anaphoric 'local
 ; macro will be mangled so that it's more difficult for naming clashes
-; to break them. Meanwhile, the anaphoric 'copy-to-local macro will
-; create duplicate, mangled versions of externally defined global
-; bindings, so that those values can continue to be used as-is even if
-; later code changes what values are bound to the regular names.
+; to break them. The macro (copy-to-local a b c) is provided as syntax
+; sugar for (= local.a a local.b b local.c c), which makes it function
+; a lot like importing the global bindings into the local context. The
+; local names are essentially protected from modifications to those
+; global bindings.
 ;
 ; The main point of focusing on global variables is that ac (the Arc
 ; compiler) compiles one top-level expression (or expression sent to
@@ -84,20 +85,18 @@
                            `',symfor.symwhat)
                          `(,symfor.op ,@params)))
                      (err:+ "A non-symbol, non-cons expression was "
-                            "passed to local.")))
-           (=mc copy-to-local whats
-             (each what whats
-               (unless (isa what 'sym)
-                 (err:+ "A non-symbol expression was passed to "
-                        "copy-to-local."))
-               (let result symfor.what
-                 (when (and (~bound result) bound.what)
-                   (eval `(= ,result ,what)))))
-             nil))
+                            "passed to local."))))
          (tldo ,@body))
        (tldo:= local ,g-old-local
                save-to-local ,g-old-save)
        (wipe ,g-syms ,g-old-local ,g-old-save))))
+
+(mac copy-to-local whats
+  (each what whats
+    (unless (and what (isa what 'sym) (~ssyntax what))
+      (err:+ "A non-symbol or special symbol expression was passed "
+             "to copy-to-local.")))
+  `(= ,@(mappend [do `((local ,_) ,_)] whats)))
 
 ; This is a spoof form that imitates an nspaced form without actually
 ; protecting any variables. The point is that if you really don't like
