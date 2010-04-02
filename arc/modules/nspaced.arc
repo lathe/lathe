@@ -56,11 +56,10 @@
 ; safeset are redefined below so that each one macro-expands the name
 ; given to it.
 ;
-(def nspace ()
-  (withs (syms (table)
-          symfor [or ._.syms (= ._.syms niceuniq._)])
+(def nspace ((o backing-table (table)))
+  (let symfor [or ._.backing-table (= ._.backing-table niceuniq._)]
     (each name hackable-names*
-      (= .name.syms name))
+      (= .name.backing-table name))
     (mc (what)
       (case type.what
         sym   symfor.what
