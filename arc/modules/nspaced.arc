@@ -89,6 +89,16 @@
              "to copy-to-local.")))
   `(= ,@(mappend [do `((local ,_) ,_)] whats)))
 
+(mac copy-to-nspace (ns . whats)
+  (each what whats
+    (unless (and what (isa what 'sym) (~ssyntax what))
+      (err:+ "A non-symbol or special symbol expression was passed "
+             "to copy-to-nspace.")))
+  (w/uniq g-ns
+    `(= ,g-ns ,ns
+        ,@(mappend [do `((,g-ns ,_) ,_)] whats)
+        ,g-ns nil)))
+
 ; This is a spoof form that imitates an nspaced form without actually
 ; protecting any variables. The point is that if you really don't like
 ; the effect nspaced has on Arc code, then you can drop in this
