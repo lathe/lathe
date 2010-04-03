@@ -42,7 +42,7 @@
 
 ; Set a global variable temporarily. This is neither thread-safe nor
 ; continuation-safe, although it will restore the original value of
-; variable upon abnormal exits (as well as normal ones).
+; the variable upon abnormal exits (as well as normal ones).
 (mac w/global (name val . body)
   (w/uniq g-old-val
     `(after
