@@ -1,4 +1,4 @@
-; nspaced.arc
+; nspace.arc
 ;
 ; This is a utility to help with making more hygienic Arc code. Within
 ; an (nspaced ...) form, forms escaped using the anaphoric 'local
@@ -22,7 +22,7 @@
 ; any namespace is created, those names will be used verbatim rather
 ; than replaced with gensyms.
 
-(once-tl "load nspaced.arc"
+(once-tl "load nspace.arc"
 
 
 (= hackable-names* '())

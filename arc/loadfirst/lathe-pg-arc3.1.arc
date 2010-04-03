@@ -14,10 +14,10 @@
 ; The order things are loaded here is actually the *only* valid order.
 ;
 ;  modulemisc  provides  'tldo                       to  once
-;  once        provides  'once                       to  nspaced
-;  nspaced     provides  'nspaced                    to  import
+;  once        provides  'once                       to  nspace
+;  nspace      provides  'nspaced                    to  import
 ;  import      provides  'import-sobj                to  package
 ;  package     provides  'compile-dependency-rules*  to  rel
 ;
-(each file '(modulemisc once nspaced import package rel)
+(each file '(modulemisc once nspace import package rel)
   (load:string lathe-dir* 'modules/ file '.arc))
