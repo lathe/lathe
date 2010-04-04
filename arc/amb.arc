@@ -2,7 +2,7 @@
 ;
 ; Backtracking utilities.
 
-(packing (make-custom-amb make-amb)
+(packed
 
 
 ; This function, make-custom-amb, implements amb without any
@@ -42,8 +42,8 @@
           (each branch branches
             
             (point backtrack
-              (call push-frame backtrack)
-              (call return-from-amb branch))
+              do.push-frame.backtrack
+              do.return-from-amb.branch)
             
             ; We should only get to here if the continuation we just
             ; pushed has been popped by an unsuccessful amb call.
@@ -56,7 +56,7 @@
           ; goto-fail as the continuation instead.
           (if call.has-frame
              call.pop-frame.nil
-             goto-fail.nil))))))
+             do.goto-fail.nil))))))
 
 ; This function will create a new backtracking continuation stack and
 ; encapsulate it within a function that can be used as an amb. One
