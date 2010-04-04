@@ -57,12 +57,18 @@
 ; given to it.
 ;
 (def nspace ((o backing-table (table)))
-  (let symfor [if (and _ (isa _ 'sym) (~ssyntax _))
-                (or ._.backing-table (= ._.backing-table niceuniq._))
-                (err:+ "A nil, ssyntax, or non-symbol name was "
-                       "passed to a namespace.")]
-    (each name hackable-names*
-      (= .name.backing-table name))
+  (nspace-indirect (fn () backing-table)))
+
+(def nspace-indirect (backing-table-getter)
+  (let symfor [do (unless (and _ (isa _ 'sym) (~ssyntax _))
+                    (err:+ "A nil, ssyntax, or non-symbol name was "
+                           "passed to a namespace."))
+                  (let backing-table call.backing-table-getter
+                    (or ._.backing-table
+                        (= ._.backing-table niceuniq._)))]
+    (let backing-table call.backing-table-getter
+      (each name hackable-names*
+        (= .name.backing-table name)))
     (mc (what)
       (if atom.what
         .what.symfor
