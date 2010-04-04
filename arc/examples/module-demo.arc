@@ -12,4 +12,11 @@
   (prn "yay, make-amb was unloaded")
   (prn "whoops, make-amb wasn't unloaded"))
 
+(if (is (prepare '(rel "../amb.arc"))
+        (prepare '(rel "../amb.arc")))
+  (prn "yay, dependencies are prepared only once each")
+  (prn "whoops, dependencies are prepared more than once each"))
+
 (prn "finishing module-demo")
+
+nil

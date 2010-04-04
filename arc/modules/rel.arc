@@ -56,7 +56,7 @@
                 accepts (fn (package)
                           (and (isa package 'table)
                                (iso !type.package 'loaded-package)
-                               (iso !abspath.package abspath))))))))))
+                               (iso !path.package abspath))))))))))
 
 (def loadrel (relpath)
   (loadabs:string load-dir* relpath))

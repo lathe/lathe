@@ -18,12 +18,12 @@
 (= prepared-packages* '())
 (def prepared (dependency)
   (let compiled compile-dependency-mandatory.dependency
-    (some [package-satisfies _ compiled] prepared-packages*)))
+    (find [package-satisfies _ compiled] prepared-packages*)))
 
 (= activated-packages* '())
 (def activated (dependency)
   (let compiled compile-dependency-mandatory.dependency
-    (some [package-satisfies _ compiled] activated-packages*)))
+    (find [package-satisfies _ compiled] activated-packages*)))
 
 ; This returns the package object.
 (def prepare (dependency)
