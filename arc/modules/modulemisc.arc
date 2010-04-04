@@ -40,6 +40,46 @@
 (def call (f . args)
   (apply f args))
 
+(def anormalsym (x)
+  (and x (isa x 'sym) (~ssyntax x)))
+
+; This will transform a list of parameters from
+; ((var1 val1 var2 val2) body1 body2) format--as seen in Arc's
+; 'with--into a Scheme- or CL-style
+; (((var1 val1) (var2 val2)) body1 body2) format. If the pairerr
+; argument is provided, that error will be raised if the binding list
+; has an odd length.
+;
+; Furthermore, if the first parameter is *not* a list, this will
+; magically find as many bindings from the beginning of the parameter
+; list as it can. The only bindings that can be found this way are
+; those whose names are non-ssyntax symbols, including the non-ssyntax
+; symbol 'nil. If there's an odd number of parameters, the last
+; parameter will not be put into a binding, since there's no
+; expression to bind it with; instead, it will be part of the body.
+;
+; The restriction on "magic" binding names means that destructuring
+; (which Arc's 'let supports) and setforms (which Arc's '= supports)
+; are left out. However, a macro which uses destructuring or setforms
+; can still take advantage of parse-magic-withlike, since whenever the
+; user of the macro needs those features, he or she can just use
+; with-style parentheses.
+;
+(def parse-magic-withlike (arglist (o pairerr))
+  (if no.arglist
+    '(())
+    (let (first . rest) arglist
+      (if alist.first
+        (if (and pairerr (odd:len first))
+          err.pairerr
+          (cons pair.first arglist))
+        (let withlist (accum a
+                        (while (and cdr.arglist
+                                    ((orf no anormalsym) car.arglist))
+                          (withs (name pop.arglist val pop.arglist)
+                            (call a (list name val)))))
+          (cons withlist arglist))))))
+
 (mac global (name)
   `(fglobal ',name))
 

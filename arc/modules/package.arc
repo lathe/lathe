@@ -59,6 +59,22 @@
     `(using ,dependencies ,@body)
     `(using ,car.dependencies (usings ,cdr.dependencies ,@body))))
 
+(mac using-as withbody
+  (withs ((binds . body) (parse-magic-withlike withbody
+                           (+ "An odd-sized list of bindings was "
+                              "given to using-as."))
+          result `(do ,@body))
+    (each (name dependency) rev.binds
+      (= result `(w/global ,name (prepare-nspace ,dependency)
+                   ,result)))
+    result))
+
+(mac use-as bindings
+  (when (odd:len bindings)
+    (err "An odd-sized list of bindings was given to use-as."))
+  `(= ,@(mappend [do `(,_.0 (prepare-nspace ,_.1))]
+                 pair.bindings)))
+
 
 ; Each of these rules should behave like this, as far as types go:
 ;
@@ -67,10 +83,11 @@
 ;     (obj type 'compiled-dependency
 ;          prepare (fn ()
 ;                    (when (can-get-resources)
-;                      (obj activate
-;                           (fn ()
-;                             (have-side-effects)
-;                             (fn () (undo-those-side-effects))))))
+;                      (obj nspace (fn () (return-an-nspace-macro))
+;                           activate
+;                             (fn ()
+;                               (have-side-effects)
+;                               (fn () (undo-those-side-effects))))))
 ;          accepts (fn (package)
 ;                    (bool-implementation))))
 ;
@@ -113,8 +130,13 @@
     t))
 
 
+(def prepare-nspace (dependency)
+  (prepare.dependency!nspace))
+
+; Note that this creates a package with an empty nspace.
 (def pack-sobj (sobj)
   (let export (obj sobj sobj)
+    (= !nspace.export (let ns (nspace) (fn () ns)))
     (=fn !activate.export ()
       (let overwritten-sobj (import-sobj !sobj.export)
         (fn ()
@@ -124,6 +146,7 @@
 
 (def pack-nmap (nmap)
   (let export (obj nmap nmap)
+    (= !nspace.export (nspace-indirect:fn () !nmap.export))
     (=fn !activate.export ()
       (let overwritten-sobj (import-nmap !nmap.export)
         (fn ()

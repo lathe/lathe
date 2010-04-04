@@ -49,9 +49,10 @@
                                   result (obj type 'loaded-package
                                               path abspath
                                               original original))
-                            (= !activate.result
-                               (fn ()
-                                 ((!original.result 'activate))))
+                            (=fn !nspace.result ()
+                              (!original.result!nspace))
+                            (=fn !activate.result ()
+                              (!original.result!activate))
                             result))
                 accepts (fn (package)
                           (and (isa package 'table)
@@ -73,6 +74,12 @@
 (mac using-rels (relpaths . body)
   (unless alist.relpaths (zap list relpaths))
   `(usings ,(map [do ``(rel ,,_)] relpaths) ,@body))
+
+(mac using-rels-as withbody
+  (let (binds . body) (parse-magic-withlike withbody
+                        (+ "An odd-sized list of bindings was given "
+                           "to using-rels-as."))
+    `(using-as ,(mappend [do `(,_.0 `(rel ,,_.1))] binds) ,@body)))
 
 
 )
