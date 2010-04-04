@@ -108,4 +108,26 @@
     (wipe local.temp)))
 
 
+; An nmap is a table mapping friendly global names to obscure global
+; names. It's the kind of table 'nspace takes.
+;
+; Importing an nmap with import-nmap still returns an sobj, not an
+; nmap, to refer to the overwritten values. There's no reason to lock
+; values to somewhere in the global namespace (where they can't be
+; garbage-collected) when there's an easy way to avoid that.
+;
+(def import-nmap (nmap)
+  (unless (isa nmap 'table)
+    (err "A non-table was given to import-nmap."))
+  (each (name target) nmap
+    (unless (and name target
+                 (isa name 'sym) (isa target 'sym)
+                 (~ssyntax name) (~ssyntax target))
+      (err:+ "A nil, ssyntax, or non-symbol name was in an nmap.")))
+  (w/table overwritten-sobj
+    (each (name target) nmap
+      (= .name.overwritten-sobj (list (bound&eval name)))
+      (eval `(= ,name (bound&eval ',target))))))
+
+
 )

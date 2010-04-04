@@ -40,16 +40,33 @@
 (def call (f . args)
   (apply f args))
 
+(mac global (name)
+  `(fglobal ',name))
+
+(def fglobal (name)
+  (unless (and name (isa name 'sym) (~ssyntax name))
+    (err "A nil, ssyntax, or non-symbol name was given to 'fglobal."))
+  (bound&eval name))
+
+(w/uniq g-temp
+  (eval `(defset fglobal (name)
+           (w/uniq (g-name g-val)
+             `(((,g-name ,g-val) (let _ ,name (list _ global._)))
+               ,g-val
+               [do (= ,',g-temp _)
+                   (eval `(= ,,g-name ,',',g-temp))
+                   (= ,',g-temp nil)])))))
+
 ; Set a global variable temporarily. This is neither thread-safe nor
 ; continuation-safe, although it will restore the original value of
 ; the variable upon abnormal exits (as well as normal ones).
 (mac w/global (name val . body)
   (w/uniq g-old-val
-    `(after
-       (do
-         (tldo:= ,g-old-val (bound&eval ',name) ,name ,val)
-         ,@body)
-       (tldo:= ,name ,g-old-val ,g-old-val nil))))
+    `(let ,g-old-val (global ,name)
+       (after
+         (do (= (global ,name) ,val)
+             ,@body)
+         (= (global ,name) ,g-old-val)))))
 
 
 ; Change 'load so that it returns the result of the final expression.

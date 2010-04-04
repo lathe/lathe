@@ -113,21 +113,53 @@
     t))
 
 
-; The 'names here has to be an sobj.
-(def pack (names)
-  (let export (obj names names)
-    (= !activate.export
-         (fn ()
-           (let overwritten (import-sobj !names.export)
-             (fn ()
-               (zap [rem [is export _] _] activated-packages*)
-               import-sobj.overwritten))))
+(def pack-sobj (sobj)
+  (let export (obj sobj sobj)
+    (=fn !activate.export ()
+      (let overwritten-sobj (import-sobj !sobj.export)
+        (fn ()
+          (zap [rem [is export _] _] activated-packages*)
+          import-sobj.overwritten-sobj)))
     export))
+
+(def pack-nmap (nmap)
+  (let export (obj nmap nmap)
+    (=fn !activate.export ()
+      (let overwritten-sobj (import-nmap !nmap.export)
+        (fn ()
+          (zap [rem [is export _] _] activated-packages*)
+          import-sobj.overwritten-sobj)))
+    export))
+
+(mac packed body
+  `(let nmap (table)
+     (w/global local nspace.nmap
+       (tldo ,@body))
+     pack-nmap.nmap))
 
 ; The 'names here must be either a list of symbols or a symbol.
 (mac packing (names . body)
   (unless acons.names (zap list names))
-  `(nspaced ,@body (pack:locals ,@names)))
+  (each name names
+    (unless (and name (isa name 'sym) (~ssyntax name))
+      (err:+ "A nil, ssyntax, or non-symbol name was given to "
+             "'packing.")))
+  `(let nmap (table)
+     (w/global local nspace.nmap
+       (tldo ,@body))
+     (pack-nmap:obj ,@(mappend [do `(,_ ((get ',_) nmap))] names))))
+
+; The 'names here must be either a list of symbols or a symbol.
+(mac pack-hiding (names . body)
+  (unless acons.names (zap list names))
+  (each name names
+    (unless (and name (isa name 'sym) (~ssyntax name))
+      (err:+ "A nil, ssyntax, or non-symbol name was given to "
+             "'pack-hiding.")))
+  `(let nmap (table)
+     (w/global local nspace.nmap
+       (tldo ,@body))
+     (pack-nmap:copy nmap ,@(mappend [do `(',_ nil)] names))))
 
 
 )
