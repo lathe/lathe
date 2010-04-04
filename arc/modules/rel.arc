@@ -33,6 +33,27 @@
         (throw:split str (+ i 1))))
     (split str 0)))
 
+(def normalize-path (path)
+  (zap [subst "/" "\\" _] path)
+  (case len.path 0
+    ""
+    (string:intersperse "/"
+      (withs (acc nil
+              segments (tokens path #\/)
+              final (case (call path (- len.path 1)) #\/
+                      ""
+                      (reclist [when (single:cdr _) (pop:cdr _)]
+                               segments)))
+        (when (is #\/ .0.path) (push "" acc))
+        (each segment segments
+          (case segment
+            "."   nil
+            ".."  (if (in car.acc ".." nil)
+                    (push ".." acc)
+                    pop.acc)
+                  (push segment acc)))
+        (rev:cons final acc)))))
+
 ([push _ car.compile-dependency-rules*]
  (fn (dependency)
    (when (and acons.dependency
@@ -41,7 +62,7 @@
      (let relpath cadr.dependency
        (when (isa relpath 'string)
          (withs ((reldir filename) split-at-dir.relpath
-                 absdir (string load-dir* reldir)
+                 absdir (normalize-path:string load-dir* reldir)
                  abspath (+ absdir filename))
            (obj type 'compiled-dependency
                 prepare (fn ()
@@ -63,6 +84,7 @@
   (loadabs:string load-dir* relpath))
 
 (def loadabs (abspath)
+  (zap normalize-path abspath)
   (with ((absdir filename) split-at-dir.abspath
          old-load-dir load-dir*)
     (after
