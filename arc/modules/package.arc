@@ -44,13 +44,8 @@
                (zap [cons package (rem [deactivates package _] _)]
                     activated-packages*)))))))
 
-(def fn-using (dependency body)
-  (let undo activate.dependency
-    call.body
-    call.undo))
-
 (mac using (dependency . body)
-  `(fn-using ,dependency (fn () ,@body)))
+  `(protect (fn () ,@body) (activate ,dependency)))
 
 (mac usings (dependencies . body)
   (if no.dependencies
