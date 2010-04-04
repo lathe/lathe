@@ -73,7 +73,12 @@
                             (=fn !nspace.result ()
                               (!original.result!nspace))
                             (=fn !activate.result ()
-                              (!original.result!activate))
+                              (let undo-original
+                                     (!original.result!activate)
+                                (fn ()
+                                  (do.undo-original)
+                                  (zap [rem result _]
+                                       activated-packages*))))
                             result))
                 accepts (fn (package)
                           (and (isa package 'table)
