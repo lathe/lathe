@@ -31,7 +31,7 @@ you have it in, and add this to your libs.arc (here assuming you put
 the arc/ files in your Arc directory under lib/lathe/):
 
   (= lathe-dir* "lib/lathe/")
-  (load:+ lathe-dir* "loadfirst/lathe-pg-arc3.1.arc")
+  (load:+ lathe-dir* "loadfirst.arc")
 
-The lathe-dir* global variable is necessary; the lathe-pg-arc3.1.arc
-code uses it to determine where to load other lathe files from.
+The lathe-dir* global variable is necessary; the loadfirst.arc code
+uses it to determine where to load other lathe files from.

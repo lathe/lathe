@@ -1,9 +1,9 @@
-; lathe-pg-arc3.1.arc.
+; loadfirst.arc.
 ;
 ; Use this as follows, replacing the specific path as necessary:
 ;
 ; (= lathe-dir* "lib/lathe/")
-; (load:+ lathe-dir* "loadfirst/lathe-pg-arc3.1.arc")
+; (load:+ lathe-dir* "loadfirst.arc")
 ;
 ; The global variable is necessary; it's what this file uses to know
 ; where to load from.
