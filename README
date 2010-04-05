@@ -20,15 +20,18 @@ feel for things.
 
 == Setup in Arc ==
 
-The code in the arc/ directory is currently targeted only at Arc 3.1,
-which you can download at http://ycombinator.com/arc/arc3.1.tar.
-Arc 3.1 itself depends on MzScheme. For more detailed help setting up
-Arc, including how to adjust it to work on Windows, arclanguage.org is
-a good resource.
+The code in the arc/ directory is targeted mainly at Arc 3.1, which
+you can download at http://ycombinator.com/arc/arc3.1.tar. Arc 3.1
+itself depends on MzScheme. For more detailed help setting up Arc,
+including how to adjust it to work on Windows, arclanguage.org is a
+good resource.
 
-To use the arc/ directory code, download it, note what local directory
-you have it in, and add this to your libs.arc (here assuming you put
-the arc/ files in your Arc directory under lib/lathe/):
+Besides the official Arc 3.1, two other Arc setups are supported: The
+Anarki fork (http://github.com/nex3/arc) and the Java-based
+interpreter Rainbow (http://github.com/conanite/rainbow).
+
+To use the code, add this to your libs.arc (here assuming you put the
+contents of the Lathe arc/ folder into lib/lathe/ in your Arc setup):
 
   (= lathe-dir* "lib/lathe/")
   (load:+ lathe-dir* "loadfirst.arc")

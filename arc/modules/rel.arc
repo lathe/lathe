@@ -37,22 +37,23 @@
   (zap [subst "/" "\\" _] path)
   (case len.path 0
     ""
-    (string:intersperse "/"
-      (withs (acc nil
-              segments (tokens path #\/)
-              final (case (call path (- len.path 1)) #\/
-                      ""
-                      (reclist [when (single:cdr _) (pop:cdr _)]
-                               segments)))
-        (when (is #\/ .0.path) (push "" acc))
-        (each segment segments
-          (case segment
-            "."   nil
-            ".."  (if (in car.acc ".." nil)
-                    (push ".." acc)
-                    pop.acc)
-                  (push segment acc)))
-        (rev:cons final acc)))))
+    (apply + ""         ; would be "(string", except fails on Rainbow
+      (intersperse "/"
+        (withs (acc nil
+                segments (tokens path #\/)
+                final (case (call path (- len.path 1)) #\/
+                        ""
+                        (reclist [when (single:cdr _) (pop:cdr _)]
+                                 segments)))
+          (when (is #\/ .0.path) (push "" acc))
+          (each segment segments
+            (case segment
+              "."   nil
+              ".."  (if (in car.acc ".." nil)
+                      (push ".." acc)
+                      pop.acc)
+                    (push segment acc)))
+          (rev:cons final acc))))))
 
 ([push _ car.compile-dependency-rules*]
  (fn (dependency)

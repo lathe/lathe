@@ -44,3 +44,6 @@
 
 
 ))  ; end (unless global!once-has-been-loaded* (tldo ...))
+
+; In Rainbow, comments must end with newlines, not EOF, so keep a
+; newline here.

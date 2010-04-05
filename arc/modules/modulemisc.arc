@@ -159,3 +159,6 @@
 
 
 )  ; end (unless (bound&eval 'modulemisc-has-been-loaded*) ...)
+
+; In Rainbow, comments must end with newlines, not EOF, so keep a
+; newline here.
