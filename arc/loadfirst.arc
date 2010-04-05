@@ -11,13 +11,12 @@
 ; A good place to put this is at the end of libs.arc (but before
 ; loading any code that relies on it, naturally).
 
-; The order things are loaded here is actually the *only* valid order.
-;
-;  modulemisc  provides  'tldo                       to  once
-;  once        provides  'once                       to  nspace
-;  nspace      provides  'nspaced                    to  import
-;  import      provides  'import-sobj                to  package
-;  package     provides  'compile-dependency-rules*  to  rel
+; The order things are loaded here is not the only valid order;
+; modulemisc.arc provides the 'tldo macro for once.arc, and once.arc
+; provides the 'once-tl macro for the other four files. However, the
+; order shown here is such that the loading can be cut off at any
+; point between files without any of the loaded features being
+; incomplete and broken.
 ;
 (each file '(modulemisc once nspace import package rel)
   (load:string lathe-dir* 'modules/ file '.arc))

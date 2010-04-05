@@ -1,6 +1,6 @@
 ; once.arc
 
-(unless (bound&eval 'once-has-been-loaded*) (tldo
+(unless global!once-has-been-loaded* (tldo
 
 
 (= once-has-been-loaded* t)
@@ -43,4 +43,4 @@
     `(let ,syms (niceuniq ',syms) ,@body)))
 
 
-))  ; end (unless (bound&eval 'once-has-been-loaded*) (tldo ...))
+))  ; end (unless global!once-has-been-loaded* (tldo ...))
