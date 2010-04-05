@@ -1,13 +1,13 @@
 ; nspace.arc
 ;
 ; This is a utility to help with making more hygienic Arc code. Within
-; an (nspaced ...) form, forms escaped using the anaphoric 'local
-; macro will be mangled so that it's more difficult for naming clashes
-; to break them. The macro (copy-to-local a b c) is provided as syntax
-; sugar for (= local.a a local.b b local.c c), which makes it function
-; a lot like importing the global bindings into the local context. The
-; local names are essentially protected from modifications to those
-; global bindings.
+; an (nspaced ...) form, forms escaped using the anaphoric 'my macro
+; will be mangled so that it's more difficult for naming clashes to
+; break them. The macro (copy-to-mine a b c) is provided as syntax
+; sugar for (= my.a a my.b b my.c c), which makes it function a lot
+; like importing the global bindings into the local context. The local
+; names are essentially protected from modifications to those global
+; bindings.
 ;
 ; The main point of focusing on global variables is that ac (the Arc
 ; compiler) compiles one top-level expression (or expression sent to
@@ -27,7 +27,7 @@
 
 (= hackable-names* '())
 
-; A namespace macro, such as the 'local macro inside an nspaced form,
+; A namespace macro, such as the 'my macro inside an nspaced form,
 ; works in three ways:
 ;
 ;  - You can pass it a symbol, in which case it will mangle that
@@ -42,19 +42,17 @@
 ;  - You can pass it a cons cell where the car is a symbol other than
 ;    'quote, in which case it will yield a cons cell with a mangled
 ;    car and the original cdr. This is useful when invoking a macro,
-;    by way of the syntax (local:my-macro params). Unfortunately,
-;    (local.my-macro params) doesn't work, since ac doesn't
-;    macro-expand (local my-macro) until after it's determined that
-;    the expression (local my-macro) isn't a symbol globally bound
-;    to a macro.
+;    by way of the syntax (my:the-macro params). Unfortunately,
+;    (my.the-macro params) doesn't work, since ac doesn't macro-expand
+;    (my the-macro) until after it's determined that the expression
+;    (my the-macro) isn't a symbol globally bound to a macro.
 ;
 ; One downside of these macros is that they can naturally only be used
-; in places macros are expanded. That means that
-; (assign local.foo bar) doesn't work, and as such, anything which
-; ultimately expands into such a form without doing its own
-; macro-expansion won't work either. For that reason, mac, def, and
-; safeset are redefined below so that each one macro-expands the name
-; given to it.
+; in places macros are expanded. That means that (assign my.foo bar)
+; doesn't work, and as such, anything which ultimately expands into
+; such a form without doing its own macro-expansion won't work either.
+; For that reason, mac, def, and safeset are redefined below so that
+; each one macro-expands the name given to it.
 ;
 (def nspace ((o backing-table (table)))
   (nspace-indirect (fn () backing-table)))
@@ -82,15 +80,15 @@
             `(,.op.symfor ,@params)))))))
 
 (mac nspaced body
-  `(w/global local (nspace)
+  `(w/global my (nspace)
      (tldo ,@body)))
 
-(mac copy-to-local names
+(mac copy-to-mine names
   (each name names
     (unless (and name (isa name 'sym) (~ssyntax name))
       (err:+ "A non-symbol or special symbol expression was passed "
-             "to copy-to-local.")))
-  `(= ,@(mappend [do `((local ,_) ,_)] names)))
+             "to copy-to-mine.")))
+  `(= ,@(mappend [do `((my ,_) ,_)] names)))
 
 (mac copy-to-nspace (ns . names)
   (each name names
@@ -109,20 +107,20 @@
 ; top level, and thereby use most code that's targeted at nspaced in a
 ; way that's closer to what you want without very much hassle.
 (mac not-nspaced body
-  `(w/global local (mc (what) what)
+  `(w/global my (mc (what) what)
      (tldo ,@body)))
 
-; Redefine def, mac, and safeset so that (def local.foo ...),
-; (mac local.foo ...), (defmemo local.foo ...), and
-; (defcache local.foo ...) can be used.
+; Redefine def, mac, and safeset so that (def my.foo ...),
+; (mac my.foo ...), (defmemo my.foo ...), and (defcache my.foo ...)
+; can be used.
 (nspaced
-  (copy-to-local def mac safeset)
+  (copy-to-mine def mac safeset)
   (=mc def (name . rest)
-    `(,local!def ,expand.name ,@rest))
+    `(,my!def ,expand.name ,@rest))
   (=mc mac (name . rest)
-    `(,local!mac ,expand.name ,@rest))
+    `(,my!mac ,expand.name ,@rest))
   (=mc safeset (var val)
-    `(,local!safeset ,expand.var ,val)))
+    `(,my!safeset ,expand.var ,val)))
 
 
 )

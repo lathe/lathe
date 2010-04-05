@@ -151,7 +151,7 @@
 
 (mac packed body
   `(let nmap (table)
-     (w/global local nspace.nmap
+     (w/global my nspace.nmap
        (tldo ,@body))
      pack-nmap.nmap))
 
@@ -163,7 +163,7 @@
       (err:+ "A nil, ssyntax, or non-symbol name was given to "
              "'packing.")))
   `(let nmap (table)
-     (w/global local nspace.nmap
+     (w/global my nspace.nmap
        (tldo ,@body))
      (pack-nmap:obj ,@(mappend [do `(,_ ((get ',_) nmap))] names))))
 
@@ -175,7 +175,7 @@
       (err:+ "A nil, ssyntax, or non-symbol name was given to "
              "'pack-hiding.")))
   `(let nmap (table)
-     (w/global local nspace.nmap
+     (w/global my nspace.nmap
        (tldo ,@body))
      (pack-nmap:copy nmap ,@(mappend [do `(',_ nil)] names))))
 

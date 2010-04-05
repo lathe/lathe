@@ -11,8 +11,8 @@
 ; the given names into a table of singleton lists, using the names
 ; themselves as keys. This table can then be sent to import-sobj in
 ; order to conveniently use the values in some other context.
-(mac locals names
-  `(sobj ,@(mappend [do `(,_ (local ,_))] names)))
+(mac mine-as-sobj names
+  `(sobj ,@(mappend [do `(,_ (my ,_))] names)))
 
 
 ; This is an alternate definition of import-obj which works just as
@@ -45,10 +45,10 @@
   (after
     (w/table overwritten
       (each (k v) t
-        (= local.temp v
+        (= my.temp v
            .k.overwritten (list (bound&eval k)))
-        (eval `(= ,k ,local!temp))))
-    (wipe local.temp)))
+        (eval `(= ,k ,my!temp))))
+    (wipe my.temp)))
 
 (nspaced:def import-sobj (t)
   (unless (isa t 'table)
@@ -63,49 +63,48 @@
   (after
     (w/table overwritten
       (each (k (v)) t
-        (= local.temp v
+        (= my.temp v
            .k.overwritten (list (bound&eval k)))
-        (eval `(= ,k ,local!temp))))
-    (wipe local.temp)))
+        (eval `(= ,k ,my!temp))))
+    (wipe my.temp)))
 
-; You can use these obj-to-local and sobj-to-local inside an nspaced
+; You can use these obj-to-mine and sobj-to-mine inside an nspaced
 ; form to avoid polluting friendly names in the global environment.
-; This will assign the values to local.my-var (which will macroexpand
-; to whatever gensym the nspaced form identified with that local
-; name).
+; This will assign each value foo to my.foo (which will macroexpand to
+; whatever gensym the nspaced form identified with that local name.
 
-(nspaced:def obj-to-local (t)
+(nspaced:def obj-to-mine (t)
   (unless (isa t 'table)
-    (err "A non-table was passed to obj-to-local."))
+    (err "A non-table was passed to obj-to-mine."))
   (each (k v) t
     (unless (isa k 'sym)
       (err:+ "A table with a non-symbol key was passed to "
-             "obj-to-local.")))
+             "obj-to-mine.")))
   (after
     (w/table overwritten
       (each (k v) t
-        (= local.temp v
+        (= my.temp v
            .k.overwritten (list:eval `(bound&eval ',k)))
-        (eval `(= (local ,k) ,local!temp))))
-    (wipe local.temp)))
+        (eval `(= (my ,k) ,my!temp))))
+    (wipe my.temp)))
 
-(nspaced:def sobj-to-local (t)
+(nspaced:def sobj-to-mine (t)
   (unless (isa t 'table)
-    (err "A non-table was passed to sobj-to-local."))
+    (err "A non-table was passed to sobj-to-mine."))
   (each (k v) t
     (unless (isa k 'sym)
       (err:+ "A table with a non-symbol key was passed to "
-             "sobj-to-local."))
+             "sobj-to-mine."))
     (unless (acons&single v)
       (err:+ "A table with a non-singleton member was passed to "
-             "sobj-to-local.")))
+             "sobj-to-mine.")))
   (after
     (w/table overwritten
       (each (k (v)) t
-        (= local.temp v
+        (= my.temp v
            .k.overwritten (list:eval `(bound&eval ',k)))
-        (eval `(= (local ,k) ,local!temp))))
-    (wipe local.temp)))
+        (eval `(= (my ,k) ,my!temp))))
+    (wipe my.temp)))
 
 
 ; An nmap is a table mapping friendly global names to obscure global

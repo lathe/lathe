@@ -19,7 +19,7 @@
 ; resulting amb function. This way only one function call needs to be
 ; wrapped with error-handling logic.
 ;
-(def local.make-custom-amb
+(def my.make-custom-amb
        (push-frame
         has-frame
         pop-frame
@@ -64,13 +64,13 @@
 ; that once the result of the backtracking search is known and the amb
 ; usage is over, the amb function can simply go out of scope, leaving
 ; all its continuations to be garbage-collected.
-(def local.make-amb ((o fail (fn () (err:+ "All amb branches have "
-                                           "run out of options."))))
+(def my.make-amb ((o fail (fn () (err:+ "All amb branches have run "
+                                        "out of options."))))
   (let amb-frames nil
-    (local.make-custom-amb [push _ amb-frames]
-                           (fn () amb-frames)
-                           (fn () pop.amb-frames)
-                           fail)))
+    (my.make-custom-amb [push _ amb-frames]
+                        (fn () amb-frames)
+                        (fn () pop.amb-frames)
+                        fail)))
 
 
 )
