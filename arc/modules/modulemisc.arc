@@ -98,6 +98,7 @@
 ; continuation-safe, although it will restore the original value of
 ; the variable upon abnormal exits (as well as normal ones).
 (mac w/global (name val . body)
+  (zap expand name)
   (w/uniq g-old-val
     `(let ,g-old-val (global ',name)
        (after
