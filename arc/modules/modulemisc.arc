@@ -80,16 +80,13 @@
                             (call a (list name val)))))
           (cons withlist arglist))))))
 
-(mac global (name)
-  `(fglobal ',name))
-
-(def fglobal (name)
+(def global (name)
   (unless (and name (isa name 'sym) (~ssyntax name))
-    (err "A nil, ssyntax, or non-symbol name was given to 'fglobal."))
+    (err "A nil, ssyntax, or non-symbol name was given to 'global."))
   (bound&eval name))
 
 (w/uniq g-temp
-  (eval `(defset fglobal (name)
+  (eval `(defset global (name)
            (w/uniq (g-name g-val)
              `(((,g-name ,g-val) (let _ ,name (list _ global._)))
                ,g-val
@@ -102,11 +99,11 @@
 ; the variable upon abnormal exits (as well as normal ones).
 (mac w/global (name val . body)
   (w/uniq g-old-val
-    `(let ,g-old-val (global ,name)
+    `(let ,g-old-val (global ',name)
        (after
-         (do (= (global ,name) ,val)
+         (do (= (global ',name) ,val)
              ,@body)
-         (= (global ,name) ,g-old-val)))))
+         (= (global ',name) ,g-old-val)))))
 
 
 ; Change 'load so that it returns the result of the final expression.
