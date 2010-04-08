@@ -19,9 +19,9 @@
 (mac my.rule (name parms . body)
   (zap expand name)
   (let (label . actualbody) body
-    (if (and actualbody anormalsym.label)
-      (zap expand label)
-      (= label (uniq) actualbody body))
+    (zap expand label)
+    (unless (and actualbody anormalsym.label)
+      (= actualbody (cons label actualbody) label (uniq)))
     `(do (,mt!defmultifn-stub ,name)
          (,mt!contribute ',name ',label ,my!basic-rulebook-reducer
            (obj fn (,ru!ru ,parms ,@actualbody))))))
