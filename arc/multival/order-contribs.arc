@@ -35,7 +35,7 @@
 ; exhaustive search is done of all the possible orders, except that
 ; any search branches that end up being absurd like this are trimmed
 ; off. Once a non-absurd order is found (which will be an order that's
-; finer than or equivalent to the preorder (i.e. brackets) it
+; finer than or equivalent to the total preorder (i.e. brackets) it
 ; determines), it's used.
 ;
 ; If there are multiple orders that could be found this way, then the
