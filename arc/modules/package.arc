@@ -159,10 +159,9 @@
 ; The 'names here must be either a list of symbols or a symbol.
 (mac packing (names . body)
   (unless acons.names (zap list names))
-  (each name names
-    (unless (and name (isa name 'sym) (~ssyntax name))
-      (err:+ "A nil, ssyntax, or non-symbol name was given to "
-             "'packing.")))
+  (unless (all anormalsym names)
+    (err:+ "A nil, ssyntax, or non-symbol name was given to "
+           "'packing."))
   `(let nmap (table)
      (w/global my nspace.nmap
        (tldo ,@body))
@@ -171,10 +170,9 @@
 ; The 'names here must be either a list of symbols or a symbol.
 (mac pack-hiding (names . body)
   (unless acons.names (zap list names))
-  (each name names
-    (unless (and name (isa name 'sym) (~ssyntax name))
-      (err:+ "A nil, ssyntax, or non-symbol name was given to "
-             "'pack-hiding.")))
+  (unless (all anormalsym names)
+    (err:+ "A nil, ssyntax, or non-symbol name was given to "
+           "'pack-hiding."))
   `(let nmap (table)
      (w/global my nspace.nmap
        (tldo ,@body))

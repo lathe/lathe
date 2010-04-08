@@ -29,7 +29,7 @@
 (def split-at-dir (str)
   (catch
     (down i (- len.str 1) 0
-      (when (in (call str i) #\/ #\\)
+      (when (in do.str.i #\/ #\\)
         (throw:split str (+ i 1))))
     (split str 0)))
 
@@ -41,7 +41,7 @@
       (intersperse "/"
         (withs (acc nil
                 segments (tokens path #\/)
-                final (case (call path (- len.path 1)) #\/
+                final (case (do.path (- len.path 1)) #\/
                         ""
                         (reclist [when (single:cdr _) (pop:cdr _)]
                                  segments)))
@@ -77,7 +77,7 @@
                               (let undo-original
                                      (!original.result!activate)
                                 (fn ()
-                                  (do.undo-original)
+                                  call.undo-original
                                   (zap [rem result _]
                                        activated-packages*))))
                             result))

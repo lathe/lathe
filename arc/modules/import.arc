@@ -87,9 +87,7 @@
   (unless (isa nmap 'table)
     (err "A non-table was given to import-nmap."))
   (each (name target) nmap
-    (unless (and name target
-                 (isa name 'sym) (isa target 'sym)
-                 (~ssyntax name) (~ssyntax target))
+    (unless (and anormalsym.name anormalsym.target)
       (err:+ "A nil, ssyntax, or non-symbol name was in an nmap.")))
   (w/table overwritten
     (each (name target) nmap

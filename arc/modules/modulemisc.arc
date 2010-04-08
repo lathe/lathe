@@ -73,15 +73,15 @@
         (if (and pairerr (odd:len first))
           err.pairerr
           (cons pair.first rest))
-        (let withlist (accum a
+        (let withlist (accum acc
                         (while (and cdr.arglist
                                     ((orf no anormalsym) car.arglist))
                           (withs (name pop.arglist val pop.arglist)
-                            (call a (list name val)))))
+                            (do.acc (list name val)))))
           (cons withlist arglist))))))
 
 (def global (name)
-  (unless (and name (isa name 'sym) (~ssyntax name))
+  (unless anormalsym.name
     (err "A nil, ssyntax, or non-symbol name was given to 'global."))
   (bound&eval name))
 
@@ -147,7 +147,7 @@
 (let old-setforms setforms
   (=fn setforms (expr)
     (let expansion macex.expr
-      (if (and (isa expansion 'sym) (~ssyntax expansion))
+      (if ((orf no anormalsym) expansion)
         (w/uniq g-place
           `((,g-place (errsafe ,expansion))
             ,g-place

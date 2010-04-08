@@ -58,7 +58,7 @@
   (nspace-indirect (fn () backing-table)))
 
 (def nspace-indirect (backing-table-getter)
-  (let symfor [do (unless (and _ (isa _ 'sym) (~ssyntax _))
+  (let symfor [do (unless anormalsym._
                     (err:+ "A nil, ssyntax, or non-symbol name was "
                            "passed to a namespace."))
                   (let backing-table call.backing-table-getter
@@ -84,17 +84,15 @@
      (tldo ,@body)))
 
 (mac copy-to-mine names
-  (each name names
-    (unless (and name (isa name 'sym) (~ssyntax name))
-      (err:+ "A non-symbol or special symbol expression was passed "
-             "to copy-to-mine.")))
+  (unless (all anormalsym names)
+    (err:+ "A non-symbol or special symbol expression was passed to "
+           "copy-to-mine."))
   `(= ,@(mappend [do `((my ,_) ,_)] names)))
 
 (mac copy-to-nspace (ns . names)
-  (each name names
-    (unless (and name (isa name 'sym) (~ssyntax name))
-      (err:+ "A non-symbol or special symbol expression was passed "
-             "to copy-to-nspace.")))
+  (unless (all anormalsym names)
+    (err:+ "A non-symbol or special symbol expression was passed to "
+           "copy-to-nspace."))
   (w/uniq g-ns
     `(= ,g-ns ,ns
         ,@(mappend [do `((,g-ns ,_) ,_)] names)
