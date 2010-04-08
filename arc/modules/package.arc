@@ -49,7 +49,7 @@
 
 (mac usings (dependencies . body)
   (if no.dependencies
-    `(do ,@body)
+    `(tldo ,@body)
       atom.dependencies
     `(using ,dependencies ,@body)
     `(using ,car.dependencies (usings ,cdr.dependencies ,@body))))
@@ -58,7 +58,7 @@
   (withs ((binds . body) (parse-magic-withlike withbody
                            (+ "An odd-sized list of bindings was "
                               "given to using-as."))
-          result `(do ,@body))
+          result `(tldo ,@body))
     (each (name dependency) rev.binds
       (= result `(w/global ,name (prepare-nspace ,dependency)
                    ,result)))
@@ -141,7 +141,8 @@
 
 (def pack-nmap (nmap)
   (let export (obj nmap nmap)
-    (= !nspace.export (nspace-indirect:fn () !nmap.export))
+    (= !nspace.export (let ns (nspace-indirect:fn () !nmap.export)
+                        (fn () ns)))
     (=fn !activate.export ()
       (let overwritten-sobj (import-nmap !nmap.export)
         (fn ()

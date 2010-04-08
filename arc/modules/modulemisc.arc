@@ -72,7 +72,7 @@
       (if alist.first
         (if (and pairerr (odd:len first))
           err.pairerr
-          (cons pair.first arglist))
+          (cons pair.first rest))
         (let withlist (accum a
                         (while (and cdr.arglist
                                     ((orf no anormalsym) car.arglist))
