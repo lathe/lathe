@@ -5,17 +5,25 @@ particular, I'm starting it up so that I have somewhere to post little
 things I'm doing in Arc, so that I can talk about them at the Arc
 forum. Other languages are not off-limits.
 
-Right now, this only contains a very young Arc module system based on
-renaming of global variables (arc/modules/), one example of a library
-that uses the module system (arc/amb.arc), and one very small example
-of loading that library using the module system
-(arc/examples/module-demo.arc), which doubles as the only test case to
-date.
+Right now, this contains:
 
-The examples (and therefore the test) don't cover everything the
-module system and the library have to offer. The code is fairly well
-commented, so reading those comments is probably the best way to get a
-feel for things.
+  - a very young Arc module system based on renaming of global
+      variables (arc/modules/);
+  - a young multimethod system built up within that module system
+      (arc/multival/);
+  - some general-purpose modules the multimethod system relies on
+      (arc/amb.arc, arc/rules.arc, and arc/utils.arc);
+  - randomly, a module containing an updated version of Andrew
+      Wilcox's 'extend macro so that extensions can be removed and
+      replaced (arc/extend.arc); and finally
+  - very small examples of using the module system and the multimethod
+      system in application code (arc/examples/), which double as the
+      only test cases to date.
+
+The examples (and therefore the tests) don't cover everything Lathe
+has to offer. The code is fairly well commented, so reading those
+comments is probably one of the best ways to get a good feel for
+things.
 
 
 == Setup in Arc ==
