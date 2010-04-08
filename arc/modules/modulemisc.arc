@@ -107,8 +107,9 @@
          (= (global ',name) ,g-old-val)))))
 
 
-; Change 'load so that it returns the result of the final expression.
-(=fn load (file)
+; This is like 'load, but it returns the result of the final
+; expression.
+(def loadval (file)
   (withs (stream infile.file eof (uniq))
     (let result nil
       (whiler expr (read stream eof) eof

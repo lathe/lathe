@@ -94,9 +94,8 @@
   (with ((absdir filename) split-at-dir.abspath
          old-load-dir load-dir*)
     (after
-      (do
-        (= load-dir* absdir)
-        load.abspath)
+      (do (= load-dir* absdir)
+          loadval.abspath)
       (= load-dir* old-load-dir))))
 
 (mac using-rels (relpaths . body)
