@@ -20,18 +20,19 @@ wipe.fail
   (unless (is exp 1) (fail "The exponent isn't one."))
   (list base 0))
 
-(mr:rule expbysquare (base exp) even
+(mr:rule expbysquare (base exp)
   (unless even.exp (fail "The exponent isn't even."))
   (let (prevresult mults) (expbysquare base (/ exp 2))
     (list (* prevresult prevresult) (+ mults 1))))
 
-(mr:rule expbysquare (base exp) odd
+(mr:rule expbysquare (base exp)
   ; This condition subsumes the condition for the 'one contribution on
-  ; purpose, so that we can test 'prefer-contribs. Since this
-  ; contribution comes later in the code, it ends up farther toward
-  ; the beginning of the contribution stack, and ultimately this rule
-  ; would be tried before 'one (catastrophically) if not for the
-  ; [is car._ 'one] in the 'prefer-contribs line below.
+  ; purpose, so that we can test 'prec. Since this contribution comes
+  ; later in the code, it ends up farther toward the beginning of the
+  ; contribution stack, and ultimately this rule would be tried before
+  ; the 'one rule (catastrophically) if not for the presence of
+  ; [iso (map _ '(name label)) '(expbysquare one)] in the 'prec line
+  ; below.
   (unless odd.exp (fail "The exponent isn't odd."))
   (let (prevresult mults) (expbysquare base (- exp 1))
     (list (* base prevresult) (+ mults 1))))
@@ -40,7 +41,8 @@ wipe.fail
   (err:+ "Somehow the 'diabolical contribution to 'expbysquare was "
          "used."))
 
-(oc.prefer-contribs [is _!label 'one] [~is _!label 'diabolical])
+(oc.prec [iso (map _ '(name label)) '(expbysquare one)]
+         [~iso (map _ '(name label)) '(expbysquare diabolical)])
 
 
 (for i 0 10

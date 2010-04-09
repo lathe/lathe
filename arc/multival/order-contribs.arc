@@ -129,15 +129,15 @@
 
 (mu:defmultifn-stub my.order-contribs my.self-orderer-reducer)
 
-(def my.fn-label-prefer-contribs (label . tests)
+(def my.fn-label-prec (label . tests)
   (mt.contribute my!order-contribs label my.self-orderer-reducer
     (st:<=>-to-bracketer:apply st.order-by-tests tests)))
 
-(def my.prefer-contribs tests
-  (apply my.fn-label-prefer-contribs (uniq) tests))
+(def my.prec tests
+  (apply my.fn-label-prec (uniq) tests))
 
-(mac my.label-prefer-contribs (label . tests)
-  `(,my!fn-label-prefer-contribs ',expand.label ,@tests))
+(mac my.label-prec (label . tests)
+  `(,my!fn-label-prec ',expand.label ,@tests))
 
 
 )
