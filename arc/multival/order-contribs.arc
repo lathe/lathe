@@ -59,8 +59,9 @@
 ; about when or how often those side effects will happen.
 
 (packed:using-rels-as mu "multival.arc"
-                      ut "../utils.arc"
                       am "../amb.arc"
+                      ut "../utils.arc"
+                      st "../sort.arc"
 
 
 ; In case you want to have more than one order-contribs for different
@@ -128,6 +129,16 @@
             (cons (join before cdr.it-and-after) other-brackets)))))))
 
 (mu:defmultifn-stub my.order-contribs my.self-orderer-reducer)
+
+(def my.fn-label-prefer-contribs (label . tests)
+  (mt.contribute my!order-contribs label my.self-orderer-reducer
+    (obj fn (st:<=>-to-bracketer:apply st.order-by-tests tests))))
+
+(def my.prefer-contribs tests
+  (apply my.fn-label-prefer-contribs (uniq) tests))
+
+(mac my.label-prefer-contribs (label . tests)
+  `(,my!fn-label-prefer-contribs ',expand.label ,@tests))
 
 
 )
