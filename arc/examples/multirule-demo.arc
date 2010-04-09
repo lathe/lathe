@@ -29,10 +29,10 @@ wipe.fail
 (mr:rule expbysquare (base exp) odd
   ; This condition subsumes the condition for the 'one contribution on
   ; purpose, so that we can test 'prefer-contribs. Since this
-  ; contribution comes later in the code, it ends up at the beginning
-  ; of the contribution stack, and ultimately this rule would be tried
-  ; first (catastrophically) if not for the 'prefer-contribs line
-  ; below.
+  ; contribution comes later in the code, it ends up farther toward
+  ; the beginning of the contribution stack, and ultimately this rule
+  ; would be tried before 'one (catastrophically) if not for the
+  ; [is car._ 'one] in the 'prefer-contribs line below.
   (unless odd.exp (fail "The exponent isn't odd."))
   (let (prevresult mults) (expbysquare base (- exp 1))
     (list (* base prevresult) (+ mults 1))))
