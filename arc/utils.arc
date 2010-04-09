@@ -40,7 +40,7 @@
 
 (def my.foldl (func start lst)
   (iflet (a . b) lst
-    (my.fold func (do.func start a) b)
+    (my.foldl func (do.func start a) b)
     start))
 
 (def my.foldr (func end lst)
