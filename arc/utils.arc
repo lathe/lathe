@@ -49,5 +49,11 @@
 (mac my.foldlet (startvar start nextvar lst . body)
   `(,my!foldl (fn (,startvar ,nextvar) ,@body) ,start ,lst))
 
+(def tab+ args
+  (w/table t
+    (each arg args
+      (each (k v) arg
+        (= do.t.k v)))))
+
 
 )
