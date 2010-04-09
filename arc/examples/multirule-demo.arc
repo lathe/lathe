@@ -41,7 +41,7 @@ wipe.fail
   (err:+ "Somehow the 'diabolical contribution to 'expbysquare was "
          "used."))
 
-(oc.prefer-contribs [is car._ 'one] [isnt car._ 'diabolical])
+(oc.prefer-contribs [is _!label 'one] [~is _!label 'diabolical])
 
 
 (for i 0 10

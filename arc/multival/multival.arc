@@ -8,13 +8,15 @@
 (= my.multival-reducers* (table))
   ; A table mapping a symbol to a reducer.
   ;
-  ; A reducer accepts an association list mapping contribution labels
-  ; to contributions and returns a value of the form
-  ; (obj val ... cares ...), where the val is the actual value of the
-  ; multival and the cares is the list of symbols corresponding to
-  ; other multivals whose values were needed while calculating the
-  ; reduction, but not necessarily including any multivals which were
-  ; only needed because some other cared-about multivalue needed them.
+  ; A reducer accepts a list of contribution details (tables of the
+  ; form (obj val ... name ... label ... meta ...), where 'val maps
+  ; to the essential contribution value) and returns a value of the
+  ; form (obj val ... cares ...), where the val is the observable
+  ; value of the multival and the cares is the list of symbols
+  ; corresponding to other multivals whose values were needed while
+  ; calculating the reduction, but not necessarily including any
+  ; multivals which were only needed because some other cared-about
+  ; multivalue needed them.
   ;
   ; If a reducer has side effects, no guarantees are made about when
   ; or how often those side effects will happen. This disclaimer
@@ -29,9 +31,10 @@
   ; better to do what's easiest here so that anyone who needs to
   ; unwrap the abstractions has it just as easy.
 
-; A table mapping each multival name to an association list mapping
-; contribution labels to the contributions themselves. The association
-; list is eventually passed to the multival's reducer.
+; A table mapping each multival name to a list of contribution
+; details (tables with 'name, 'label, 'val, and 'meta fields, where
+; 'val is the essential value of the contribution). The list of
+; details is eventually passed to the multival's reducer.
 (= my.multival-contributions* (table))
 
 
@@ -40,7 +43,7 @@
   (def my.get-multival (name)
     (!val:car:or= do.multival-cache.name
       (list ((car my.multival-reducers*.name)
-              my.multival-contributions*.name))))
+             my.multival-contributions*.name))))
   
   (def my.invalidate-multival names
     (while names
@@ -64,8 +67,9 @@
              "completely different kinds.)"))
     (= my.multival-reducers*.name list.reducer)))
 
-(def my.submit-contribution (name label contribution)
-  (zap [ut.alcons _ label contribution]
+(def my.submit-contribution (name label val (o meta))
+  (zap [cons (obj name name label label val val meta meta)
+             (rem [iso _!label label] _)]
        my.multival-contributions*.name)
   my.invalidate-multival.name)
 

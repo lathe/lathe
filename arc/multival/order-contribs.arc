@@ -13,19 +13,19 @@
 ; and the return value of order-contribs is a list of just that one
 ; bracket.
 ;
-; To extend order-contribs, contribute to it a table whose 'fn entry
-; is a function that acts just like order-contribs (taking a list of
-; contributions and returning a list of brackets of contributions). If
-; all the functions contributed this way are stable sorts, in the
-; sense that the orders of contributions within each resulting bracket
-; are the same as the orders those contributions started with in the
-; original list, then order-contribs will also be a stable sort. The
-; initial list of contributions passed to order-contribs will be in
-; the reverse order they were contributed (usually the same as the
-; reverse code order), and it's a good idea to preserve this property,
-; just so that when programmers decide that rearranging definitions is
-; the most appropriate way to fix something, it's easier for them to
-; predict and reason about what the new order should be.
+; To extend order-contribs, contribute to it a function that acts just
+; like order-contribs, taking a list of contribution detail tables and
+; returning a list of brackets of those tables. If all the functions
+; contributed this way are stable sorts, in the sense that the orders
+; of contributions within each resulting bracket are the same as the
+; orders those contributions started with in the original list, then
+; order-contribs will also be a stable sort. The initial list of
+; contributions passed to order-contribs will be in the reverse order
+; they were contributed (usually the same as the reverse code order),
+; and it's a good idea to preserve this property, just so that when
+; programmers decide that rearranging definitions is the most
+; appropriate way to fix something, it's easier for them to predict
+; and reason about what the new order should be.
 ;
 ; A special aspect of order-contribs is the way that its *own*
 ; contributions are ordered. Essentially, it orders them itself. For a
@@ -68,16 +68,14 @@
 ; purposes, all it takes to make a new one is to define a multival
 ; that uses self-orderer-reducer.
 ;
-; Keep in mind that contribs-that-order will be an association list
-; mapping contribution labels to contributions. Furthermore, the
-; contributions to a self-orderer-reducer multival must be tables with
-; 'fn entries. Therefore, to get the comparator function out of an
-; element of the contribs-that-order list, we use !fn:cadr. The cadr
-; part gets the value of the association, and the !fn part gets the
-; 'fn entry.
+; Keep in mind that contribs-that-order will be a list of contribution
+; details (tables mapping 'val to the contributed value). Furthermore,
+; the contributions to a self-orderer-reducer multival must be
+; comparator functions which accept lists of contribution details and
+; return ordered partitions ("brackets") of those lists.
 ;
 (def my.self-orderer-reducer (contribs-that-order)
-  (withs (rep2comp !fn:cadr
+  (withs (rep2comp !val
           ordered-orderers (map rep2comp
                              (apply join (my.circularly-order rep2comp
                                            contribs-that-order))))
@@ -93,10 +91,11 @@
 ; comparator representations (in order-contribs's case, the
 ; contributions). The rep2comp argument is a function that produces a
 ; comparator from its representation (in order-contribs's case, by
-; extracting a 'fn entry from a table). Once again, a comparator is a
-; function that accepts a list of things, partitions that list into
-; multiple lists (brackets), sorts the brackets, and returns the list
-; of sorted brackets.
+; extracting the 'val entry from a contribution detail table). Once
+; again, the kind of comparator needed here is a function that accepts
+; a list of things, partitions that list into multiple lists
+; (brackets), sorts the brackets, and returns the list of sorted
+; brackets.
 ;
 ; NOTE: This could be optimized greatly. Then again, this should only
 ; be done once or twice per run of a program when calculating multival
@@ -132,7 +131,7 @@
 
 (def my.fn-label-prefer-contribs (label . tests)
   (mt.contribute my!order-contribs label my.self-orderer-reducer
-    (obj fn (st:<=>-to-bracketer:apply st.order-by-tests tests))))
+    (st:<=>-to-bracketer:apply st.order-by-tests tests)))
 
 (def my.prefer-contribs tests
   (apply my.fn-label-prefer-contribs (uniq) tests))

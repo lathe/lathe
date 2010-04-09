@@ -5,12 +5,13 @@
                       ru "../rules.arc"
 
 
-; A basic-rulebook-reducer multival takes contributions that are
-; tables that each map 'fn to a rule, it sorts those contributions
-; using order-contribs, and it ultimately becomes a function that
-; calls those sorted rules as a basic rulebook.
+; A basic-rulebook-reducer multival takes contributions that are rules
+; (which are extracted here from the 'val entries of contribution
+; detail tables), it sorts those contributions using order-contribs,
+; and it ultimately becomes a function that calls those sorted rules
+; as a basic rulebook.
 (def my.basic-rulebook-reducer (contribs)
-  (let rulebook (map !fn:cadr (apply join oc.order-contribs.contribs))
+  (let rulebook (map !val (apply join oc.order-contribs.contribs))
     (obj val (fn args
                (apply ru.call-basic-rulebook rulebook args))
          cares `(,oc!order-contribs))))
@@ -24,7 +25,7 @@
       (= actualbody (cons label actualbody) label (uniq)))
     `(do (,mt!defmultifn-stub ,name)
          (,mt!contribute ',name ',label ,my!basic-rulebook-reducer
-           (obj fn (,ru!ru ,parms ,@actualbody))))))
+           (,ru!ru ,parms ,@actualbody)))))
 
 
 )
