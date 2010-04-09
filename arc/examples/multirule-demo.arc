@@ -4,7 +4,6 @@
 
 (using-rels-as mr "../multival/multirule.arc"
                oc "../multival/order-contribs.arc"
-               mt "../multival/multival.arc"
 
 
 wipe.fail
