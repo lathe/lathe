@@ -5,7 +5,7 @@
 (packed:using-rels-as ut "../utils.arc"
 
 
-(= my.multival-reducers* (table))
+(= my.reducers* (table))
   ; A table mapping a symbol to a reducer.
   ;
   ; A reducer accepts a list of contribution details (tables of the
@@ -35,15 +35,14 @@
 ; details (tables with 'name, 'label, 'val, and 'meta fields, where
 ; 'val is the essential value of the contribution). The list of
 ; details is eventually passed to the multival's reducer.
-(= my.multival-contributions* (table))
+(= my.contribs* (table))
 
 
 (let multival-cache (table)
   
   (def my.get-multival (name)
     (!val:car:or= do.multival-cache.name
-      (list ((car my.multival-reducers*.name)
-             my.multival-contributions*.name))))
+      (list ((car my.reducers*.name) my.contribs*.name))))
   
   (def my.invalidate-multival names
     (while names
@@ -59,18 +58,18 @@
   )
 
 (def my.submit-reducer (name reducer)
-  (iflet (existing-reducer) my.multival-reducers*.name
+  (iflet (existing-reducer) my.reducers*.name
     (unless (iso reducer existing-reducer)
       (err:+ "Multiple reducers have been submitted for the same "
              "multivalue. (This probably means the multivalue has "
              "been defined in multiple parts, where the parts are of "
              "completely different kinds.)"))
-    (= my.multival-reducers*.name list.reducer)))
+    (= my.reducers*.name list.reducer)))
 
 (def my.submit-contribution (name label val (o meta))
   (zap [cons (obj name name label label val val meta meta)
              (rem [iso _!label label] _)]
-       my.multival-contributions*.name)
+       my.contribs*.name)
   my.invalidate-multival.name)
 
 (def my.contribute (name label reducer contribution)
