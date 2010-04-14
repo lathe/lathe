@@ -58,7 +58,7 @@
 ; contributed sort method has side effects, no guarantees are made
 ; about when or how often those side effects will happen.
 
-(packed:using-rels-as co "circularly-order-ccc.arc"
+(packed:using-rels-as co "circularly-order-noccc.arc"
                       mu "multival.arc"
                       st "../sort.arc"
                       ut "../utils.arc"
