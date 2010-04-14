@@ -58,11 +58,10 @@
 ; contributed sort method has side effects, no guarantees are made
 ; about when or how often those side effects will happen.
 
-(packed:using-rels-as mu "multival.arc"
-                      am "../amb.arc"
-                      ut "../utils.arc"
+(packed:using-rels-as co "circularly-order-ccc.arc"
+                      mu "multival.arc"
                       st "../sort.arc"
-                      co "circularly-order-ccc.arc"
+                      ut "../utils.arc"
 
 
 ; In case you want to have more than one order-contribs for different
