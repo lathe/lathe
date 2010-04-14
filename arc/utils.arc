@@ -55,5 +55,12 @@
       (each (k v) arg
         (= do.t.k v)))))
 
+; This is a version of 'whilet that supports destructuring.
+(mac my.dstwhilet (var val . body)
+  (w/uniq g-var
+    `(whilet ,g-var ,val
+       (let ,var ,g-var
+         ,@body))))
+
 
 )
