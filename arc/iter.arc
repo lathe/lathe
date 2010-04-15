@@ -93,8 +93,7 @@
       (afn ()
         ; NOTE: Jarc doesn't support (a . b) destructuring.
         (when iterators
-          (withs (first car.iterators
-                  rest cdr.iterators)
+          (with (first car.iterators rest cdr.iterators)
             (or call.first
                 (do (= iterators rest)
                     call.self))))))))
@@ -323,7 +322,7 @@
                 values (accum acc
                          (reclist
                            ; NOTE: Jarc doesn't support (a . b) destr.
-                           [withs (a car._ b cdr._)
+                           [with (a car._ b cdr._)
                              (iflet (result) ((doandf idfn call) a)
                                (do do.acc.result
                                    wipe.finished)

@@ -156,7 +156,7 @@
 ; This is like 'load, but it returns the result of the final
 ; expression.
 (def loadval (file)
-  (withs (stream infile.file eof (uniq))
+  (with (stream infile.file eof (uniq))
     (let result nil
       (whiler expr (read stream eof) eof
         (= result eval.expr))

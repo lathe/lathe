@@ -9,7 +9,7 @@
 
 (mac my.test-iso (simple complicated)
   (w/uniq (g-simple g-complicated)
-    `(withs (,g-simple ,simple ,g-complicated ,complicated)
+    `(with (,g-simple ,simple ,g-complicated ,complicated)
        (unless (iso ,g-simple ,g-complicated)
          (wipe ,(my 'tests-succeeded))
          (prn:+ "FAILED: These should be 'iso: " ,g-simple " and "

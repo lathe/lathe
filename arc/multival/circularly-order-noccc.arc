@@ -58,12 +58,12 @@
 ; the brackets at all, that is an error.
 ;
 (def my.sort-yourselves (rep2comp brackets (o must-come-first))
-  (withs (sort-one-bracket (fn (bracket sorter)
-                             (if (< len.bracket 2)
-                               list.bracket
-                               do.rep2comp.sorter.bracket))
-          result-so-far nil
-          len-brackets len.brackets)
+  (with (sort-one-bracket (fn (bracket sorter)
+                            (if (< len.bracket 2)
+                              list.bracket
+                              do.rep2comp.sorter.bracket))
+         result-so-far nil
+         len-brackets len.brackets)
     (catch (while brackets
              ; NOTE: Jarc doesn't support (a . b) destructuring.
              (let bracket car.brackets
