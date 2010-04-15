@@ -56,12 +56,12 @@
 ; the brackets at all, that is an error.
 ;
 (def my.sort-yourselves (rep2comp brackets (o must-come-first))
-  (withs (sort-one-bracket (fn (bracket sorter)
-                             (if (< len.bracket 2)
-                               list.bracket
-                               do.rep2comp.sorter.bracket))
-          result-so-far nil
-          len-brackets len.brackets)
+  (with (sort-one-bracket (fn (bracket sorter)
+                            (if (< len.bracket 2)
+                              list.bracket
+                              do.rep2comp.sorter.bracket))
+         result-so-far nil
+         len-brackets len.brackets)
     (catch:ut:dstwhilet (bracket . _) brackets
       (unless (my.begins-with-unordered-is must-come-first bracket)
         (throw nil))

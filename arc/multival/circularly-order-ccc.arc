@@ -5,8 +5,8 @@
 
 
 (def my.is-start-of-brackets (order-so-far rep-brackets)
-  (withs ((first-so-far . others-so-far) order-so-far
-          (first-bracket . other-brackets) rep-brackets)
+  (with ((first-so-far . others-so-far) order-so-far
+         (first-bracket . other-brackets) rep-brackets)
     (if no.order-so-far t
         no.rep-brackets nil
         no.first-bracket
