@@ -85,14 +85,27 @@
     (err "A nil, ssyntax, or non-symbol name was given to 'global."))
   (bound&eval name))
 
-(w/uniq g-temp
-  (eval `(defset global (name)
-           (w/uniq (g-name g-val)
-             `(((,g-name ,g-val) (let _ ,name (list _ global._)))
-               ,g-val
-               [do (= ,',g-temp _)
-                   (eval `(= ,,g-name ,',',g-temp))
-                   (= ,',g-temp nil)])))))
+(defset global (name)
+  (w/uniq (g-name g-val)
+    `(((,g-name ,g-val) (let _ ,name (list _ global._)))
+      ,g-val
+      [eval `(= ,,g-name ',_)])))
+
+; The above (defset global ...) relies on being able to say
+; (eval `(= global-var ',local-expression) even when local-expression
+; has a value that can't usually appear in syntax. In case that
+; doesn't work on all Arc implementations, here's the previous version
+; of the (defset global ...) that uses a temporary global variable
+; instead.
+;
+;(w/uniq g-temp
+;  (eval `(defset global (name)
+;           (w/uniq (g-name g-val)
+;             `(((,g-name ,g-val) (let _ ,name (list _ global._)))
+;               ,g-val
+;               [do (= ,',g-temp _)
+;                   (eval `(= ,,g-name ,',',g-temp))
+;                   (= ,',g-temp nil)])))))
 
 ; Set a global variable temporarily. This is neither thread-safe nor
 ; continuation-safe, although it will restore the original value of
