@@ -35,7 +35,7 @@
 ; existing continuation-avoiding code within a project that doesn't
 ; need to avoid continuations.
 
-(packed:using-rels-as ut "utils.arc"
+(packed (using-rels-as ut "utils.arc"
 
 
 ; NOTE: "Lexico" in variable names here stands for "lexicographic."
@@ -48,7 +48,7 @@
 ; represented as little-endian byte strings.
 
 (def my.empty-iter ()
-  (fn () (fn ())))
+  (fn () (fn () nil)))  ; NOTE: Jarc doesn't support (fn ()).
 
 (def my.must-iterify (val)
   (or my.iterify.val
@@ -67,21 +67,21 @@
     str    (let copyval copy.val
              (fn () (with (i 0 innerval copyval innerlen len.copyval)
                       (fn () (if (< i innerlen)
-                               (list:do1 do.innerval.i ++.i)
+                               (list (do1 do.innerval.i ++.i))
                                (wipe innerval innerlen))))))
     sym    (if val
              (withs (innerval string.val innerlen len.innerval)
                (fn () (let i 0
                         (fn () (if (< i innerlen)
-                                 (list:do1 do.innerval.i ++.i)
+                                 (list (do1 do.innerval.i ++.i))
                                  (wipe innerval innerlen))))))
              (my.empty-iter))))
 
 (def my.iter-trav (func iterable)
   (zap my.must-iterify iterable)
   (let iterator call.iterable
-    (ut:dstwhilet (val) call.iterator
-      do.func.val)))
+    (ut (dstwhilet (val) call.iterator
+          do.func.val))))
 
 (mac my.iter-each (var iterable . body)
   `(,my!iter-trav (fn (,var) ,@body) ,iterable))
@@ -91,20 +91,23 @@
   (fn ()
     (let iterators (map call args)
       (afn ()
-        (whenlet (first . rest) iterators
-          (or call.first
-              (do (= iterators rest)
-                  call.self)))))))
+        ; NOTE: Jarc doesn't support (a . b) destructuring.
+        (when iterators
+          (withs (first car.iterators
+                  rest cdr.iterators)
+            (or call.first
+                (do (= iterators rest)
+                    call.self))))))))
 
 (def my.cached-iter (iterable)
   (zap my.must-iterify iterable)
   (withs (cache (queue)
           iterator call.iterable
           get (fn (index)
-                (ut:dstwhilet (elem) (and iterator
-                                          (<= qlen.cache index)
-                                          call.iterator)
-                  (enq elem cache))
+                (ut (dstwhilet (elem) (and iterator
+                                           (<= qlen.cache index)
+                                           call.iterator)
+                      (enq elem cache)))
                 (if (< index qlen.cache)
                   (list qlist.cache.index)
                   wipe.iterator)))
@@ -157,11 +160,11 @@
 (def my.iter*colexico iterables
   (zap [map my.cached-iter _] iterables)
   (my.mapping rev
-    (ut:foldlet combined-iter (my.iterify (list nil))
-                next-iter iterables
-      (my:mappendinglet that-elem next-iter
-        (my:mappinglet these-elems combined-iter
-          (cons that-elem these-elems))))))
+    (ut (foldlet combined-iter (my.iterify (list nil))
+                 next-iter iterables
+          (my (mappendinglet that-elem next-iter
+                (my (mappinglet these-elems combined-iter
+                      (cons that-elem these-elems)))))))))
 
 (def my.nonnegs ()
   (fn ()
@@ -197,9 +200,10 @@
            (my.iterify (list nil)))
     1  (my.iterify (list list.sum))
        (my.mapping (if reversed-lexico-significance rev idfn)
-         (my:mappendinglet choice (my.iter-range 0 sum)
-           (my.mapping [cons choice _]
-             (my.nonneg-tuples-by-sum (- size 1) (- sum choice)))))))
+         (my (mappendinglet choice (my.iter-range 0 sum)
+               (my.mapping [cons choice _]
+                 (my.nonneg-tuples-by-sum (- size 1)
+                                          (- sum choice))))))))
 
 (def my.sum-grouped-nonneg-tuples
        (size (o reversed-lexico-significance))
@@ -210,9 +214,9 @@
            "'sum-grouped-nonneg-tuples."))
   (case size 0
     (my.iterify (list nil))
-    (my:mappendinglet sum (my.nonnegs)
-      (my.nonneg-tuples-by-sum size sum
-        reversed-lexico-significance))))
+    (my (mappendinglet sum (my.nonnegs)
+          (my.nonneg-tuples-by-sum size sum
+            reversed-lexico-significance)))))
 
 (def my.skippingover (amount iterable)
   (unless (<= 0 amount)
@@ -220,10 +224,10 @@
   (unless (isa amount 'int)
     (err "A non-integer amount was given to 'skippingover."))
   (fn ()
-    (ut:ret iterator call.iterable
-      (let i 0
-        (while (and (< i amount) call.iterator)
-          ++.i)))))
+    (ut (ret iterator call.iterable
+          (let i 0
+            (while (and (< i amount) call.iterator)
+              ++.i))))))
 
 (def my.stoppingafter (amount iterable)
   (unless (<= 0 amount)
@@ -246,9 +250,9 @@
       (fn ()
         (when iterator
           (let i 0
-            (while:or (when (< i amount) ++.i call.iterator)
-              wipe.iterator)))
-        (or (do&call iterator)
+            (while (or (when (< i amount) ++.i call.iterator)
+                       wipe.iterator))))
+        (or ((doandf idfn call) iterator)
           wipe.iterator)))))
 
 ; NOTE: This should only be used on infinite iterables. It will treat
@@ -258,11 +262,11 @@
                                      reversed-lexico-significance)
   (zap [map my.must-iterify _] iterables)
   (withs (len len.iterables range (range 0 (- len 1)))
-    (my:mappinglet coordinates (my.sum-grouped-nonneg-tuples len
-                                 reversed-lexico-significance)
-      (map [car:call:call (my.skippingover do.coordinates._
-                                           do.iterables._)]
-           range))))
+    (my (mappinglet coordinates (my.sum-grouped-nonneg-tuples len
+                                  reversed-lexico-significance)
+          (map [car:call:call (my.skippingover do.coordinates._
+                                               do.iterables._)]
+               range)))))
 
 (def my.iter*sum-grouped iterables
   (my.iter*sum-grouped-w/colexico iterables nil))
@@ -271,7 +275,7 @@
   (my.iter*sum-grouped-w/colexico iterables t))
 
 (def my.keeping (test iterable)
-  (my.mappending (andf testify.test list) iterable))
+  (my.mappending (doandf testify.test list) iterable))
 
 (mac my.keepinglet (var iterable . body)
   `(,my!keeping (fn (,var) ,@body) ,iterable))
@@ -317,14 +321,16 @@
       (fn ()
         (withs (finished t
                 values (accum acc
-                         (reclist [let (a . b) _
-                                    (iflet (result) (do&call a)
-                                      (do do.acc.result
-                                          wipe.finished)
-                                      (do do.acc.pad
-                                          (wipe car._)))
-                                    nil]
-                                  iterators)))
+                         (reclist
+                           ; NOTE: Jarc doesn't support (a . b) destr.
+                           [withs (a car._ b cdr._)
+                             (iflet (result) ((doandf idfn call) a)
+                               (do do.acc.result
+                                   wipe.finished)
+                               (do do.acc.pad
+                                   (wipe car._)))
+                             nil]
+                           iterators)))
           (if finished
             wipe.iterators
             list.values))))))
@@ -333,13 +339,13 @@
   (call:call (my.keeping idfn (my.mapping func iterable))))
 
 (mac my.iter-somelet (var iterable . body)
-  `(,my!iter-some (fn (,var) ,@iterable) body))
+  `(,my!iter-some (fn (,var) ,@iterable) ,@body))
 
 (def my.iter-all (func iterable)
   (no (my.iter-some ~func iterable)))
 
 (mac my.iter-all-let (var iterable . body)
-  `(,my!iter-some (fn (,var) ,@iterable) body))
+  `(,my!iter-all (fn (,var) ,@iterable) ,@body))
 
 (def my.iter-keys (reffable)
   (if reffable
@@ -364,7 +370,7 @@
 ;
 (mac my.yielder (parms . body)
   `(fn ,parms
-     (,my!iter-with-yield (fn (yield) ,@body))))
+     (,(my 'iter-with-yield) (fn (yield) ,@body))))
 
 ; This function takes a function which accepts a yield parameter, and
 ; it returns an iterable which returns the results yielded by the
@@ -393,4 +399,4 @@
             wipe.next))))))
 
 
-)
+))

@@ -42,7 +42,7 @@
 ;  - You can pass it a cons cell where the car is a symbol other than
 ;    'quote, in which case it will yield a cons cell with a mangled
 ;    car and the original cdr. This is useful when invoking a macro,
-;    by way of the syntax (my:the-macro params). Unfortunately,
+;    by way of the syntax (my (the-macro params)). Unfortunately,
 ;    (my.the-macro params) doesn't work, since ac doesn't macro-expand
 ;    (my the-macro) until after it's determined that the expression
 ;    (my the-macro) isn't a symbol globally bound to a macro.
@@ -70,9 +70,11 @@
     (mc (what)
       (if atom.what
         .what.symfor
-        (let (op . params) what
+        ; NOTE: Jarc doesn't support (a . b) destructuring.
+        (with (op car.what params cdr.what)
           (case op quote
-            (let (name . more) params
+            ; NOTE: Jarc doesn't support (a . b) destructuring.
+            (with (name car.params more cdr.params)
               (when more
                 (err:+ "A (quote ...) expression with more than one "
                        "parameter was passed to a namespace."))
@@ -80,8 +82,8 @@
             `(,.op.symfor ,@params)))))))
 
 (mac nspaced body
-  `(w/global my (nspace)
-     (tldo ,@body)))
+  `(w/mac my (nspace)
+     (mcdo ,@body)))
 
 (mac copy-to-mine names
   (unless (all anormalsym names)
@@ -105,8 +107,8 @@
 ; top level, and thereby use most code that's targeted at nspaced in a
 ; way that's closer to what you want without very much hassle.
 (mac not-nspaced body
-  `(w/global my (mc (what) what)
-     (tldo ,@body)))
+  `(w/mac my (mc (what) what)
+     (mcdo ,@body)))
 
 ; Redefine def, mac, and safeset so that (def my.foo ...),
 ; (mac my.foo ...), (defmemo my.foo ...), and (defcache my.foo ...)

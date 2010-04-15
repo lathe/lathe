@@ -58,10 +58,10 @@
 ; contributed sort method has side effects, no guarantees are made
 ; about when or how often those side effects will happen.
 
-(packed:using-rels-as co "circularly-order-noccc.arc"
-                      mu "multival.arc"
-                      st "../sort.arc"
-                      ut "../utils.arc"
+(packed (using-rels-as co "circularly-order-noccc.arc"
+                       mu "multival.arc"
+                       st "../sort.arc"
+                       ut "../utils.arc"
 
 
 ; In case you want to have more than one order-contribs for different
@@ -80,9 +80,9 @@
                              (apply join (my.circularly-order rep2comp
                                            contribs-that-order))))
     (obj val (fn (contribs-to-order)
-               (ut:foldlet rankings  list.contribs-to-order
-                           orderer   ordered-orderers
-                 (mappend orderer rankings)))
+               (ut (foldlet rankings  list.contribs-to-order
+                            orderer   ordered-orderers
+                     (mappend orderer rankings))))
          cares '())))
 
 ; On a lower level, if all you want to do is order a bunch of things
@@ -103,17 +103,17 @@
 ;
 (= my.circularly-order co.circularly-order)
 
-(mu:defmultifn-stub my.order-contribs my.self-orderer-reducer)
+(mu (defmultifn-stub my.order-contribs my.self-orderer-reducer))
 
 (def my.fn-label-prec (label . tests)
-  (mt.contribute my!order-contribs label my.self-orderer-reducer
-    (st:<=>-to-bracketer:apply st.order-by-tests tests)))
+  (mt.contribute (my 'order-contribs) label my.self-orderer-reducer
+    (st.<=>-to-bracketer (apply st.order-by-tests tests))))
 
 (def my.prec tests
   (apply my.fn-label-prec (uniq) tests))
 
 (mac my.label-prec (label . tests)
-  `(,my!fn-label-prec ',expand.label ,@tests))
+  (list (my 'fn-label-prec) `(',expand.label ,@tests)))
 
 
-)
+))

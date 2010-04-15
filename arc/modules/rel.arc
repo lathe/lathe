@@ -103,9 +103,12 @@
   `(usings ,(map [do ``(rel ,,_)] relpaths) ,@body))
 
 (mac using-rels-as withbody
-  (let (binds . body) (parse-magic-withlike withbody
-                        (+ "An odd-sized list of bindings was given "
-                           "to using-rels-as."))
+  ; NOTE: Jarc doesn't support (a . b) destructuring.
+  (withs (binds-and-body (parse-magic-withlike withbody
+                           (+ "An odd-sized list of bindings was "
+                              "given to using-rels-as."))
+          binds car.binds-and-body
+          body cdr.binds-and-body)
     `(using-as ,(mappend [do `(,_.0 `(rel ,,_.1))] binds) ,@body)))
 
 

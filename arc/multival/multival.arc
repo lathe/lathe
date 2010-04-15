@@ -2,7 +2,7 @@
 ;
 ; ===== Multival implementation and bare API =========================
 
-(packed:using-rels-as ut "../utils.arc"
+(packed (using-rels-as ut "../utils.arc"
 
 
 (= my.reducers* (table))
@@ -41,8 +41,8 @@
 (let multival-cache (table)
   
   (def my.get-multival (name)
-    (!val:car:or= do.multival-cache.name
-      (list ((car my.reducers*.name) my.contribs*.name))))
+    (!val:car (or= do.multival-cache.name
+                (list ((car my.reducers*.name) my.contribs*.name)))))
   
   (def my.invalidate-multival names
     (while names
@@ -86,4 +86,4 @@
   `(,my!fn-defmultifn-stub ',expand.name ,reducer))
 
 
-)
+))

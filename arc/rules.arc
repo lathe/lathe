@@ -31,30 +31,32 @@
   `(failure ,description))
 
 (def my.call-basic-rulebook (rulebook . args)
-  (catch:let failures '()
-    (each rule rulebook
-      (let (result-type result-details) (apply rule args)
-         (case result-type
-           success  throw.result-details
-           failure  (when result-details
-                      (push result-details failures))
-                    (err "There was an unknown rule result type."))))
-    (err:if failures
-      (apply +
-        "No rule accepted the given arguments. The specific "
-        "complaint" (if single.failures " was" "s were") " as "
-        "follows:\n"
-        "\n"
-        (intersperse "\n" rev.failures))
-      (+ "No rule accepted the given arguments or even had a "
-         "specific complaint."))))
+  (catch (let failures '()
+           (each rule rulebook
+             (let (result-type result-details) (apply rule args)
+                (case result-type
+                  success  throw.result-details
+                  failure  (when result-details
+                             (push result-details failures))
+                           (err:+ "There was an unknown rule result "
+                                  "type."))))
+           (err (if failures
+                  (apply +
+                    "No rule accepted the given arguments. The "
+                    "specific complaint"
+                    (if single.failures " was" "s were") " as "
+                    "follows:\n"
+                    "\n"
+                    (intersperse "\n" rev.failures))
+                  (+ "No rule accepted the given arguments or even "
+                     "had a specific complaint.")))))
 
 (mac my.ru (parms . body)
   (w/uniq g-return
     `(fn ,parms
        (point ,g-return
-         (let fail (fn (msg) (,g-return (,my!rule-failure msg)))
-           (,my!rule-success (do ,@body)))))))
+         (let fail (fn (msg) (,g-return (,(my 'rule-failure) msg)))
+           (,(my 'rule-success) (do ,@body)))))))
 
 
 )

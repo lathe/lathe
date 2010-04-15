@@ -13,7 +13,10 @@
 
 
 (mac my.xloop withbody
-  (let (binds . body) parse-magic-withlike.withbody
+  ; NOTE: Jarc doesn't support (a . b) destructuring.
+  (withs (binds-and-body parse-magic-withlike.withbody
+          binds car.binds-and-body
+          body cdr.binds-and-body)
     `((rfn next ,(map car binds)
         ,@body)
       ,@(map cadr binds))))
@@ -32,15 +35,20 @@
          ,@body))))
 
 (mac my.w/ withbody
-  (let (binds . body) parse-magic-withlike.withbody
+  ; NOTE: Jarc doesn't support (a . b) destructuring.
+  (withs (binds-and-body parse-magic-withlike.withbody
+          binds car.binds-and-body
+          body cdr.binds-and-body)
     `(withs ,(apply join binds) ,@body)))
 
 (def my.alcons (al key val)
   `((,key ,val) ,@(rem [is car._ key] al)))
 
 (def my.foldl (func start lst)
-  (iflet (a . b) lst
-    (my.foldl func (do.func start a) b)
+  ; NOTE: Jarc doesn't support (a . b) destructuring.
+  (if lst
+    (with (a car.lst b cdr.lst)
+      (my.foldl func (do.func start a) b))
     start))
 
 (def my.foldr (func end lst)

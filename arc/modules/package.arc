@@ -55,12 +55,15 @@
     `(using ,car.dependencies (usings ,cdr.dependencies ,@body))))
 
 (mac using-as withbody
-  (withs ((binds . body) (parse-magic-withlike withbody
+  ; NOTE: Jarc doesn't support (a . b) destructuring.
+  (withs (binds-and-body (parse-magic-withlike withbody
                            (+ "An odd-sized list of bindings was "
                               "given to using-as."))
-          result `(tldo ,@body))
+          binds car.binds-and-body
+          body cdr.binds-and-body
+          result `(mcdo ,@body))
     (each (name dependency) rev.binds
-      (= result `(w/global ,name (prepare-nspace ,dependency)
+      (= result `(w/mac ,name (prepare-nspace ,dependency)
                    ,result)))
     result))
 
@@ -141,7 +144,7 @@
 
 (def pack-nmap (nmap)
   (let export (obj nmap nmap)
-    (= !nspace.export (let ns (nspace-indirect:fn () !nmap.export)
+    (= !nspace.export (let ns (nspace-indirect (fn () !nmap.export))
                         (fn () ns)))
     (=fn !activate.export ()
       (let overwritten-sobj (import-nmap !nmap.export)
@@ -152,8 +155,8 @@
 
 (mac packed body
   `(let nmap (table)
-     (w/global my nspace.nmap
-       (tldo ,@body))
+     (w/mac my nspace.nmap
+       (mcdo ,@body))
      pack-nmap.nmap))
 
 ; The 'names here must be either a list of symbols or a symbol.
@@ -163,9 +166,9 @@
     (err:+ "A nil, ssyntax, or non-symbol name was given to "
            "'packing."))
   `(let nmap (table)
-     (w/global my nspace.nmap
-       (tldo ,@body))
-     (pack-nmap:obj ,@(mappend [do `(,_ ((get ',_) nmap))] names))))
+     (w/mac my nspace.nmap
+       (mcdo ,@body))
+     (pack-nmap (obj ,@(mappend [do `(,_ ((get ',_) nmap))] names)))))
 
 ; The 'names here must be either a list of symbols or a symbol.
 (mac pack-hiding (names . body)
@@ -174,8 +177,8 @@
     (err:+ "A nil, ssyntax, or non-symbol name was given to "
            "'pack-hiding."))
   `(let nmap (table)
-     (w/global my nspace.nmap
-       (tldo ,@body))
+     (w/mac my nspace.nmap
+       (mcdo ,@body))
      (pack-nmap:copy nmap ,@(mappend [do `(',_ nil)] names))))
 
 

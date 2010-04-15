@@ -1,8 +1,8 @@
 ; multirule.arc
 
-(packed:using-rels-as mt "multival.arc"
-                      oc "order-contribs.arc"
-                      ru "../rules.arc"
+(packed (using-rels-as mt "multival.arc"
+                       oc "order-contribs.arc"
+                       ru "../rules.arc"
 
 
 ; A basic-rulebook-reducer multival takes contributions that are rules
@@ -19,13 +19,15 @@
 
 (mac my.rule (name parms . body)
   (zap expand name)
-  (let (label . actualbody) body
+  ; NOTE: Jarc doesn't support (a . b) destructuring.
+  (with (label car.body actualbody cdr.body)
     (zap expand label)
     (unless (and actualbody anormalsym.label)
       (= actualbody (cons label actualbody) label (uniq)))
-    `(do (,mt!defmultifn-stub ,name)
-         (,mt!contribute ',name ',label ,my!basic-rulebook-reducer
-           (,ru!ru ,parms ,@actualbody)))))
+    `(do (,(mt 'defmultifn-stub) ,name)
+         (,(mt 'contribute) ',name ',label
+           ,(my 'basic-rulebook-reducer)
+           (,(ru 'ru) ,parms ,@actualbody)))))
 
 
-)
+))
