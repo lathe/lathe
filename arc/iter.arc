@@ -339,13 +339,13 @@
   (call:call (my.keeping idfn (my.mapping func iterable))))
 
 (mac my.iter-somelet (var iterable . body)
-  `(,my!iter-some (fn (,var) ,@iterable) ,@body))
+  `(,my!iter-some (fn (,var) ,@body) ,iterable))
 
 (def my.iter-all (func iterable)
   (no (my.iter-some ~func iterable)))
 
 (mac my.iter-all-let (var iterable . body)
-  `(,my!iter-all (fn (,var) ,@iterable) ,@body))
+  `(,my!iter-all (fn (,var) ,@body) ,iterable))
 
 (def my.iter-keys (reffable)
   (if reffable
