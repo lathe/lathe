@@ -161,12 +161,12 @@
 (let old-setforms setforms
   (=fn setforms (expr)
     (let expansion macex.expr
-      (if ((orf no anormalsym) expansion)
+      (if anormalsym.expansion
         (w/uniq g-place
           `((,g-place (errsafe ,expansion))
             ,g-place
             [assign ,expansion _]))
-        old-setforms.expansion))))
+        do.old-setforms.expansion))))
 
 
 ))  ; end (eval '(tldo ...))
