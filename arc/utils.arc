@@ -2,12 +2,13 @@
 ;
 ; Miscellaneous utilities.
 ;
-; The 'xloop, 'ret, and 'between tools here were inspired by those
-; defined by Andrew Wilcox at http://awwx.ws/xloop0,
-; http://awwx.ws/ret0, and http://awwx.ws/between0. The only
-; noticeable difference is that this 'xloop requires fewer parentheses
-; in the majority of practical cases, thanks to 'parse-magic-withlike
-; (which is defined in modules/modulemisc.arc).
+; The 'xloop, 'ret, 'between, and 'readwine tools here were inspired
+; by those defined by Andrew Wilcox at http://awwx.ws/xloop0,
+; http://awwx.ws/ret0, http://awwx.ws/between0, and
+; http://awwx.ws/readline1. The only noticeable difference is that
+; this 'xloop requires fewer parentheses in the majority of practical
+; cases, thanks to 'parse-magic-withlike (which is defined in
+; modules/modulemisc.arc).
 
 (packed
 
@@ -30,6 +31,18 @@
        (each ,var ,val
          (if ,g-started ,chorus (= ,g-started t))
          ,@body))))
+
+(def my.readwine ((o stream (stdin)))
+  (whenlet firstchar readc.stream
+    (string:accum acc
+      (my:xloop chr firstchar
+        (case chr
+          #\newline  nil
+          #\return   (case peekc.stream #\newline
+                       readc.stream)
+          nil        nil
+                     (do do.acc.chr
+                         (do.next readc.stream)))))))
 
 (mac my.w/ withbody
   (let (binds . body) parse-magic-withlike.withbody
