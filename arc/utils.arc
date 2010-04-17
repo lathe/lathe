@@ -62,5 +62,37 @@
        (let ,var ,g-var
          ,@body))))
 
+; This takes a bunch of tables and returns a new table that's an
+; extension of all of them. If the first parameter is a function, that
+; function is used in order to decide whether two values for the same
+; key are equivalent. Otherwise, 'iso is used. If any two values for
+; the same key are not equivalent, nil is returned instead of a table.
+; If they are equivalent, the one from the first table in the argument
+; list is used.
+(def my.mergetabs tabs
+  (case tabs nil
+    (table)
+    (let (compare . actual-tabs) tabs
+      (unless (isa compare 'fn)
+        (= compare iso actual-tabs tabs))
+      (catch:w/table result
+        (each tab actual-tabs
+          (each (k v) tab
+            (iflet existing-v do.result.k
+              (unless (do.compare existing-v v)
+                (throw nil))
+              (= .k.result v))))))))
+
+(def my.unnesttab (key val2tab tab)
+  (iflet val do.tab.key
+    (cons (copy tab key nil) (my.unnesttab key do.val2tab.val))
+    list.tab))
+
+(def my.nesttab (key tab2val tabs)
+  (whenlet (last . rest) rev.tabs
+    (my:foldlet result last
+                next rest
+      (copy next key do.tab2val.tabs))))
+
 
 )
