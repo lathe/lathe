@@ -68,6 +68,10 @@
 (mac my.mappendlet (var lst . body)
   `(mappend (fn (,var) ,@body) ,lst))
 
+(mac my.zapmappendlet (var lst . body)
+  (w/uniq g-lst
+    `(zap (fn (,g-lst) (mappend (fn (,var) ,@body) ,g-lst)) ,lst)))
+
 (def my.tab+ args
   (w/table t
     (each arg args
