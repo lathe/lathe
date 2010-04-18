@@ -65,6 +65,9 @@
 (mac my.maplet (var lst . body)
   `(map (fn (,var) ,@body) ,lst))
 
+(mac my.mappendlet (var lst . body)
+  `(mappend (fn (,var) ,@body) ,lst))
+
 (def my.tab+ args
   (w/table t
     (each arg args
