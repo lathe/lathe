@@ -62,6 +62,9 @@
 (mac my.foldlet (startvar start nextvar lst . body)
   `(,my!foldl (fn (,startvar ,nextvar) ,@body) ,start ,lst))
 
+(mac my.maplet (var lst . body)
+  `(map (fn (,var) ,@body) ,lst))
+
 (def my.tab+ args
   (w/table t
     (each arg args
