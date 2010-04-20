@@ -48,6 +48,13 @@
   (let (binds . body) parse-magic-withlike.withbody
     `(withs ,(apply join binds) ,@body)))
 
+(def my.tails (lst)
+  (accum acc
+    (while acons.lst
+      do.acc.lst
+      (zap cdr lst))
+    do.acc.lst))
+
 (def my.alcons (al key val)
   `((,key ,val) ,@(rem [is car._ key] al)))
 
