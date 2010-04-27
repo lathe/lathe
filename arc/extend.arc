@@ -70,11 +70,12 @@
 ; visible in the condition. This is also true if 'parms is, for
 ; instance, (arg1 arg2 (o arg3 (uniq))).
 (mac my.label-extend (name label parms condition . body)
-  `(,my!fn-extend ',expand.name ',expand.label (fn ,parms ,condition)
+  `(,(my 'fn-extend) ',expand.name ',expand.label
+     (fn ,parms ,condition)
      (fn (it) (fn ,parms ,@body))))
 
 (mac my.extend (name parms condition . body)
-  `(,my!label-extend ,name ,(uniq) ,parms ,condition ,@body))
+  `(,(my 'label-extend) ,name ,(uniq) ,parms ,condition ,@body))
 
 
 ))

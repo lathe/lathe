@@ -55,12 +55,12 @@
   (my.foldl (fn (a b) (do.func b a)) end rev.lst))
 
 (mac my.foldlet (startvar start nextvar lst . body)
-  `(,my!foldl (fn (,startvar ,nextvar) ,@body) ,start ,lst))
+  `(,(my 'foldl) (fn (,startvar ,nextvar) ,@body) ,start ,lst))
 
 (def my.tab+ args
   (w/table t
     (each arg args
-      (each (k v) arg
+      (each (k v) tablist.arg  ; tablist necessary for Jarc
         (= do.t.k v)))))
 
 ; This is a version of 'whilet that supports destructuring.

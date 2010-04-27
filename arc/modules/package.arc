@@ -40,7 +40,7 @@
     (unless activated.compiled
       (once-at-a-time `(activate ,dependency)  ; NOT compiled
         (let package prepare.compiled
-          (do1 (package!activate)
+          (do1 (!activate.package)
                (zap [cons package (rem [deactivates package _] _)]
                     activated-packages*)))))))
 
@@ -70,8 +70,7 @@
 (mac use-as bindings
   (when (odd:len bindings)
     (err "An odd-sized list of bindings was given to use-as."))
-  `(= ,@(mappend [do `(,_.0 (prepare-nspace ,_.1))]
-                 pair.bindings)))
+  `(= ,@(mappend [do `(,_.0 (prepare-nspace ,_.1))] pair.bindings)))
 
 
 ; Each of these rules should behave like this, as far as types go:
@@ -145,7 +144,7 @@
 (def pack-nmap (nmap)
   (let export (obj nmap nmap)
     (= !nspace.export (let ns (nspace-indirect (fn () !nmap.export))
-                        (fn () ns)))
+                        (fn () idfn.ns)))  ; Jarc breaks on (fn () ns)
     (=fn !activate.export ()
       (let overwritten-sobj (import-nmap !nmap.export)
         (fn ()

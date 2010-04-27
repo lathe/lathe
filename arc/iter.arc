@@ -84,7 +84,7 @@
           do.func.val))))
 
 (mac my.iter-each (var iterable . body)
-  `(,my!iter-trav (fn (,var) ,@body) ,iterable))
+  `(,(my 'iter-trav) (fn (,var) ,@body) ,iterable))
 
 (def my.iter-join args
   (zap [map my.must-iterify _] args)
@@ -125,7 +125,7 @@
           wipe.iterator)))))
 
 (mac my.mappinglet (var iterable . body)
-  `(,my!mapping (fn (,var) ,@body) ,iterable))
+  `(,(my 'mapping) (fn (,var) ,@body) ,iterable))
 
 (def my.joining (iterable)
   (zap my.must-iterify iterable)
@@ -146,7 +146,7 @@
   (my.joining (my.mapping func iterable)))
 
 (mac my.mappendinglet (var iterable . body)
-  `(,my!mappending (fn (,var) ,@body) ,iterable))
+  `(,(my 'mappending) (fn (,var) ,@body) ,iterable))
 
 ; Since 'iterify works on strings and even symbols, this will probably
 ; go deeper than intended unless a specific termination condition is
@@ -277,7 +277,7 @@
   (my.mappending (doandf testify.test list) iterable))
 
 (mac my.keepinglet (var iterable . body)
-  `(,my!keeping (fn (,var) ,@body) ,iterable))
+  `(,(my 'keeping) (fn (,var) ,@body) ,iterable))
 
 (def my.folding (func start iterable)
   (fn ()
@@ -290,7 +290,7 @@
                  (wipe iterator intermediate))))))))
 
 (mac my.foldinglet (a start b iterable . body)
-  `(,my!folding (fn (,a ,b) ,@body) start iterable))
+  `(,(my 'folding) (fn (,a ,b) ,@body) start iterable))
 
 (def my.stoppingafter1 (iterable)
   (my.stoppingafter 1 iterable))
@@ -338,13 +338,13 @@
   (call:call (my.keeping idfn (my.mapping func iterable))))
 
 (mac my.iter-somelet (var iterable . body)
-  `(,my!iter-some (fn (,var) ,@body) ,iterable))
+  `(,(my 'iter-some) (fn (,var) ,@body) ,iterable))
 
 (def my.iter-all (func iterable)
   (no (my.iter-some ~func iterable)))
 
 (mac my.iter-all-let (var iterable . body)
-  `(,my!iter-all (fn (,var) ,@body) ,iterable))
+  `(,(my 'iter-all) (fn (,var) ,@body) ,iterable))
 
 (def my.iter-keys (reffable)
   (if reffable

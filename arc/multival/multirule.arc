@@ -14,7 +14,7 @@
   (let rulebook (map !val (apply join oc.order-contribs.contribs))
     (obj val (fn args
                (apply ru.call-basic-rulebook rulebook args))
-         cares `(,oc!order-contribs))))
+         cares `(,(oc 'order-contribs)))))
 
 
 (mac my.rule (name parms . body)

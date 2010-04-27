@@ -49,7 +49,7 @@
                     "\n"
                     (intersperse "\n" rev.failures))
                   (+ "No rule accepted the given arguments or even "
-                     "had a specific complaint.")))))
+                     "had a specific complaint."))))))
 
 (mac my.ru (parms . body)
   (w/uniq g-return

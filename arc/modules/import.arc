@@ -18,19 +18,19 @@
 (def import-obj (obj)
   (unless (isa obj 'table)
     (err "A non-table was passed to import-obj."))
-  (each (name value) obj
+  (each (name value) tablist.obj  ; tablist necessary for Jarc
     (unless (isa name 'sym)
       (err:+ "A table with a non-symbol key was passed to "
              "import-obj.")))
   (w/table overwritten
-    (each (name value) obj
+    (each (name value) tablist.obj  ; tablist necessary for Jarc
       (= .name.overwritten (list global.name)
          global.name value))))
 
 (def import-sobj (sobj)
   (unless (isa sobj 'table)
     (err "A non-table was passed to import-sobj."))
-  (each (name svalue) sobj
+  (each (name svalue) tablist.sobj  ; tablist necessary for Jarc
     (unless (isa name 'sym)
       (err:+ "A table with a non-symbol key was passed to "
              "import-sobj."))
@@ -38,7 +38,7 @@
       (err:+ "A table with a non-singleton member was passed to "
              "import-sobj.")))
   (w/table overwritten
-    (each (name (value)) sobj
+    (each (name (value)) tablist.sobj  ; tablist necessary for Jarc
       (= .name.overwritten (list global.name)
          global.name value))))
 
@@ -50,19 +50,19 @@
 (def obj-to-mine (obj)
   (unless (isa obj 'table)
     (err "A non-table was passed to obj-to-mine."))
-  (each (name value) obj
+  (each (name value) tablist.obj  ; tablist necessary for Jarc
     (unless (isa name 'sym)
       (err:+ "A table with a non-symbol key was passed to "
              "obj-to-mine.")))
   (w/table overwritten
-    (each (name value) obj
+    (each (name value) tablist.obj  ; tablist necessary for Jarc
       (= .name.overwritten (list:global my.name)
          (global my.name) value))))
 
 (def sobj-to-mine (sobj)
   (unless (isa sobj 'table)
     (err "A non-table was passed to sobj-to-mine."))
-  (each (name svalue) sobj
+  (each (name svalue) tablist.sobj  ; tablist necessary for Jarc
     (unless (isa name 'sym)
       (err:+ "A table with a non-symbol key was passed to "
              "sobj-to-mine."))
@@ -70,7 +70,7 @@
       (err:+ "A table with a non-singleton member was passed to "
              "sobj-to-mine.")))
   (w/table overwritten
-    (each (name (value)) sobj
+    (each (name (value)) tablist.sobj  ; tablist necessary for Jarc
       (= .name.overwritten (list:global my.name)
          (global my.name) value))))
 
@@ -86,11 +86,11 @@
 (def import-nmap (nmap)
   (unless (isa nmap 'table)
     (err "A non-table was given to import-nmap."))
-  (each (name target) nmap
+  (each (name target) tablist.nmap  ; tablist necessary for Jarc
     (unless (and anormalsym.name anormalsym.target)
       (err:+ "A nil, ssyntax, or non-symbol name was in an nmap.")))
   (w/table overwritten
-    (each (name target) nmap
+    (each (name target) tablist.nmap  ; tablist necessary for Jarc
       (= .name.overwritten (list global.name)
          global.name global.target))))
 

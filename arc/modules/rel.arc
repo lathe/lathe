@@ -43,7 +43,7 @@
                 segments (tokens path #\/)
                 final (case (do.path (- len.path 1)) #\/
                         ""
-                        (reclist [when (single:cdr _) (pop:cdr _)]
+                        (reclist [when (single cdr._) (pop cdr._)]
                                  segments)))
           (when (is #\/ .0.path) (push "" acc))
           (each segment segments
@@ -100,7 +100,7 @@
 
 (mac using-rels (relpaths . body)
   (unless alist.relpaths (zap list relpaths))
-  `(usings ,(map [do ``(rel ,,_)] relpaths) ,@body))
+  `(usings ,(map [do `(list 'rel ,_)] relpaths) ,@body))
 
 (mac using-rels-as withbody
   ; NOTE: Jarc doesn't support (a . b) destructuring.
@@ -109,7 +109,8 @@
                               "given to using-rels-as."))
           binds car.binds-and-body
           body cdr.binds-and-body)
-    `(using-as ,(mappend [do `(,_.0 `(rel ,,_.1))] binds) ,@body)))
+    `(using-as ,(mappend [do `(,_.0 (list 'rel ,_.1))] binds)
+       ,@body)))
 
 
 )
