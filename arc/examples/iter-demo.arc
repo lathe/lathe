@@ -68,16 +68,18 @@
                  uppers (ir.repeating '(A B C D E F G H I J K L M)))
             (ir.iter*sum-grouped-colexico uppers lowers lowers))))))
 
-(= my.fibs (ir (yielder (a b)
-                 do.yield.a
-                 do.yield.b
-                 (while t
-                   (let next (+ a b)
-                     (= a b b next)
-                     do.yield.next)))))
-
-(my (test-iso '(-8 5 -3 2 -1 1 0 1 1 2 3 5 8)
-      (ir.iter->list (ir.stoppingafter 13 (my.fibs -8 5)))))
+; This is commented out so that this demo can work on Jarc too.
+;
+;(= my.fibs (ir (yielder (a b)
+;                 do.yield.a
+;                 do.yield.b
+;                 (while t
+;                   (let next (+ a b)
+;                     (= a b b next)
+;                     do.yield.next)))))
+;
+;(my (test-iso '(-8 5 -3 2 -1 1 0 1 1 2 3 5 8)
+;      (ir.iter->list (ir.stoppingafter 13 (my.fibs -8 5)))))
 
 
 (if my.tests-succeeded (prn "All tests succeeded!"))

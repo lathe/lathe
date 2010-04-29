@@ -82,7 +82,7 @@
                                               must-come-first)
           (ir.mapping [join result-so-far _]
             (ir
-              (mappendinglet option ir.iterify.options
+              (mappendinglet option (ir.iterify options)
                 (ut
                   (foldlet result (my.sort-yourselves
                                      rep2comp

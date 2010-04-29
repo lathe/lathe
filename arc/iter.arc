@@ -51,7 +51,7 @@
   (fn () (fn () nil)))  ; NOTE: Jarc doesn't support (fn ()).
 
 (def my.must-iterify (val)
-  (or my.iterify.val
+  (or (my.iterify val)
       (err:+ "An unsupported type of value was passed to "
              "'must-iterify.")))
 
@@ -78,7 +78,7 @@
              (my.empty-iter))))
 
 (def my.iter-trav (func iterable)
-  (zap my.must-iterify iterable)
+  (zap (my must-iterify) iterable)
   (let iterator call.iterable
     (ut (dstwhilet (val) call.iterator
           do.func.val))))
@@ -87,7 +87,7 @@
   `(,(my 'iter-trav) (fn (,var) ,@body) ,iterable))
 
 (def my.iter-join args
-  (zap [map my.must-iterify _] args)
+  (zap [map (my must-iterify) _] args)
   (fn ()
     (let iterators (map call args)
       (afn ()
@@ -99,7 +99,7 @@
                     call.self))))))))
 
 (def my.cached-iter (iterable)
-  (zap my.must-iterify iterable)
+  (zap (my must-iterify) iterable)
   (withs (cache (queue)
           iterator call.iterable
           get (fn (index)
@@ -116,7 +116,7 @@
           (do1 do.get.i ++.i))))))
 
 (def my.mapping (func iterable)
-  (zap my.must-iterify iterable)
+  (zap (my must-iterify) iterable)
   (fn ()
     (let iterator call.iterable
       (fn ()
@@ -128,15 +128,15 @@
   `(,(my 'mapping) (fn (,var) ,@body) ,iterable))
 
 (def my.joining (iterable)
-  (zap my.must-iterify iterable)
+  (zap (my must-iterify) iterable)
   (fn ()
     (with (outside-iterator call.iterable
-           inside-iterator (call:call my.empty-iter))
+           inside-iterator (call:call (my empty-iter)))
       (afn ()
         (when inside-iterator
           (or call.inside-iterator
               (iflet (next-inside) call.outside-iterator
-                (do (= inside-iterator (aif my.iterify.next-inside
+                (do (= inside-iterator (aif (my.iterify next-inside)
                                          call.it
                                          next-inside))
                     call.self)
@@ -152,12 +152,12 @@
 ; go deeper than intended unless a specific termination condition is
 ; given.
 (def my.deepjoining (val (o condition [do t]))
-  (iflet iterable (and testify.condition.val my.iterify.val)
+  (iflet iterable (and testify.condition.val (my.iterify val))
     (my.mappending [my.deepjoining _ condition] iterable)
     val))
 
 (def my.iter*colexico iterables
-  (zap [map my.cached-iter _] iterables)
+  (zap [map (my cached-iter) _] iterables)
   (my.mapping rev
     (ut (foldlet combined-iter (my.iterify (list nil))
                  next-iter iterables
@@ -186,11 +186,11 @@
       (size sum (o reversed-lexico-significance))
   (unless (<= 0 size)
     (err "A negative size was given to 'nonneg-tuples-by-sum."))
-  (unless (isa size 'int)
+  (unless an-int.size
     (err "A non-integer size was given to 'nonneg-tuples-by-sum."))
   (unless (<= 0 sum)
     (err "A negative sum was given to 'nonneg-tuples-by-sum."))
-  (unless (isa sum 'int)
+  (unless an-int.sum
     (err "A non-integer sum was given to 'nonneg-tuples-by-sum."))
   (case size
     0  (do (unless (is sum 0)
@@ -208,7 +208,7 @@
        (size (o reversed-lexico-significance))
   (unless (<= 0 size)
     (err "A negative size was given to 'sum-grouped-nonneg-tuples."))
-  (unless (isa size 'int)
+  (unless an-int.size
     (err:+ "A non-integer size was given to "
            "'sum-grouped-nonneg-tuples."))
   (case size 0
@@ -220,7 +220,7 @@
 (def my.skippingover (amount iterable)
   (unless (<= 0 amount)
     (err "A negative amount was given to 'skippingover."))
-  (unless (isa amount 'int)
+  (unless an-int.amount
     (err "A non-integer amount was given to 'skippingover."))
   (fn ()
     (ut (ret iterator call.iterable
@@ -231,7 +231,7 @@
 (def my.stoppingafter (amount iterable)
   (unless (<= 0 amount)
     (err "A negative amount was given to 'stoppingafter."))
-  (unless (isa amount 'int)
+  (unless an-int.amount
     (err "A non-integer amount was given to 'stoppingafter."))
   (fn ()
     (with (iterator call.iterable i 0)
@@ -242,7 +242,7 @@
 (def my.stepping (amount iterable)
   (unless (<= 0 amount)
     (err "A negative amount was given to 'stepping."))
-  (unless (isa amount 'int)
+  (unless an-int.amount
     (err "A non-integer amount was given to 'stepping."))
   (fn ()
     (let iterator call.iterable
@@ -259,7 +259,7 @@
 ; repeating nils.
 (def my.iter*sum-grouped-w/colexico (iterables
                                      reversed-lexico-significance)
-  (zap [map my.must-iterify _] iterables)
+  (zap [map (my must-iterify) _] iterables)
   (withs (len len.iterables range (range 0 (- len 1)))
     (my (mappinglet coordinates (my.sum-grouped-nonneg-tuples len
                                   reversed-lexico-significance)
@@ -296,15 +296,14 @@
   (my.stoppingafter 1 iterable))
 
 (def my.iter->list (iterable)
-  (accum acc
-    (my.iter-trav acc iterable)))
+  (acm (my.iter-trav acc iterable)))
 
 (def my.repeating (iterable)
-  (zap my.must-iterify iterable)
+  (zap (my must-iterify) iterable)
   (my.joining (fn () (fn () list.iterable))))
 
 (def my.zipping iterables
-  (zap [map my.must-iterify _] iterables)
+  (zap [map (my must-iterify) _] iterables)
   (fn ()
     (let iterators (map call iterables)
       (fn ()
@@ -314,12 +313,12 @@
             (list:map car svalues)))))))
 
 (def my.padzipping (pad . iterables)
-  (zap [map my.must-iterify _] iterables)
+  (zap [map (my must-iterify) _] iterables)
   (fn ()
     (let iterators (map call iterables)
       (fn ()
         (withs (finished t
-                values (accum acc
+                values (acm
                          (reclist
                            ; NOTE: Jarc doesn't support (a . b) destr.
                            [with (a car._ b cdr._)

@@ -44,6 +44,7 @@
 (def anormalsym (x)
   (and x (isa x 'sym) (~ssyntax x)))
 
+
 ; Jarc defines 'andf the way Arc 2 does, so that it returns t on
 ; success rather than the last-returned true value. Here's an
 ; alternative that does 'andf the Arc 3 way (except that it isn't a
@@ -57,6 +58,15 @@
         last
         (let restfn (apply andf rev.rev-rest)
           [and do.restfn._ do.last._])))))
+
+; In Jarc, accum works the Arc 2 way, where the output isn't reversed,
+; so we'll use this instead.
+(mac acm body
+  (w/uniq g-revresult
+    `(withs (,g-revresult nil acc [push _ ,g-revresult])
+       (do ,@body)
+       (rev ,g-revresult))))
+
 
 ; This will transform a list of parameters from
 ; ((var1 val1 var2 val2) body1 body2) format--as seen in Arc's
@@ -89,7 +99,7 @@
         (if (and pairerr (odd:len first))
           err.pairerr
           (cons pair.first rest))
-        (let withlist (accum acc
+        (let withlist (acm
                         (while (and cdr.arglist
                                     ((orf no anormalsym) car.arglist))
                           (withs (name pop.arglist val pop.arglist)
@@ -170,6 +180,27 @@
 (if (errsafe (eval '(do (set xassign 0) t)))
   (=mc xassign args `(set ,@args))
   (=mc xassign args `(assign ,@args)))
+
+
+; In Jarc, the type of '0 is 'num, so we'll define '== and 'an-int to
+; test for integers regardless of platform.
+
+(def == args
+  (no (when args
+        (let first car.args
+          (some [or (< first _) (< _ first)] cdr.args)))))
+
+(if (bound 'trunc)
+  
+  ; most implementations
+  (def an-int (x)
+    (== x trunc.x))
+  
+  ; Jarc
+  (def an-int (x)
+    (== x (java.lang.Math.floor x)))
+  )
+
 
 ; Change 'setforms so that when a place becomes macro-expanded into an
 ; unbound (lexically and globally) symbol, there isn't an error.

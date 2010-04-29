@@ -56,8 +56,8 @@
              "obj-to-mine.")))
   (w/table overwritten
     (each (name value) tablist.obj  ; tablist necessary for Jarc
-      (= .name.overwritten (list:global my.name)
-         (global my.name) value))))
+      (= .name.overwritten (list:global (my name))
+         (global (my name)) value))))
 
 (def sobj-to-mine (sobj)
   (unless (isa sobj 'table)
@@ -71,8 +71,8 @@
              "sobj-to-mine.")))
   (w/table overwritten
     (each (name (value)) tablist.sobj  ; tablist necessary for Jarc
-      (= .name.overwritten (list:global my.name)
-         (global my.name) value))))
+      (= .name.overwritten (list:global (my name))
+         (global (my name)) value))))
 
 
 ; An nmap is a table mapping friendly global names to obscure global

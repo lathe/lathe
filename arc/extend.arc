@@ -48,16 +48,16 @@
   (let old global.name
     (=fn global.name args
       (catch
-        (each (label (condition consequence)) (car my.extends*.name)
+        (each (label (condition consequence)) (car (my.extends* name))
           (awhen (apply condition args)
             (throw:apply do.consequence.it args)))
         (apply old args))))
   'ok)
 
 (def my.fn-extend (name label condition consequence)
-  (let extends my.extends*.name
+  (let extends (my.extends* name)
     (unless extends
-      my.enable-extend.name
+      (my.enable-extend name)
       ; Rainbow doesn't like "list.nil".
       (= extends (= my.extends*.name (list nil))))
     (zap [ut.alcons _ label (list condition consequence)]

@@ -11,9 +11,9 @@
 ; and it ultimately becomes a function that calls those sorted rules
 ; as a basic rulebook.
 (def my.basic-rulebook-reducer (contribs)
-  (let rulebook (map !val (apply join oc.order-contribs.contribs))
+  (let rulebook (map !val (apply join (oc.order-contribs contribs)))
     (obj val (fn args
-               (apply ru.call-basic-rulebook rulebook args))
+               (apply (ru call-basic-rulebook) rulebook args))
          cares `(,(oc 'order-contribs)))))
 
 

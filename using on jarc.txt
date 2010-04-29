@@ -1,0 +1,21 @@
+On Jarc, a few things have to be defined or redefined before loading
+Lathe. Specifically:
+
+
+The 'down macro must be defined according to its Arc 3.1 arc.arc
+functionality, but changed to use 'set, '=, or 'xassign instead of
+'assign, since Jarc hasn't renamed 'set to 'assign yet.
+
+The 'enq macro should be defined in such a way that it uses something
+like (++ (car:cddr q)) rather than (++ (q 2)), since Jarc doesn't
+define sref on lists.
+
+The 'split and 'or= definitions need to be taken from Arc 3.1's
+arc.arc.
+
+All of Arc 3.1's strings.arc should be loaded. Only a few definitions
+are needed, but we might as well take them all.
+
+
+After that, define lathe-dir* and load loadfirst.arc as directed in
+the readme.

@@ -103,14 +103,14 @@
 ;
 (= my.circularly-order co.circularly-order)
 
-(mu (defmultifn-stub my.order-contribs my.self-orderer-reducer))
+(mu (defmultifn-stub my.order-contribs (my self-orderer-reducer)))
 
 (def my.fn-label-prec (label . tests)
-  (mt.contribute (my 'order-contribs) label my.self-orderer-reducer
-    (st.<=>-to-bracketer (apply st.order-by-tests tests))))
+  (mu.contribute (my 'order-contribs) label (my self-orderer-reducer)
+    (st.<=>-to-bracketer (apply (st order-by-tests) tests))))
 
 (def my.prec tests
-  (apply my.fn-label-prec (uniq) tests))
+  (apply (my fn-label-prec) (uniq) tests))
 
 (mac my.label-prec (label . tests)
   (list (my 'fn-label-prec) `(',expand.label ,@tests)))
