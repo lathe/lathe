@@ -129,6 +129,16 @@
         (= result eval.expr))
       result)))
 
+(def == args
+  (no (when args
+        (let first car.args
+          (some [or (< first _) (< _ first)] cdr.args)))))
+
+(def an-int (x)
+  (case type.x
+    int  t
+    num  (== x trunc.x)))
+
 ; Change 'setforms so that when a place becomes macro-expanded into an
 ; unbound (lexically and globally) symbol, there isn't an error.
 ; Instead, a global variable is created, as is the usual behavior of =
