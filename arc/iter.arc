@@ -48,7 +48,7 @@
 ; represented as little-endian byte strings.
 
 (def my.empty-iter ()
-  (fn () (fn () nil)))  ; NOTE: Jarc doesn't support (fn ()).
+  (fn () (fn ())))
 
 (def my.must-iterify (val)
   (or (my.iterify val)
