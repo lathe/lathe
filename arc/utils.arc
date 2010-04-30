@@ -2,12 +2,13 @@
 ;
 ; Miscellaneous utilities.
 ;
-; The 'xloop, 'ret, and 'between tools here were inspired by those
-; defined by Andrew Wilcox at http://awwx.ws/xloop0,
-; http://awwx.ws/ret0, and http://awwx.ws/between0. The only
-; noticeable difference is that this 'xloop requires fewer parentheses
-; in the majority of practical cases, thanks to 'parse-magic-withlike
-; (which is defined in modules/modulemisc.arc).
+; The 'xloop, 'ret, 'between, and 'readwine tools here were inspired
+; by those defined by Andrew Wilcox at http://awwx.ws/xloop0,
+; http://awwx.ws/ret0, http://awwx.ws/between0, and
+; http://awwx.ws/readline1. The only noticeable difference is that
+; this 'xloop requires fewer parentheses in the majority of practical
+; cases, thanks to 'parse-magic-withlike (which is defined in
+; modules/modulemisc.arc).
 
 (packed
 
@@ -34,12 +35,31 @@
          (if ,g-started ,chorus (= ,g-started t))
          ,@body))))
 
+(def my.readwine ((o stream (stdin)))
+  (whenlet firstchar readc.stream
+    (string (acm
+              (my (xloop chr firstchar
+                    (case chr
+                      #\newline  nil
+                      #\return   (case peekc.stream #\newline
+                                   readc.stream)
+                      nil        nil
+                                 (do do.acc.chr
+                                     (do.next readc.stream)))))))))
+
 (mac my.w/ withbody
   ; NOTE: Jarc doesn't support (a . b) destructuring.
   (withs (binds-and-body parse-magic-withlike.withbody
           binds car.binds-and-body
           body cdr.binds-and-body)
     `(withs ,(apply join binds) ,@body)))
+
+(def my.tails (lst)
+  (acm
+    (while acons.lst
+      do.acc.lst
+      (zap cdr lst))
+    do.acc.lst))
 
 (def my.alcons (al key val)
   `((,key ,val) ,@(rem [is car._ key] al)))
@@ -57,6 +77,16 @@
 (mac my.foldlet (startvar start nextvar lst . body)
   `(,my!foldl (fn (,startvar ,nextvar) ,@body) ,start ,lst))
 
+(mac my.maplet (var lst . body)
+  `(map (fn (,var) ,@body) ,lst))
+
+(mac my.mappendlet (var lst . body)
+  `(mappend (fn (,var) ,@body) ,lst))
+
+(mac my.zapmappendlet (var lst . body)
+  (w/uniq g-lst
+    `(zap (fn (,g-lst) (mappend (fn (,var) ,@body) ,g-lst)) ,lst)))
+
 (def my.tab+ args
   (w/table t
     (each arg args
@@ -69,6 +99,41 @@
     `(whilet ,g-var ,val
        (let ,var ,g-var
          ,@body))))
+
+; This takes a bunch of tables and returns a new table that's an
+; extension of all of them. If the first parameter is a function, that
+; function is used in order to decide whether two values for the same
+; key are equivalent. Otherwise, 'iso is used. If any two values for
+; the same key are not equivalent, nil is returned instead of a table.
+; If they are equivalent, the one from the first table in the argument
+; list is used.
+(def my.mergetabs tabs
+  (case tabs nil
+    (table)
+    ; NOTE: Jarc doesn't support (a . b) destructuring.
+    (with (compare car.tabs actual-tabs cdr.tabs)
+      (unless (isa compare 'fn)
+        (= compare iso actual-tabs tabs))
+      (catch (w/table result
+               (each tab actual-tabs
+                 (each (k v) tab
+                   (iflet existing-v do.result.k
+                     (unless (do.compare existing-v v)
+                       (throw nil))
+                     (= .k.result v)))))))))
+
+(def my.unnesttab (key val2tab tab)
+  (iflet val do.tab.key
+    (cons (copy tab key nil) (my.unnesttab key do.val2tab.val))
+    list.tab))
+
+(def my.nesttab (key tab2val tabs)
+  (whenlet last-and-rest rev.tabs
+    ; NOTE: Jarc doesn't support (a . b) destructuring.
+    (with (last car.last-and-rest rest cdr.last-and-rest)
+      (my:foldlet result last
+                  next rest
+        (copy next key do.tab2val.tabs)))))
 
 
 )
