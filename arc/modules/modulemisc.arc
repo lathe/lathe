@@ -172,19 +172,6 @@
         (= result eval.expr))
       result)))
 
-; Jarc uses 'set, and other implementations use 'assign now (with 'set
-; meaning the opposite of 'wipe), so here's a shot at a cross-platform
-; synonym. Note that (set xassign 0) raises an error on 'assign
-; platforms when 'set is unbound or when it attempts to get the
-; setforms for 0 during macro expansion.
-(if (errsafe (eval '(do (set xassign 0) t)))
-  (=mc xassign args `(set ,@args))
-  (=mc xassign args `(assign ,@args)))
-
-
-; In Jarc, the type of '0 is 'num, so we'll define '== and 'an-int to
-; test for integers regardless of platform.
-
 (def == args
   (no (when args
         (let first car.args
@@ -194,13 +181,28 @@
   
   ; most implementations
   (def an-int (x)
-    (== x trunc.x))
+    (case type.x
+      int  t
+      num  (== x trunc.x)))
   
   ; Jarc
+  ;
+  ; Note that in Jarc, the type of '0 is 'num, and 'trunc is
+  ; undefined.
+  ;
   (def an-int (x)
     (== x (java.lang.Math.floor x)))
+  
   )
 
+; Jarc uses 'set, and other implementations use 'assign now (with 'set
+; meaning the opposite of 'wipe), so here's a shot at a cross-platform
+; synonym. Note that (set xassign 0) raises an error on 'assign
+; platforms when 'set is unbound or when it attempts to get the
+; setforms for 0 during macro expansion.
+(if (errsafe (eval '(do (set xassign 0) t)))
+  (=mc xassign args `(set ,@args))
+  (=mc xassign args `(assign ,@args)))
 
 ; Change 'setforms so that when a place becomes macro-expanded into an
 ; unbound (lexically and globally) symbol, there isn't an error.
