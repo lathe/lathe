@@ -61,9 +61,9 @@
                               "given to using-as."))
           binds car.binds-and-body
           body cdr.binds-and-body
-          result `(mcdo ,@body))
+          result `(tldo ,@body))
     (each (name dependency) rev.binds
-      (= result `(w/mac ,name (prepare-nspace ,dependency)
+      (= result `(w/global ,name (prepare-nspace ,dependency)
                    ,result)))
     result))
 
@@ -154,8 +154,8 @@
 
 (mac packed body
   `(let nmap (table)
-     (w/mac my nspace.nmap
-       (mcdo ,@body))
+     (w/global my nspace.nmap
+       (tldo ,@body))
      pack-nmap.nmap))
 
 ; The 'names here must be either a list of symbols or a symbol.
@@ -165,8 +165,8 @@
     (err:+ "A nil, ssyntax, or non-symbol name was given to "
            "'packing."))
   `(let nmap (table)
-     (w/mac my nspace.nmap
-       (mcdo ,@body))
+     (w/global my nspace.nmap
+       (tldo ,@body))
      (pack-nmap (obj ,@(mappend [do `(,_ ((get ',_) nmap))] names)))))
 
 ; The 'names here must be either a list of symbols or a symbol.
@@ -176,8 +176,8 @@
     (err:+ "A nil, ssyntax, or non-symbol name was given to "
            "'pack-hiding."))
   `(let nmap (table)
-     (w/mac my nspace.nmap
-       (mcdo ,@body))
+     (w/global my nspace.nmap
+       (tldo ,@body))
      (pack-nmap:copy nmap ,@(mappend [do `(',_ nil)] names))))
 
 

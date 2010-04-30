@@ -146,22 +146,6 @@
              ,@body)
          (= (global ',name) ,g-old-val)))))
 
-; Jarc uses lexical scoping for macros, which renders pointless most
-; of the global name shuffling this module system is based on.
-;
-; Note that the name 'call is being used here, as opposed to something
-; more descriptive, just so that we don't end up making a pointless
-; global binding to nil.
-;
-(w/global call (mc () nil)  ; NOTE: Jarc doesn't support (fn ()).
-  (tldo (let call (mc () t)
-          (= lexical-macros* (call)))))
-
-(if lexical-macros*
-  (do (mac w/mac (name val . body) `(let ,name ,val ,@body))
-      (mac mcdo body `(do ,@body)))
-  (do (mac w/mac (name val . body) `(w/global ,name ,val ,@body))
-      (mac mcdo body `(tldo ,@body))))
 
 ; This is like 'load, but it returns the result of the final
 ; expression.

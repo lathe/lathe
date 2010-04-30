@@ -82,8 +82,8 @@
             `(,.op.symfor ,@params)))))))
 
 (mac nspaced body
-  `(w/mac my (nspace)
-     (mcdo ,@body)))
+  `(w/global my (nspace)
+     (tldo ,@body)))
 
 (mac copy-to-mine names
   (unless (all anormalsym names)
@@ -107,8 +107,8 @@
 ; top level, and thereby use most code that's targeted at nspaced in a
 ; way that's closer to what you want without very much hassle.
 (mac not-nspaced body
-  `(w/mac my (mc (what) what)
-     (mcdo ,@body)))
+  `(w/global my (mc (what) what)
+     (tldo ,@body)))
 
 ; Redefine def, mac, and safeset so that (def my.foo ...),
 ; (mac my.foo ...), (defmemo my.foo ...), and (defcache my.foo ...)
