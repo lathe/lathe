@@ -106,7 +106,7 @@
 (mu:defmultifn-stub my.order-contribs my.self-orderer-reducer)
 
 (def my.fn-label-prec (label . tests)
-  (mt.contribute my!order-contribs label my.self-orderer-reducer
+  (mu.contribute my!order-contribs label my.self-orderer-reducer
     (st:<=>-to-bracketer:apply st.order-by-tests tests)))
 
 (def my.prec tests
