@@ -144,7 +144,7 @@
 (def pack-nmap (nmap)
   (let export (obj nmap nmap)
     (= !nspace.export (let ns (nspace-indirect (fn () !nmap.export))
-                        (fn () idfn.ns)))  ; Jarc breaks on (fn () ns)
+                        (fn () ns)))
     (=fn !activate.export ()
       (let overwritten-sobj (import-nmap !nmap.export)
         (fn ()
