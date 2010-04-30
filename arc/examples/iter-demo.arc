@@ -11,7 +11,7 @@
   (w/uniq (g-simple g-complicated)
     `(with (,g-simple ,simple ,g-complicated ,complicated)
        (unless (iso ,g-simple ,g-complicated)
-         (wipe ,(my 'tests-succeeded))
+         (wipe ,my!tests-succeeded)
          (prn:+ "FAILED: These should be 'iso: " ,g-simple " and "
                 ,g-complicated ". The latter's expression was "
                 ',complicated ".")))))

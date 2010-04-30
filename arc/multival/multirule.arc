@@ -14,7 +14,7 @@
   (let rulebook (map !val (apply join (oc.order-contribs contribs)))
     (obj val (fn args
                (apply (ru call-basic-rulebook) rulebook args))
-         cares `(,(oc 'order-contribs)))))
+         cares `(,oc!order-contribs))))
 
 
 (mac my.rule (name parms . body)
@@ -24,10 +24,9 @@
     (zap expand label)
     (unless (and actualbody anormalsym.label)
       (= actualbody (cons label actualbody) label (uniq)))
-    `(do (,(mt 'defmultifn-stub) ,name)
-         (,(mt 'contribute) ',name ',label
-           ,(my 'basic-rulebook-reducer)
-           (,(ru 'ru) ,parms ,@actualbody)))))
+    `(do (,mt!defmultifn-stub ,name)
+         (,mt!contribute ',name ',label ,my!basic-rulebook-reducer
+           (,ru!ru ,parms ,@actualbody)))))
 
 
 ))

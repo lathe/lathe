@@ -55,7 +55,7 @@
   (my.foldl (fn (a b) (do.func b a)) end rev.lst))
 
 (mac my.foldlet (startvar start nextvar lst . body)
-  `(,(my 'foldl) (fn (,startvar ,nextvar) ,@body) ,start ,lst))
+  `(,my!foldl (fn (,startvar ,nextvar) ,@body) ,start ,lst))
 
 (def my.tab+ args
   (w/table t

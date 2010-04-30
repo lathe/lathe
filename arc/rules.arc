@@ -55,8 +55,8 @@
   (w/uniq g-return
     `(fn ,parms
        (point ,g-return
-         (let fail (fn (msg) (,g-return (,(my 'rule-failure) msg)))
-           (,(my 'rule-success) (do ,@body)))))))
+         (let fail (fn (msg) (,g-return (,my!rule-failure msg)))
+           (,my!rule-success (do ,@body)))))))
 
 
 )

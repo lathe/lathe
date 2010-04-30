@@ -84,7 +84,7 @@
     (apply (my.get-multival name) args)))
 
 (mac my.defmultifn-stub (name (o reducer))
-  `(,(my 'fn-defmultifn-stub) ',expand.name ,reducer))
+  `(,my!fn-defmultifn-stub ',expand.name ,reducer))
 
 
 ))

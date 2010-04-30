@@ -113,7 +113,7 @@
   (apply (my fn-label-prec) (uniq) tests))
 
 (mac my.label-prec (label . tests)
-  (list (my 'fn-label-prec) `(',expand.label ,@tests)))
+  `(,my!fn-label-prec ',expand.label ,@tests))
 
 
 ))

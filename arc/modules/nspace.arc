@@ -116,11 +116,11 @@
 (nspaced
   (copy-to-mine def mac safeset)
   (=mc def (name . rest)
-    `(,(my 'def) ,expand.name ,@rest))
+    `(,my!def ,expand.name ,@rest))
   (=mc mac (name . rest)
-    `(,(my 'mac) ,expand.name ,@rest))
+    `(,my!mac ,expand.name ,@rest))
   (=mc safeset (var val)
-    `(,(my 'safeset) ,expand.var ,val)))
+    `(,my!safeset ,expand.var ,val)))
 
 
 )
