@@ -119,7 +119,7 @@
       [eval (list '= ,g-name (list 'quote _))])))
 
 ; The above (defset global ...) relies on being able to say
-; (eval `(= global-var ',local-expression) even when local-expression
+; (eval `(= global-var ',local-expression)) even when local-expression
 ; has a value that can't usually appear in syntax. In case that
 ; doesn't work on all Arc implementations, here's the previous version
 ; of the (defset global ...) that uses a temporary global variable
@@ -187,69 +187,6 @@
 (if (errsafe (eval '(do (set xassign 0) t)))
   (=mc xassign args `(set ,@args))
   (=mc xassign args `(assign ,@args)))
-
-; Change 'setforms so that when a place becomes macro-expanded into an
-; unbound (lexically and globally) symbol, there isn't an error.
-; Instead, a global variable is created, as is the usual behavior of =
-; for unbound symbols.
-;
-; The simple way to assure this is to have the setforms be:
-;
-;  `(()                      ; atwith bindings
-;    ,expansion              ; getter expression
-;    [assign ,expansion _])  ; setter function expression
-;
-; However, that breaks functions that swap or rotate places, since one
-; place has its setter executed before its getter. For this reason (I
-; presume), the current arc.arc behavior of setforms is equivalent to:
-;
-;  (w/uniq g-place
-;    `((,g-place ,expansion)
-;      ,expansion
-;      [assign ,expansion _]))
-;
-; As mentioned, this causes there to be an error when the variable is
-; being set for the first time. The solution actually used here is to
-; wrap ,expansion in (errsafe ...), thereby suppressing the error.
-;
-; This has the side effect that swapping or rotating places, one of
-; which macro-expands to an unbound variable name, will have behavior
-; as though the unbound variable had actually been bound to nil (which
-; is the exceptional result of errsafe).
-;
-(let old-setforms setforms
-  (=fn setforms (expr)
-    (let expansion macex.expr
-      (if anormalsym.expansion
-        (w/uniq g-place
-          `((,g-place (errsafe ,expansion))
-            ,g-place
-            [xassign ,expansion _]))
-        do.old-setforms.expansion))))
-
-; Jarc doesn't define 'get, so here's most of it. Unfortunately, it's
-; actually a metafn, so this doesn't cover everything.
-(unless bound!get
-  
-  (def get (val)
-    [_ val])
-  
-  (let old-setforms setforms
-    (=fn setforms (expr)
-      (let expansion macex.expr
-        (if (and acons.expansion
-                 (acons car.expansion)
-                 (is caar.expansion 'get))
-          (setforms `(,cadr.expansion ,(cadr:car expansion)))
-          old-setforms.expansion))))
-  )
-
-(defset global (name)
-  (w/uniq (g-name g-val)
-    `(((,g-name ,g-val) (let _ ,name (list _ global._)))
-      ,g-val
-      ; NOTE: Jarc doesn't support nested quasiquotes the same way.
-      [eval (list '= ,g-name (list 'quote _))])))
 
 
 ))  ; end (eval '(tldo ...))

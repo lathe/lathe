@@ -40,12 +40,12 @@
 
 (let multival-cache (table)
   
-  (def my.get-multival (name)
+  (=fn my.get-multival (name)
     (!val:car
       (or= do.multival-cache.name
         (list ((car (my.reducers* name)) (my.contribs* name))))))
   
-  (def my.invalidate-multival names
+  (=fn my.invalidate-multival names
     (while names
       (each name names
         (wipe do.multival-cache.name))
@@ -53,12 +53,12 @@
                        (some [mem _ names] !cares.reduction)]
                  keys.multival-cache))))
   
-  (def my.invalidate-all-multivals ()
+  (=fn my.invalidate-all-multivals ()
     (each key keys.multival-cache
       (wipe do.multival-cache.key)))
   )
 
-(def my.submit-reducer (name reducer)
+(=fn my.submit-reducer (name reducer)
   (iflet (existing-reducer) (my.reducers* name)
     (unless (iso reducer existing-reducer)
       (err:+ "Multiple reducers have been submitted for the same "
@@ -67,24 +67,24 @@
              "completely different kinds.)"))
     (= my.reducers*.name list.reducer)))
 
-(def my.submit-contribution (name label val (o meta))
+(=fn my.submit-contribution (name label val (o meta))
   (zap [cons (obj name name label label val val meta meta)
              (rem [iso _!label label] _)]
        my.contribs*.name)
   (my.invalidate-multival name))
 
-(def my.contribute (name label reducer contribution)
+(=fn my.contribute (name label reducer contribution)
   (my.submit-reducer name reducer)
   (my.submit-contribution name label contribution))
 
-(def my.fn-defmultifn-stub (name (o reducer))
+(=fn my.fn-defmultifn-stub (name (o reducer))
   (when reducer
     (my.submit-reducer name reducer))
   (=fn global.name args
     (apply (my.get-multival name) args)))
 
-(mac my.defmultifn-stub (name (o reducer))
-  `(,my!fn-defmultifn-stub ',expand.name ,reducer))
+(=mc my.defmultifn-stub (name (o reducer))
+  (cons my!fn-defmultifn-stub `(',deglobalize-var.name ,reducer)))
 
 
 ))

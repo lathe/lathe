@@ -24,13 +24,13 @@
 (packed
 
 
-(def my.rule-success (return-value)
+(=fn my.rule-success (return-value)
   `(success ,return-value))
 
-(def my.rule-failure ((o description))
+(=fn my.rule-failure ((o description))
   `(failure ,description))
 
-(def my.call-basic-rulebook (rulebook . args)
+(=fn my.call-basic-rulebook (rulebook . args)
   (catch (let failures '()
            (each rule rulebook
              (let (result-type result-details) (apply rule args)
@@ -51,12 +51,14 @@
                   (+ "No rule accepted the given arguments or even "
                      "had a specific complaint."))))))
 
-(mac my.ru (parms . body)
+(=mc my.ru (parms . body)
   (w/uniq g-return
-    `(fn ,parms
-       (point ,g-return
-         (let fail (fn (msg) (,g-return (,my!rule-failure msg)))
-           (,my!rule-success (do ,@body)))))))
+    (withs (rule-failure-call (list my!rule-failure 'msg)
+            rule-success-call (list my!rule-success `(do ,@body)))
+      `(fn ,parms
+         (point ,g-return
+           (let fail (fn (msg) (,g-return ,rule-failure-call))
+             ,rule-success-call))))))
 
 
 )

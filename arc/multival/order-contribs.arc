@@ -74,7 +74,7 @@
 ; comparator functions which accept lists of contribution details and
 ; return ordered partitions ("brackets") of those lists.
 ;
-(def my.self-orderer-reducer (contribs-that-order)
+(=fn my.self-orderer-reducer (contribs-that-order)
   (withs (rep2comp !val
           ordered-orderers (map rep2comp
                              (apply join (my.circularly-order rep2comp
@@ -105,15 +105,15 @@
 
 (mu (defmultifn-stub my.order-contribs (my self-orderer-reducer)))
 
-(def my.fn-label-prec (label . tests)
+(=fn my.fn-label-prec (label . tests)
   (mu.contribute (my 'order-contribs) label (my self-orderer-reducer)
     (st.<=>-to-bracketer (apply (st order-by-tests) tests))))
 
-(def my.prec tests
+(=fn my.prec tests
   (apply (my fn-label-prec) (uniq) tests))
 
-(mac my.label-prec (label . tests)
-  `(,my!fn-label-prec ',expand.label ,@tests))
+(=mc my.label-prec (label . tests)
+  (cons my!fn-label-prec `(',expand.label ,@tests)))
 
 
 ))

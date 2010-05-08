@@ -7,14 +7,15 @@
 
 (= my.tests-succeeded t)
 
-(mac my.test-iso (simple complicated)
+(=mc my.test-iso (simple complicated)
   (w/uniq (g-simple g-complicated)
-    `(with (,g-simple ,simple ,g-complicated ,complicated)
-       (unless (iso ,g-simple ,g-complicated)
-         (wipe ,my!tests-succeeded)
-         (prn:+ "FAILED: These should be 'iso: " ,g-simple " and "
-                ,g-complicated ". The latter's expression was "
-                ',complicated ".")))))
+    (let tests-succeeded-call (list my!tests-succeeded)
+      `(with (,g-simple ,simple ,g-complicated ,complicated)
+         (unless (iso ,g-simple ,g-complicated)
+           (wipe ,@tests-succeeded-call)
+           (prn:+ "FAILED: These should be 'iso: " ,g-simple " and "
+                  ,g-complicated ". The latter's expression was "
+                  ',complicated "."))))))
 
 
 (my (test-iso '(()) (ir.iter->list (ir.nonneg-tuples-by-sum 0 0))))

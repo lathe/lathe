@@ -44,7 +44,7 @@
 ; first time a function is extended. If the function is totally
 ; redefined after that, this has to be done manually in order to get
 ; the extensions to work again.
-(def my.enable-extend (name)
+(=fn my.enable-extend (name)
   (let old global.name
     (=fn global.name args
       (catch
@@ -54,7 +54,7 @@
         (apply old args))))
   'ok)
 
-(def my.fn-extend (name label condition consequence)
+(=fn my.fn-extend (name label condition consequence)
   (let extends (my.extends* name)
     (unless extends
       (my.enable-extend name)
@@ -69,13 +69,13 @@
 ; 'it, the parameter as seen in the body may be different than the one
 ; visible in the condition. This is also true if 'parms is, for
 ; instance, (arg1 arg2 (o arg3 (uniq))).
-(mac my.label-extend (name label parms condition . body)
-  `(,my!fn-extend ',expand.name ',expand.label
-     (fn ,parms ,condition)
-     (fn (it) (fn ,parms ,@body))))
+(=mc my.label-extend (name label parms condition . body)
+  (cons my!fn-extend `(',expand.name ',expand.label
+                        (fn ,parms ,condition)
+                        (fn (it) (fn ,parms ,@body)))))
 
-(mac my.extend (name parms condition . body)
-  `(,my!label-extend ,name ,(uniq) ,parms ,condition ,@body))
+(=mc my.extend (name parms condition . body)
+  (cons my!label-extend `(,name ,(uniq) ,parms ,condition ,@body)))
 
 
 ))

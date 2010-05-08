@@ -13,7 +13,7 @@
 (packed
 
 
-(mac my.xloop withbody
+(=mc my.xloop withbody
   ; NOTE: Jarc doesn't support (a . b) destructuring.
   (withs (binds-and-body parse-magic-withlike.withbody
           binds car.binds-and-body
@@ -22,20 +22,20 @@
         ,@body)
       ,@(map cadr binds))))
 
-(mac my.ret (var val . body)
+(=mc my.ret (var val . body)
   (w/niceuniq g-result
     `(withs (,g-result ,val ,var ,g-result)
        ,@body
        ,g-result)))
 
-(mac my.between (var val chorus . body)
+(=mc my.between (var val chorus . body)
   (w/niceuniq g-started
     `(with g-started nil
        (each ,var ,val
          (if ,g-started ,chorus (= ,g-started t))
          ,@body))))
 
-(def my.readwine ((o stream (stdin)))
+(=fn my.readwine ((o stream (stdin)))
   (whenlet firstchar readc.stream
     (string (acm
               (my (xloop chr firstchar
@@ -47,54 +47,54 @@
                                  (do do.acc.chr
                                      (do.next readc.stream)))))))))
 
-(mac my.w/ withbody
+(=mc my.w/ withbody
   ; NOTE: Jarc doesn't support (a . b) destructuring.
   (withs (binds-and-body parse-magic-withlike.withbody
           binds car.binds-and-body
           body cdr.binds-and-body)
     `(withs ,(apply join binds) ,@body)))
 
-(def my.tails (lst)
+(=fn my.tails (lst)
   (acm
     (while acons.lst
       do.acc.lst
       (zap cdr lst))
     do.acc.lst))
 
-(def my.alcons (al key val)
+(=fn my.alcons (al key val)
   `((,key ,val) ,@(rem [is car._ key] al)))
 
-(def my.foldl (func start lst)
+(=fn my.foldl (func start lst)
   ; NOTE: Jarc doesn't support (a . b) destructuring.
   (if lst
     (with (a car.lst b cdr.lst)
       (my.foldl func (do.func start a) b))
     start))
 
-(def my.foldr (func end lst)
+(=fn my.foldr (func end lst)
   (my.foldl (fn (a b) (do.func b a)) end rev.lst))
 
-(mac my.foldlet (startvar start nextvar lst . body)
-  `(,my!foldl (fn (,startvar ,nextvar) ,@body) ,start ,lst))
+(=mc my.foldlet (startvar start nextvar lst . body)
+  (cons my!foldl `((fn (,startvar ,nextvar) ,@body) ,start ,lst)))
 
-(mac my.maplet (var lst . body)
+(=mc my.maplet (var lst . body)
   `(map (fn (,var) ,@body) ,lst))
 
-(mac my.mappendlet (var lst . body)
+(=mc my.mappendlet (var lst . body)
   `(mappend (fn (,var) ,@body) ,lst))
 
-(mac my.zapmappendlet (var lst . body)
+(=mc my.zapmappendlet (var lst . body)
   (w/uniq g-lst
     `(zap (fn (,g-lst) (mappend (fn (,var) ,@body) ,g-lst)) ,lst)))
 
-(def my.tab+ args
+(=fn my.tab+ args
   (w/table t
     (each arg args
       (each (k v) tablist.arg  ; tablist necessary for Jarc
         (= do.t.k v)))))
 
 ; This is a version of 'whilet that supports destructuring.
-(mac my.dstwhilet (var val . body)
+(=mc my.dstwhilet (var val . body)
   (w/uniq g-var
     `(whilet ,g-var ,val
        (let ,var ,g-var
@@ -107,7 +107,7 @@
 ; the same key are not equivalent, nil is returned instead of a table.
 ; If they are equivalent, the one from the first table in the argument
 ; list is used.
-(def my.mergetabs tabs
+(=fn my.mergetabs tabs
   (case tabs nil
     (table)
     ; NOTE: Jarc doesn't support (a . b) destructuring.
@@ -122,12 +122,12 @@
                        (throw nil))
                      (= .k.result v)))))))))
 
-(def my.unnesttab (key val2tab tab)
+(=fn my.unnesttab (key val2tab tab)
   (iflet val do.tab.key
     (cons (copy tab key nil) (my.unnesttab key do.val2tab.val))
     list.tab))
 
-(def my.nesttab (key tab2val tabs)
+(=fn my.nesttab (key tab2val tabs)
   (whenlet last-and-rest rev.tabs
     ; NOTE: Jarc doesn't support (a . b) destructuring.
     (with (last car.last-and-rest rest cdr.last-and-rest)

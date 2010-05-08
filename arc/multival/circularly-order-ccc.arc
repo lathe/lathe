@@ -4,7 +4,7 @@
                        ut "../utils.arc"
 
 
-(def my.is-start-of-brackets (order-so-far rep-brackets)
+(=fn my.is-start-of-brackets (order-so-far rep-brackets)
   ; NOTE: Jarc doesn't support (a . b) destructuring.
   (with (first-so-far car.order-so-far
          others-so-far cdr.order-so-far
@@ -15,12 +15,12 @@
         no.first-bracket
       (my.is-start-of-brackets order-so-far other-brackets)
       (iflet the-pos (pos first-so-far first-bracket)
-        (let (before it-and-after) (split first-bracket the-pos)
+        (let (before it-and-after) (xsplit first-bracket the-pos)
           (my.is-start-of-brackets
             others-so-far
             (cons (join before cdr.it-and-after) other-brackets)))))))
 
-(def my.circularly-order (rep2comp comparator-reps)
+(=fn my.circularly-order (rep2comp comparator-reps)
   (let amb (am.make-amb
              (fn () (err "The comparators are circularly humble.")))
     (ut (xloop order-so-far '() rep-brackets list.comparator-reps

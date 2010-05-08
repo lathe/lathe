@@ -26,12 +26,18 @@
 
 (= load-dir* "")
 
+; On Jarc, (split "hello" 1) doesn't work because it uses the JVM
+; String.split() method, and (cut "hello" 1) doesn't work either, for
+; some reason.
+(def xsplit (seq pos)
+  (list (cut seq 0 pos) (cut seq pos len.seq)))
+
 (def split-at-dir (str)
   (catch
     (down i (- len.str 1) 0
       (when (in do.str.i #\/ #\\)
-        (throw:split str (+ i 1))))
-    (split str 0)))
+        (throw:xsplit str (+ i 1))))
+    (xsplit str 0)))
 
 (def normalize-path (path)
   (zap [subst "/" "\\" _] path)
