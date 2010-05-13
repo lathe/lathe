@@ -15,7 +15,7 @@
 ; any two elements, the result of 'mergesort-to-brackets will simply
 ; be a singleton list containing the original list.
 
-(def my.merge-brackets (<=> a b)
+(=fn my.merge-brackets (<=> a b)
   (= a (keep idfn a) b (keep idfn b))
   (ut:xloop a a b b acc nil
     (if (and a b)
@@ -26,7 +26,7 @@
           (err "Not a comparator."))
       (join rev.acc a b))))
 
-(def my.mergesort-to-brackets (<=> lst)
+(=fn my.mergesort-to-brackets (<=> lst)
   (when lst
     (let merge (fn (a b) (my.merge-brackets <=> a b))
       (ut:xloop sorted-lists (map list:list lst)
@@ -38,29 +38,29 @@
                              (pair cdr.sorted-lists merge))
                        (pair sorted-lists merge)))))))))
 
-(def my.<=>-to-bracketer (<=>)
+(=fn my.<=>-to-bracketer (<=>)
   [my.mergesort-to-brackets <=> _])
 
-(def my.<-to-<=> (<)
+(=fn my.<-to-<=> (<)
   (fn (a b)
     (if (do.< a b)  '<
         (do.< b a)  '>
                     '=)))
 
-(def my.<=-to-<=> (<=)
+(=fn my.<=-to-<=> (<=)
   (fn (a b)
     (if (do.<= a b)
       (if (do.<= b a) '= '<)
       '>)))
 
-(def my.inverse-<=> (<=>)
+(=fn my.inverse-<=> (<=>)
   (fn (a b)
     (do.<=> b a)))
 
-(def my.inverse-bracketer (bracketer)
+(=fn my.inverse-bracketer (bracketer)
   rev:bracketer)
 
-(def my.order-by-tests tests
+(=fn my.order-by-tests tests
   (zap [map testify _] tests)
   (fn (a b)
     (catch

@@ -4,11 +4,11 @@
                       ut "../utils.arc"
 
 
-(def my.rempos (lst position)
+(=fn my.rempos (lst position)
   (let (before (removed . after)) (split lst position)
     (join before after)))
 
-(def my.begins-with-unordered-is (lst prefix)
+(=fn my.begins-with-unordered-is (lst prefix)
   (let len-prefix len.prefix
     (unless (< len.lst len-prefix)
       (catch:do1 t
@@ -21,7 +21,7 @@
 ; This returns nil on failure and a singleton list containing the
 ; difference on success. The singleton list is necessary because the
 ; difference itself may be nil.
-(def my.hard-subtract-is (lst contents)
+(=fn my.hard-subtract-is (lst contents)
   (unless (< len.lst len.contents)
     (catch:list:ut:ret result lst
       (each element contents
@@ -55,7 +55,7 @@
 ; That being the case, if the 'must-come-first elements don't exist in
 ; the brackets at all, that is an error.
 ;
-(def my.sort-yourselves (rep2comp brackets (o must-come-first))
+(=fn my.sort-yourselves (rep2comp brackets (o must-come-first))
   (with (sort-one-bracket (fn (bracket sorter)
                             (if (< len.bracket 2)
                               list.bracket
@@ -100,7 +100,7 @@
                "disappeared.")
         (ir.iterify list.result-so-far)))))
 
-(def my.circularly-order (rep2comp comparator-reps)
+(=fn my.circularly-order (rep2comp comparator-reps)
   (or (call:call (my.sort-yourselves rep2comp
                    list.comparator-reps))
       (err "The comparators are circularly humble.")))

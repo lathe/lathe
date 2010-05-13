@@ -7,7 +7,7 @@
 
 (= my.tests-succeeded t)
 
-(mac my.test-iso (simple complicated)
+(=mc my.test-iso (simple complicated)
   (w/uniq (g-simple g-complicated)
     `(with (,g-simple ,simple ,g-complicated ,complicated)
        (unless (iso ,g-simple ,g-complicated)

@@ -4,7 +4,7 @@
                       ut "../utils.arc"
 
 
-(def my.is-start-of-brackets (order-so-far rep-brackets)
+(=fn my.is-start-of-brackets (order-so-far rep-brackets)
   (with ((first-so-far . others-so-far) order-so-far
          (first-bracket . other-brackets) rep-brackets)
     (if no.order-so-far t
@@ -17,7 +17,7 @@
             others-so-far
             (cons (join before cdr.it-and-after) other-brackets)))))))
 
-(def my.circularly-order (rep2comp comparator-reps)
+(=fn my.circularly-order (rep2comp comparator-reps)
   (let amb (am.make-amb
              (fn () (err "The comparators are circularly humble.")))
     (ut:xloop order-so-far '() rep-brackets list.comparator-reps

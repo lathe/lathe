@@ -108,17 +108,5 @@
   `(w/global my (mc (what) what)
      (tldo ,@body)))
 
-; Redefine def, mac, and safeset so that (def my.foo ...),
-; (mac my.foo ...), (defmemo my.foo ...), and (defcache my.foo ...)
-; can be used.
-(nspaced
-  (copy-to-mine def mac safeset)
-  (=mc def (name . rest)
-    `(,my!def ,expand.name ,@rest))
-  (=mc mac (name . rest)
-    `(,my!mac ,expand.name ,@rest))
-  (=mc safeset (var val)
-    `(,my!safeset ,expand.var ,val)))
-
 
 )
