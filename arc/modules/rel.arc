@@ -108,5 +108,10 @@
                            "to using-rels-as."))
     `(using-as ,(mappend [do `(,_.0 `(rel ,,_.1))] binds) ,@body)))
 
+(mac use-rels-as bindings
+  (when (odd:len bindings)
+    (err "An odd-sized list of bindings was given to use-rels-as."))
+  `(use-as ,@(mappend [do `(,_.0 `(rel ,,_.1))] pair.bindings)))
+
 
 )
