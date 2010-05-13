@@ -5,10 +5,19 @@
 ; The 'xloop, 'ret, 'between, and 'readwine tools here were inspired
 ; by those defined by Andrew Wilcox at http://awwx.ws/xloop0,
 ; http://awwx.ws/ret0, http://awwx.ws/between0, and
-; http://awwx.ws/readline1. The only noticeable difference is that
-; this 'xloop requires fewer parentheses in the majority of practical
-; cases, thanks to 'parse-magic-withlike (which is defined in
-; modules/modulemisc.arc).
+; http://awwx.ws/readline1. The only noticeable differences are as
+; follows:
+;
+; - When this 'ret binds a non-nil, non-ssyntax symbol, any
+;   assignments to the bound variable from within the body will modify
+;   the result. This behavior is consistent with Sean Kenney's
+;   original 'ret, which Andrew Wilcox cites. When destructuring is
+;   involved, as in (ret (a b) some-pair ...), assignments do not
+;   modify the result, which is consistent with Andrew Wilcox's 'ret.
+;
+; - This 'xloop requires fewer parentheses in the majority of
+;   practical cases, thanks to 'parse-magic-withlike (which is defined
+;   in modules/modulemisc.arc).
 
 (packed
 
@@ -20,10 +29,19 @@
       ,@(map cadr binds))))
 
 (mac my.ret (var val . body)
-  (w/niceuniq g-result
-    `(withs (,g-result ,val ,var ,g-result)
+  (if anormalsym.var
+    
+    ; We will allow for (= the-var changed-result).
+    `(let ,var ,val
        ,@body
-       ,g-result)))
+       ,var)
+    
+    ; We will allow for destructuring, but the result will stay
+    ; constant.
+    (w/niceuniq g-result
+      `(withs (,g-result ,val ,var ,g-result)
+         ,@body
+         ,g-result))))
 
 (mac my.between (var val chorus . body)
   (w/niceuniq g-started
