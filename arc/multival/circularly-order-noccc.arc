@@ -1,35 +1,34 @@
 ; circularly-order-noccc.arc
 
-(packed (using-rels-as ir "../iter.arc"
-                       ut "../utils.arc"
+(mccmp packed using-rels-as
+                      ir "../iter.arc"
+                      ut "../utils.arc"
 
 
 (=fn my.rempos (lst position)
-  ; NOTE: Jarc doesn't support (a . b) destructuring.
-  (let (before removed-and-after) (xsplit lst position)
-    (join before cdr.removed-and-after)))
+  (let (before (removed . after)) (split lst position)
+    (join before after)))
 
 (=fn my.begins-with-unordered-is (lst prefix)
   (let len-prefix len.prefix
     (unless (< len.lst len-prefix)
-      (catch (do1 t
-               (for lst-position 0 (- len-prefix 1)
-                 (let element do.lst.lst-position
-                   (iflet prefix-position (pos [is element _] prefix)
-                     (zap [my.rempos _ prefix-position] prefix)
-                     (throw nil)))))))))
+      (mccmp catch do1 t
+        (for lst-position 0 (- len-prefix 1)
+          (let element do.lst.lst-position
+            (iflet prefix-position (pos [is element _] prefix)
+              (zap [my.rempos _ prefix-position] prefix)
+              (throw nil))))))))
 
 ; This returns nil on failure and a singleton list containing the
 ; difference on success. The singleton list is necessary because the
 ; difference itself may be nil.
 (=fn my.hard-subtract-is (lst contents)
   (unless (< len.lst len.contents)
-    (catch (list
-             (ut (ret result lst
-                   (each element contents
-                     (iflet position (pos [is element _] result)
-                       (zap [my.rempos _ position] result)
-                       (throw nil)))))))))
+    (mccmp catch mccmp list mccmp ut ret result lst
+      (each element contents
+        (iflet position (pos [is element _] result)
+          (zap [my.rempos _ position] result)
+          (throw nil))))))
 
 ; This takes a list of multisets (given as lists) of comparators and
 ; returns an iterable (see iter.arc) over lists of the same
@@ -64,51 +63,40 @@
                               do.rep2comp.sorter.bracket))
          result-so-far nil
          len-brackets len.brackets)
-    (catch (while brackets
-             ; NOTE: Jarc doesn't support (a . b) destructuring.
-             (let bracket car.brackets
-               (unless (my.begins-with-unordered-is must-come-first
-                                                    bracket)
-                 (throw nil))
-               (let len-bracket len.bracket
-                 (zap [join _ (cut must-come-first 0 len-bracket)]
-                      result-so-far)
-                 (zap cdr brackets)
-                 (zap [cut _ len-bracket len._] must-come-first)))))
-    (if brackets
-      ; NOTE: Jarc doesn't support (a . b) destructuring.
-      (with (first-bracket car.brackets rest-of-brackets cdr.brackets)
-        (iflet (options) (my.hard-subtract-is first-bracket
-                                              must-come-first)
-          (ir.mapping [join result-so-far _]
-            (ir
-              (mappendinglet option (ir.iterify options)
-                (ut
-                  (foldlet result (my.sort-yourselves
-                                     rep2comp
-                                     (do.sort-one-bracket
-                                       first-bracket
-                                       option)
-                                     (cons option must-come-first))
-                            bracket rest-of-brackets
-                    (ir
-                      (mappendinglet previous-sorted-stuff result
-                        (ir.mapping [join previous-sorted-stuff _]
-                          (my.sort-yourselves
-                            rep2comp
-                            (ut
-                              (foldlet previous-bracket-brackets
-                                         list.bracket
-                                       sorter previous-sorted-stuff
-; <needs more indentation>
-(mappend [do.sort-one-bracket _ sorter]
-         previous-bracket-brackets))))))))))))
-; </needs more indentation>
-          (if (my.hard-subtract-is (apply join brackets)
-                                   must-come-first)
-            (ir.empty-iter)
-            (err:+ "Somehow there were sorters that were used but "
-                   "then disappeared."))))
+    (mccmp catch mccmp ut dstwhilet (bracket . _) brackets
+      (unless (my.begins-with-unordered-is must-come-first bracket)
+        (throw nil))
+      (let len-bracket len.bracket
+        (zap [join _ (cut must-come-first 0 len-bracket)]
+             result-so-far)
+        (zap cdr brackets)
+        (zap [cut _ len-bracket] must-come-first)))
+    (iflet (first-bracket . rest-of-brackets) brackets
+      (iflet (options) (my.hard-subtract-is first-bracket
+                                            must-come-first)
+        (ir.mapping [join result-so-far _]
+          (mccmp ir mappendinglet option (ir.iterify options)
+            (mccmp ut foldlet
+                        result (my.sort-yourselves
+                                 rep2comp
+                                 (do.sort-one-bracket first-bracket
+                                                      option)
+                                 (cons option must-come-first))
+                        bracket rest-of-brackets
+              (mccmp ir mappendinglet previous-sorted-stuff result
+                (ir.mapping [join previous-sorted-stuff _]
+                  (my.sort-yourselves
+                    rep2comp
+                    (mccmp ut foldlet
+                                previous-bracket-brackets list.bracket
+                                sorter previous-sorted-stuff
+                      (mappend [do.sort-one-bracket _ sorter]
+                               previous-bracket-brackets))))))))
+        (if (my.hard-subtract-is (apply join brackets)
+                                 must-come-first)
+          (ir.empty-iter)
+          (err:+ "Somehow there were sorters that were used but then "
+                 "disappeared.")))
       (if must-come-first
         (err:+ "Somehow there were sorters that were used but then "
                "disappeared.")
@@ -120,4 +108,4 @@
       (err "The comparators are circularly humble.")))
 
 
-))
+)

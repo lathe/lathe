@@ -2,7 +2,7 @@
 ;
 ; ===== Multival implementation and bare API =========================
 
-(packed (using-rels-as ut "../utils.arc"
+(mccmp packed using-rels-as ut "../utils.arc"
 
 
 (= my.reducers* (table))
@@ -41,9 +41,8 @@
 (let multival-cache (table)
   
   (=fn my.get-multival (name)
-    (!val:car
-      (or= do.multival-cache.name
-        (list ((car (my.reducers* name)) (my.contribs* name))))))
+    (mccmp !val:car or= do.multival-cache.name
+      (list ((car my.reducers*.name) my.contribs*.name))))
   
   (=fn my.invalidate-multival names
     (while names
@@ -59,7 +58,7 @@
   )
 
 (=fn my.submit-reducer (name reducer)
-  (iflet (existing-reducer) (my.reducers* name)
+  (iflet (existing-reducer) my.reducers*.name
     (unless (iso reducer existing-reducer)
       (err:+ "Multiple reducers have been submitted for the same "
              "multivalue. (This probably means the multivalue has "
@@ -71,7 +70,7 @@
   (zap [cons (obj name name label label val val meta meta)
              (rem [iso _!label label] _)]
        my.contribs*.name)
-  (my.invalidate-multival name))
+  my.invalidate-multival.name)
 
 (=fn my.contribute (name label reducer contribution)
   (my.submit-reducer name reducer)
@@ -81,10 +80,10 @@
   (when reducer
     (my.submit-reducer name reducer))
   (=fn global.name args
-    (apply (my.get-multival name) args)))
+    (apply my.get-multival.name args)))
 
 (=mc my.defmultifn-stub (name (o reducer))
-  (cons my!fn-defmultifn-stub `(',deglobalize-var.name ,reducer)))
+  `(,my!fn-defmultifn-stub ',deglobalize-var.name ,reducer))
 
 
-))
+)

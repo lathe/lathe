@@ -1,8 +1,9 @@
 ; multirule.arc
 
-(packed (using-rels-as mt "multival.arc"
-                       oc "order-contribs.arc"
-                       ru "../rules.arc"
+(mccmp packed using-rels-as
+                      mt "multival.arc"
+                      oc "order-contribs.arc"
+                      ru "../rules.arc"
 
 
 ; A basic-rulebook-reducer multival takes contributions that are rules
@@ -11,26 +12,21 @@
 ; and it ultimately becomes a function that calls those sorted rules
 ; as a basic rulebook.
 (=fn my.basic-rulebook-reducer (contribs)
-  (let rulebook (map !val (apply join (oc.order-contribs contribs)))
+  (let rulebook (map !val (apply join oc.order-contribs.contribs))
     (obj val (fn args
-               (apply (ru call-basic-rulebook) rulebook args))
-         cares (cons oc!order-contribs `()))))
+               (apply ru.call-basic-rulebook rulebook args))
+         cares `(,oc!order-contribs))))
 
 
 (=mc my.rule (name parms . body)
   (zap expand name)
-  ; NOTE: Jarc doesn't support (a . b) destructuring.
-  (with (label car.body actualbody cdr.body)
+  (let (label . actualbody) body
     (zap expand label)
     (unless (and actualbody anormalsym.label)
       (= actualbody (cons label actualbody) label (uniq)))
-    (list 'do
-          (cons mt!defmultifn-stub `(,name))
-          (list mt!contribute
-                `',name
-                `',label
-                my!basic-rulebook-reducer
-                (cons ru!ru `(,parms ,@actualbody))))))
+    `(do (,mt!defmultifn-stub ,name)
+         (,mt!contribute ',name ',label ,my!basic-rulebook-reducer
+           (,ru!ru ,parms ,@actualbody)))))
 
 
-))
+)

@@ -47,7 +47,7 @@
 ;  - You can pass it a cons cell where the car is a symbol other than
 ;    'quote, in which case it will yield a cons cell with a mangled
 ;    car and the original cdr. This is useful when invoking a macro,
-;    by way of the syntax (my (the-macro params)). Unfortunately,
+;    by way of the syntax (mccmp my the-macro params). Unfortunately,
 ;    (my.the-macro params) doesn't work, since ac doesn't macro-expand
 ;    (my the-macro) until after it's determined that the expression
 ;    (my the-macro) isn't a symbol globally bound to a macro.
@@ -75,11 +75,9 @@
     (mc (what)
       (if atom.what
         `(global ',.what.symfor)
-        ; NOTE: Jarc doesn't support (a . b) destructuring.
-        (with (op car.what params cdr.what)
+        (let (op . params) what
           (case op quote
-            ; NOTE: Jarc doesn't support (a . b) destructuring.
-            (with (name car.params more cdr.params)
+            (let (name . more) params
               (when more
                 (err:+ "A (quote ...) expression with more than one "
                        "parameter was passed to a namespace."))

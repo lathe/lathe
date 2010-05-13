@@ -2,7 +2,7 @@
 ;
 ; Utilities for comparing and sorting things.
 
-(packed (using-rels-as ut "utils.arc"
+(mccmp packed using-rels-as ut "utils.arc"
 
 
 ; The "brackets" here are the equivalence classes determined by the
@@ -17,26 +17,26 @@
 
 (=fn my.merge-brackets (<=> a b)
   (= a (keep idfn a) b (keep idfn b))
-  (ut (xloop a a b b acc nil
-        (if (and a b)
-          (case (do.<=> caar.a caar.b)
-            < (do.next cdr.a b (cons car.a acc))
-            > (do.next a cdr.b (cons car.b acc))
-            = (do.next cdr.a cdr.b (cons (join car.a car.b) acc))
-              (err "Not a comparator."))
-          (join rev.acc a b)))))
+  (mccmp ut xloop a a b b acc nil
+    (if (and a b)
+      (case (do.<=> caar.a caar.b)
+        < (do.next cdr.a b (cons car.a acc))
+        > (do.next a cdr.b (cons car.b acc))
+        = (do.next cdr.a cdr.b (cons (join car.a car.b) acc))
+          (err "Not a comparator."))
+      (join rev.acc a b))))
 
 (=fn my.mergesort-to-brackets (<=> lst)
   (when lst
     (let merge (fn (a b) (my.merge-brackets <=> a b))
-      (ut (xloop sorted-lists (map list:list lst)
-            (let num-of-lists len.sorted-lists
-              (case num-of-lists 1
-                car.sorted-lists
-                (do.next (if odd.num-of-lists
-                           (cons car.sorted-lists
-                                 (pair cdr.sorted-lists merge))
-                           (pair sorted-lists merge))))))))))
+      (mccmp ut xloop sorted-lists (map list:list lst)
+        (let num-of-lists len.sorted-lists
+          (case num-of-lists 1
+            car.sorted-lists
+            (do.next (if odd.num-of-lists
+                       (cons car.sorted-lists
+                             (pair cdr.sorted-lists merge))
+                       (pair sorted-lists merge)))))))))
 
 (=fn my.<=>-to-bracketer (<=>)
   [my.mergesort-to-brackets <=> _])
@@ -67,8 +67,8 @@
       (each test tests
         (with (nta (no do.test.a) ntb (no do.test.b))
           (unless (is nta ntb)
-            (throw (if nta '> '<)))))
+            (mccmp throw if nta '> '<))))
       '=)))
 
 
-))
+)

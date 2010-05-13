@@ -55,12 +55,9 @@
     `(using ,car.dependencies (usings ,cdr.dependencies ,@body))))
 
 (mac using-as withbody
-  ; NOTE: Jarc doesn't support (a . b) destructuring.
-  (withs (binds-and-body (parse-magic-withlike withbody
+  (withs ((binds . body) (parse-magic-withlike withbody
                            (+ "An odd-sized list of bindings was "
                               "given to using-as."))
-          binds car.binds-and-body
-          body cdr.binds-and-body
           result `(tldo ,@body))
     (each (name dependency) rev.binds
       (= result `(w/global ,name (prepare-nspace ,dependency)
@@ -143,7 +140,8 @@
 
 (def pack-nmap (nmap)
   (let export (obj nmap nmap)
-    (= !nspace.export (let ns (nspace-indirect (fn () !nmap.export))
+    (= !nspace.export (let ns
+                            (mccmp nspace-indirect fn () !nmap.export)
                         (fn () ns)))
     (=fn !activate.export ()
       (let overwritten-sobj (import-nmap !nmap.export)
@@ -167,7 +165,8 @@
   `(let nmap (table)
      (w/global my nspace.nmap
        (tldo ,@body))
-     (pack-nmap (obj ,@(mappend [do `(,_ ((get ',_) nmap))] names)))))
+     (mccmp pack-nmap obj
+                    ,@(mappend [do `(,_ ((get ',_) nmap))] names))))
 
 ; The 'names here must be either a list of symbols or a symbol.
 (mac pack-hiding (names . body)

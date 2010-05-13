@@ -23,10 +23,7 @@
 
 
 (=mc my.xloop withbody
-  ; NOTE: Jarc doesn't support (a . b) destructuring.
-  (withs (binds-and-body parse-magic-withlike.withbody
-          binds car.binds-and-body
-          body cdr.binds-and-body)
+  (let (binds . body) parse-magic-withlike.withbody
     `((rfn next ,(map car binds)
         ,@body)
       ,@(map cadr binds))))
@@ -55,25 +52,22 @@
 
 (=fn my.readwine ((o stream (stdin)))
   (whenlet firstchar readc.stream
-    (string (acm
-              (my (xloop chr firstchar
-                    (case chr
-                      #\newline  nil
-                      #\return   (case peekc.stream #\newline
-                                   readc.stream)
-                      nil        nil
-                                 (do do.acc.chr
-                                     (do.next readc.stream)))))))))
+    (mccmp string accum acc
+      (mccmp my xloop chr firstchar
+        (case chr
+          #\newline  nil
+          #\return   (case peekc.stream #\newline
+                       readc.stream)
+          nil        nil
+                     (do do.acc.chr
+                         (do.next readc.stream)))))))
 
 (=mc my.w/ withbody
-  ; NOTE: Jarc doesn't support (a . b) destructuring.
-  (withs (binds-and-body parse-magic-withlike.withbody
-          binds car.binds-and-body
-          body cdr.binds-and-body)
+  (let (binds . body) parse-magic-withlike.withbody
     `(withs ,(apply join binds) ,@body)))
 
 (=fn my.tails (lst)
-  (acm
+  (accum acc
     (while acons.lst
       do.acc.lst
       (zap cdr lst))
@@ -83,17 +77,15 @@
   `((,key ,val) ,@(rem [is car._ key] al)))
 
 (=fn my.foldl (func start lst)
-  ; NOTE: Jarc doesn't support (a . b) destructuring.
-  (if lst
-    (with (a car.lst b cdr.lst)
-      (my.foldl func (do.func start a) b))
+  (iflet (a . b) lst
+    (my.foldl func (do.func start a) b)
     start))
 
 (=fn my.foldr (func end lst)
   (my.foldl (fn (a b) (do.func b a)) end rev.lst))
 
 (=mc my.foldlet (startvar start nextvar lst . body)
-  (cons my!foldl `((fn (,startvar ,nextvar) ,@body) ,start ,lst)))
+  `(,my!foldl (fn (,startvar ,nextvar) ,@body) ,start ,lst))
 
 (=mc my.maplet (var lst . body)
   `(map (fn (,var) ,@body) ,lst))
@@ -108,7 +100,7 @@
 (=fn my.tab+ args
   (w/table t
     (each arg args
-      (each (k v) tablist.arg  ; tablist necessary for Jarc
+      (each (k v) arg
         (= do.t.k v)))))
 
 ; This is a version of 'whilet that supports destructuring.
@@ -128,17 +120,16 @@
 (=fn my.mergetabs tabs
   (case tabs nil
     (table)
-    ; NOTE: Jarc doesn't support (a . b) destructuring.
-    (with (compare car.tabs actual-tabs cdr.tabs)
+    (let (compare . actual-tabs) tabs
       (unless (isa compare 'fn)
         (= compare iso actual-tabs tabs))
-      (catch (w/table result
-               (each tab actual-tabs
-                 (each (k v) tab
-                   (iflet existing-v do.result.k
-                     (unless (do.compare existing-v v)
-                       (throw nil))
-                     (= .k.result v)))))))))
+      (mccmp catch w/table result
+        (each tab actual-tabs
+          (each (k v) tab
+            (iflet existing-v do.result.k
+              (unless (do.compare existing-v v)
+                (throw nil))
+              (= .k.result v))))))))
 
 (=fn my.unnesttab (key val2tab tab)
   (iflet val do.tab.key
@@ -146,12 +137,10 @@
     list.tab))
 
 (=fn my.nesttab (key tab2val tabs)
-  (whenlet last-and-rest rev.tabs
-    ; NOTE: Jarc doesn't support (a . b) destructuring.
-    (with (last car.last-and-rest rest cdr.last-and-rest)
-      (my:foldlet result last
-                  next rest
-        (copy next key do.tab2val.tabs)))))
+  (whenlet (last . rest) rev.tabs
+    (my:foldlet result last
+                next rest
+      (copy next key do.tab2val.tabs))))
 
 
 )

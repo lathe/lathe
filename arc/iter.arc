@@ -35,7 +35,7 @@
 ; existing continuation-avoiding code within a project that doesn't
 ; need to avoid continuations.
 
-(packed (using-rels-as ut "utils.arc"
+(mccmp packed using-rels-as ut "utils.arc"
 
 
 ; NOTE: "Lexico" in variable names here stands for "lexicographic."
@@ -51,7 +51,7 @@
   (fn () (fn ())))
 
 (=fn my.must-iterify (val)
-  (or (my.iterify val)
+  (or my.iterify.val
       (err:+ "An unsupported type of value was passed to "
              "'must-iterify.")))
 
@@ -67,46 +67,45 @@
     str    (let copyval copy.val
              (fn () (with (i 0 innerval copyval innerlen len.copyval)
                       (fn () (if (< i innerlen)
-                               (list (do1 do.innerval.i ++.i))
+                               (mccmp list do1 do.innerval.i ++.i)
                                (wipe innerval innerlen))))))
     sym    (if val
              (withs (innerval string.val innerlen len.innerval)
                (fn () (let i 0
                         (fn () (if (< i innerlen)
-                                 (list (do1 do.innerval.i ++.i))
+                                 (mccmp list do1 do.innerval.i ++.i)
                                  (wipe innerval innerlen))))))
              (my.empty-iter))))
 
 (=fn my.iter-trav (func iterable)
-  (zap (my must-iterify) iterable)
+  (zap my.must-iterify iterable)
   (let iterator call.iterable
-    (ut (dstwhilet (val) call.iterator
-          do.func.val))))
+    (mccmp ut dstwhilet (val) call.iterator
+      do.func.val)))
 
 (=mc my.iter-each (var iterable . body)
-  (cons my!iter-trav `((fn (,var) ,@body) ,iterable)))
+  `(,my!iter-trav (fn (,var) ,@body) ,iterable))
 
 (=fn my.iter-join args
-  (zap [map (my must-iterify) _] args)
+  (zap [map my.must-iterify _] args)
   (fn ()
     (let iterators (map call args)
       (afn ()
-        ; NOTE: Jarc doesn't support (a . b) destructuring.
-        (when iterators
-          (with (first car.iterators rest cdr.iterators)
-            (or call.first
-                (do (= iterators rest)
-                    call.self))))))))
+        (whenlet (first . rest) iterators
+          (or call.first
+              (do (= iterators rest)
+                  call.self)))))))
 
 (=fn my.cached-iter (iterable)
-  (zap (my must-iterify) iterable)
+  (zap my.must-iterify iterable)
   (withs (cache (queue)
           iterator call.iterable
           get (fn (index)
-                (ut (dstwhilet (elem) (and iterator
-                                           (<= qlen.cache index)
-                                           call.iterator)
-                      (enq elem cache)))
+                (mccmp ut dstwhilet (elem)
+                                     (and iterator
+                                          (<= qlen.cache index)
+                                          call.iterator)
+                  (enq elem cache))
                 (if (< index qlen.cache)
                   (list qlist.cache.index)
                   wipe.iterator)))
@@ -116,7 +115,7 @@
           (do1 do.get.i ++.i))))))
 
 (=fn my.mapping (func iterable)
-  (zap (my must-iterify) iterable)
+  (zap my.must-iterify iterable)
   (fn ()
     (let iterator call.iterable
       (fn ()
@@ -125,18 +124,18 @@
           wipe.iterator)))))
 
 (=mc my.mappinglet (var iterable . body)
-  (cons my!mapping `((fn (,var) ,@body) ,iterable)))
+  `(,my!mapping (fn (,var) ,@body) ,iterable))
 
 (=fn my.joining (iterable)
-  (zap (my must-iterify) iterable)
+  (zap my.must-iterify iterable)
   (fn ()
     (with (outside-iterator call.iterable
-           inside-iterator (call:call (my empty-iter)))
+           inside-iterator (call:call my.empty-iter))
       (afn ()
         (when inside-iterator
           (or call.inside-iterator
               (iflet (next-inside) call.outside-iterator
-                (do (= inside-iterator (aif (my.iterify next-inside)
+                (do (= inside-iterator (aif my.iterify.next-inside
                                          call.it
                                          next-inside))
                     call.self)
@@ -146,24 +145,25 @@
   (my.joining (my.mapping func iterable)))
 
 (=mc my.mappendinglet (var iterable . body)
-  (cons my!mappending `((fn (,var) ,@body) ,iterable)))
+  `(,my!mappending (fn (,var) ,@body) ,iterable))
 
 ; Since 'iterify works on strings and even symbols, this will probably
 ; go deeper than intended unless a specific termination condition is
 ; given.
 (=fn my.deepjoining (val (o condition [do t]))
-  (iflet iterable (and testify.condition.val (my.iterify val))
+  (iflet iterable (and testify.condition.val my.iterify.val)
     (my.mappending [my.deepjoining _ condition] iterable)
     val))
 
 (=fn my.iter*colexico iterables
-  (zap [map (my cached-iter) _] iterables)
+  (zap [map my.cached-iter _] iterables)
   (my.mapping rev
-    (ut (foldlet combined-iter (my.iterify (list nil))
-                 next-iter iterables
-          (my (mappendinglet that-elem next-iter
-                (my (mappinglet these-elems combined-iter
-                      (cons that-elem these-elems)))))))))
+    (mccmp ut foldlet
+                combined-iter (my.iterify (list nil))
+                next-iter iterables
+      (mccmp my mappendinglet that-elem next-iter
+        (mccmp my mappinglet these-elems combined-iter
+          (cons that-elem these-elems))))))
 
 (=fn my.nonnegs ()
   (fn ()
@@ -199,10 +199,9 @@
            (my.iterify (list nil)))
     1  (my.iterify (list list.sum))
        (my.mapping (if reversed-lexico-significance rev idfn)
-         (my (mappendinglet choice (my.iter-range 0 sum)
-               (my.mapping [cons choice _]
-                 (my.nonneg-tuples-by-sum (- size 1)
-                                          (- sum choice))))))))
+         (mccmp my mappendinglet choice (my.iter-range 0 sum)
+           (my.mapping [cons choice _]
+             (my.nonneg-tuples-by-sum (- size 1) (- sum choice)))))))
 
 (=fn my.sum-grouped-nonneg-tuples
        (size (o reversed-lexico-significance))
@@ -213,9 +212,9 @@
            "'sum-grouped-nonneg-tuples."))
   (case size 0
     (my.iterify (list nil))
-    (my (mappendinglet sum (my.nonnegs)
-          (my.nonneg-tuples-by-sum size sum
-            reversed-lexico-significance)))))
+    (mccmp my mappendinglet sum (my.nonnegs)
+      (my.nonneg-tuples-by-sum size sum
+        reversed-lexico-significance))))
 
 (=fn my.skippingover (amount iterable)
   (unless (<= 0 amount)
@@ -223,10 +222,10 @@
   (unless an-int.amount
     (err "A non-integer amount was given to 'skippingover."))
   (fn ()
-    (ut (ret iterator call.iterable
-          (let i 0
-            (while (and (< i amount) call.iterator)
-              ++.i))))))
+    (mccmp ut ret iterator call.iterable
+      (let i 0
+        (while (and (< i amount) call.iterator)
+          ++.i)))))
 
 (=fn my.stoppingafter (amount iterable)
   (unless (<= 0 amount)
@@ -249,23 +248,25 @@
       (fn ()
         (when iterator
           (let i 0
-            (while (or (when (< i amount) ++.i call.iterator)
-                       wipe.iterator))))
-        (or ((doandf idfn call) iterator)
-          wipe.iterator)))))
+            (mccmp while or
+                      (when (< i amount) ++.i call.iterator)
+                      wipe.iterator)))
+        (or (.iterator:andf idfn call)
+            wipe.iterator)))))
 
 ; NOTE: This should only be used on infinite iterables. It will treat
 ; finite iterables as though they're infinite ones that end in
 ; repeating nils.
 (=fn my.iter*sum-grouped-w/colexico (iterables
                                      reversed-lexico-significance)
-  (zap [map (my must-iterify) _] iterables)
+  (zap [map my.must-iterify _] iterables)
   (withs (len len.iterables range (range 0 (- len 1)))
-    (my (mappinglet coordinates (my.sum-grouped-nonneg-tuples len
-                                  reversed-lexico-significance)
-          (map [car:call:call (my.skippingover do.coordinates._
-                                               do.iterables._)]
-               range)))))
+    (mccmp my mappinglet coordinates
+                               (my.sum-grouped-nonneg-tuples len
+                                 reversed-lexico-significance)
+      (map [car:call:call (my.skippingover do.coordinates._
+                                           do.iterables._)]
+           range))))
 
 (=fn my.iter*sum-grouped iterables
   (my.iter*sum-grouped-w/colexico iterables nil))
@@ -274,10 +275,10 @@
   (my.iter*sum-grouped-w/colexico iterables t))
 
 (=fn my.keeping (test iterable)
-  (my.mappending (doandf testify.test list) iterable))
+  (my.mappending (andf testify.test list) iterable))
 
 (=mc my.keepinglet (var iterable . body)
-  (cons my!keeping `((fn (,var) ,@body) ,iterable)))
+  `(,my!keeping (fn (,var) ,@body) ,iterable))
 
 (=fn my.folding (func start iterable)
   (fn ()
@@ -290,20 +291,21 @@
                  (wipe iterator intermediate))))))))
 
 (=mc my.foldinglet (a start b iterable . body)
-  (cons my!folding `((fn (,a ,b) ,@body) start iterable)))
+  `(,my!folding (fn (,a ,b) ,@body) start iterable))
 
 (=fn my.stoppingafter1 (iterable)
   (my.stoppingafter 1 iterable))
 
 (=fn my.iter->list (iterable)
-  (acm (my.iter-trav acc iterable)))
+  (accum acc
+    (my.iter-trav acc iterable)))
 
 (=fn my.repeating (iterable)
-  (zap (my must-iterify) iterable)
+  (zap my.must-iterify iterable)
   (my.joining (fn () (fn () list.iterable))))
 
 (=fn my.zipping iterables
-  (zap [map (my must-iterify) _] iterables)
+  (zap [map my.must-iterify _] iterables)
   (fn ()
     (let iterators (map call iterables)
       (fn ()
@@ -313,22 +315,21 @@
             (list:map car svalues)))))))
 
 (=fn my.padzipping (pad . iterables)
-  (zap [map (my must-iterify) _] iterables)
+  (zap [map my.must-iterify _] iterables)
   (fn ()
     (let iterators (map call iterables)
       (fn ()
         (withs (finished t
-                values (acm
-                         (reclist
-                           ; NOTE: Jarc doesn't support (a . b) destr.
-                           [with (a car._ b cdr._)
-                             (iflet (result) ((doandf idfn call) a)
-                               (do do.acc.result
-                                   wipe.finished)
-                               (do do.acc.pad
-                                   (wipe car._)))
-                             nil]
-                           iterators)))
+                values (accum acc
+                         (reclist [let (a . b) _
+                                    (iflet (result)
+                                                   (.a:andf idfn call)
+                                      (do do.acc.result
+                                          wipe.finished)
+                                      (do do.acc.pad
+                                          (wipe car._)))
+                                    nil]
+                                  iterators)))
           (if finished
             wipe.iterators
             list.values))))))
@@ -337,13 +338,13 @@
   (call:call (my.keeping idfn (my.mapping func iterable))))
 
 (=mc my.iter-somelet (var iterable . body)
-  (cons my!iter-some `((fn (,var) ,@body) ,iterable)))
+  `(,my!iter-some (fn (,var) ,@body) ,iterable))
 
 (=fn my.iter-all (func iterable)
   (no (my.iter-some ~func iterable)))
 
 (=mc my.iter-all-let (var iterable . body)
-  (cons my!iter-all `((fn (,var) ,@body) ,iterable)))
+  `(,my!iter-all (fn (,var) ,@body) ,iterable))
 
 (=fn my.iter-keys (reffable)
   (if reffable
@@ -367,9 +368,8 @@
 ; Note that this relies on continuations.
 ;
 (=mc my.yielder (parms . body)
-  (list 'fn
-        parms
-        (cons my!iter-with-yield `((fn (yield) ,@body)))))
+  `(fn ,parms
+     (,my!iter-with-yield (fn (yield) ,@body))))
 
 ; This function takes a function which accepts a yield parameter, and
 ; it returns an iterable which returns the results yielded by the
@@ -398,4 +398,4 @@
             wipe.next))))))
 
 
-))
+)

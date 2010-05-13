@@ -16,7 +16,7 @@
 ; extensible or write it in multiple parts, Lathe's multival support
 ; is another option worth considering.
 
-(packed (using-rels-as ut "utils.arc"
+(mccmp packed using-rels-as ut "utils.arc"
 
 
 ; This is a table mapping global function names to singleton lists
@@ -48,16 +48,16 @@
   (let old global.name
     (=fn global.name args
       (catch
-        (each (label (condition consequence)) (car (my.extends* name))
+        (each (label (condition consequence)) (car my.extends*.name)
           (awhen (apply condition args)
             (throw:apply do.consequence.it args)))
         (apply old args))))
   'ok)
 
 (=fn my.fn-extend (name label condition consequence)
-  (let extends (my.extends* name)
+  (let extends my.extends*.name
     (unless extends
-      (my.enable-extend name)
+      my.enable-extend.name
       ; Rainbow doesn't like "list.nil".
       (= extends (= my.extends*.name (list nil))))
     (zap [ut.alcons _ label (list condition consequence)]
@@ -70,12 +70,12 @@
 ; visible in the condition. This is also true if 'parms is, for
 ; instance, (arg1 arg2 (o arg3 (uniq))).
 (=mc my.label-extend (name label parms condition . body)
-  (cons my!fn-extend `(',expand.name ',expand.label
-                        (fn ,parms ,condition)
-                        (fn (it) (fn ,parms ,@body)))))
+  `(,my!fn-extend ',expand.name ',expand.label
+     (fn ,parms ,condition)
+     (fn (it) (fn ,parms ,@body))))
 
 (=mc my.extend (name parms condition . body)
-  (cons my!label-extend `(,name ,(uniq) ,parms ,condition ,@body)))
+  `(,my!label-extend ,name ,(uniq) ,parms ,condition ,@body))
 
 
-))
+)

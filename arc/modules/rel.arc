@@ -26,18 +26,12 @@
 
 (= load-dir* "")
 
-; On Jarc, (split "hello" 1) doesn't work because it uses the JVM
-; String.split() method, and (cut "hello" 1) doesn't work either, for
-; some reason.
-(def xsplit (seq pos)
-  (list (cut seq 0 pos) (cut seq pos len.seq)))
-
 (def split-at-dir (str)
   (catch
     (down i (- len.str 1) 0
       (when (in do.str.i #\/ #\\)
-        (throw:xsplit str (+ i 1))))
-    (xsplit str 0)))
+        (throw:split str (+ i 1))))
+    (split str 0)))
 
 (def normalize-path (path)
   (zap [subst "/" "\\" _] path)
@@ -106,22 +100,18 @@
 
 (mac using-rels (relpaths . body)
   (unless alist.relpaths (zap list relpaths))
-  `(usings ,(map [do `(list 'rel ,_)] relpaths) ,@body))
+  `(usings ,(map [do ``(rel ,,_)] relpaths) ,@body))
 
 (mac using-rels-as withbody
-  ; NOTE: Jarc doesn't support (a . b) destructuring.
-  (withs (binds-and-body (parse-magic-withlike withbody
-                           (+ "An odd-sized list of bindings was "
-                              "given to using-rels-as."))
-          binds car.binds-and-body
-          body cdr.binds-and-body)
-    `(using-as ,(mappend [do `(,_.0 (list 'rel ,_.1))] binds)
-       ,@body)))
+  (let (binds . body) (parse-magic-withlike withbody
+                        (+ "An odd-sized list of bindings was given "
+                           "to using-rels-as."))
+    `(using-as ,(mappend [do `(,_.0 `(rel ,,_.1))] binds) ,@body)))
 
 (mac use-rels-as bindings
   (when (odd:len bindings)
     (err "An odd-sized list of bindings was given to use-rels-as."))
-  `(use-as ,@(mappend [do `(,_.0 (list 'rel ,_.1))] pair.bindings)))
+  `(use-as ,@(mappend [do `(,_.0 `(rel ,,_.1))] pair.bindings)))
 
 
 )

@@ -1,7 +1,6 @@
 ; modulemisc.arc
 
-(unless (and bound!modulemisc-has-been-loaded*
-             eval!modulemisc-has-been-loaded*)
+(unless (!modulemisc-has-been-loaded*:andf bound eval)
 
 
 (= modulemisc-has-been-loaded* t)
@@ -45,27 +44,11 @@
   (and x (isa x 'sym) (~ssyntax x)))
 
 
-; Jarc defines 'andf the way Arc 2 does, so that it returns t on
-; success rather than the last-returned true value. Here's an
-; alternative that does 'andf the Arc 3 way (except that it isn't a
-; metafn and it doesn't have a dedicated ssyntax).
-(def doandf args
-  (case args nil
-    idfn
-    ; NOTE: Jarc doesn't support (a . b) destructuring.
-    (withs (rev-args rev.args last car.rev-args rev-rest cdr.rev-args)
-      (case rev-rest nil
-        last
-        (let restfn (apply andf rev.rev-rest)
-          [and do.restfn._ do.last._])))))
-
-; In Jarc, accum works the Arc 2 way, where the output isn't reversed,
-; so we'll use this instead.
-(mac acm body
-  (w/uniq g-revresult
-    `(withs (,g-revresult nil acc [push _ ,g-revresult])
-       (do ,@body)
-       (rev ,g-revresult))))
+; Jarc doesn't correctly support (foo:bar a b c) syntax where 'foo,
+; 'bar, or both are macros. We'll write it as (mccmp foo bar a b c)
+; instead, where 'mccmp is short for "macro compose"
+(mac mccmp (a b . args)
+  `(,a (,b ,@args)))
 
 
 ; This will transform a list of parameters from
@@ -91,15 +74,14 @@
 ; with-style parentheses.
 ;
 (def parse-magic-withlike (arglist (o pairerr))
-  (if no.arglist
+  (case arglist nil
     '(())
-    ; NOTE: Jarc doesn't support (a . b) destructuring.
-    (with (first car.arglist rest cdr.arglist)
+    (let (first . rest) arglist
       (if alist.first
         (if (and pairerr (odd:len first))
           err.pairerr
           (cons pair.first rest))
-        (let withlist (acm
+        (let withlist (accum acc
                         (while (and cdr.arglist
                                     ((orf no anormalsym) car.arglist))
                           (withs (name pop.arglist val pop.arglist)
@@ -109,14 +91,13 @@
 (def global (name)
   (unless anormalsym.name
     (err "A nil, ssyntax, or non-symbol name was given to 'global."))
-  ((doandf bound eval) name))
+  (.name:andf bound eval))
 
 (defset global (name)
   (w/uniq (g-name g-val)
     `(((,g-name ,g-val) (let _ ,name (list _ global._)))
       ,g-val
-      ; NOTE: Jarc doesn't support nested quasiquotes the same way.
-      [eval (list '= ,g-name (list 'quote _))])))
+      [eval `(= ,,g-name ',_)])))
 
 ; The above (defset global ...) relies on being able to say
 ; (eval `(= global-var ',local-expression)) even when local-expression
@@ -161,36 +142,16 @@
         (let first car.args
           (some [or (< first _) (< _ first)] cdr.args)))))
 
-(if (bound 'trunc)
-  
-  ; most implementations
-  (def an-int (x)
-    (case type.x
-      int  t
-      num  (== x trunc.x)))
-  
-  ; Jarc
-  ;
-  ; Note that in Jarc, the type of '0 is 'num, and 'trunc is
-  ; undefined.
-  ;
-  (def an-int (x)
-    (== x (java.lang.Math.floor x)))
-  
-  )
-
-; Jarc uses 'set, and other implementations use 'assign now (with 'set
-; meaning the opposite of 'wipe), so here's a shot at a cross-platform
-; synonym. Note that (set xassign 0) raises an error on 'assign
-; platforms when 'set is unbound or when it attempts to get the
-; setforms for 0 during macro expansion.
-(if (errsafe (eval '(do (set xassign 0) t)))
-  (=mc xassign args `(set ,@args))
-  (=mc xassign args `(assign ,@args)))
+(def an-int (x)
+  (case type.x
+    int  t
+    num  (== x trunc.x)))
 
 
 ))  ; end (eval '(tldo ...))
 
-; end (unless (and bound!modulemisc-has-been-loaded*
-;                  eval!modulemisc-has-been-loaded*)
-)
+
+)  ; end (unless (!modulemisc-has-been-loaded*:andf bound eval)
+
+; In Rainbow, comments must end with newlines, not EOF, so keep a
+; newline here.
