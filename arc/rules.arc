@@ -38,7 +38,7 @@
           success  throw.result-details
           failure  (when result-details
                      (push result-details failures))
-                   (err:+ "There was an unknown rule result type."))))
+                   (err "There was an unknown rule result type."))))
     (mccmp err if failures
       (apply +
         "No rule accepted the given arguments. The specific "
