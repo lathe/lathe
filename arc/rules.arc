@@ -34,11 +34,11 @@
   (catch:let failures '()
     (each rule rulebook
       (let (result-type result-details) (apply rule args)
-         (case result-type
-           success  throw.result-details
-           failure  (when result-details
-                      (push result-details failures))
-                    (err "There was an unknown rule result type."))))
+        (case result-type
+          success  throw.result-details
+          failure  (when result-details
+                     (push result-details failures))
+                   (err "There was an unknown rule result type."))))
     (err:if failures
       (apply +
         "No rule accepted the given arguments. The specific "

@@ -85,8 +85,7 @@
                 (ir.mapping [join previous-sorted-stuff _]
                   (my.sort-yourselves
                     rep2comp
-                    (ut:foldlet previous-bracket-brackets
-                                  list.bracket
+                    (ut:foldlet previous-bracket-brackets list.bracket
                                 sorter previous-sorted-stuff
                       (mappend [do.sort-one-bracket _ sorter]
                                previous-bracket-brackets))))))))

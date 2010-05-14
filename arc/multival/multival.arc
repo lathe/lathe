@@ -83,7 +83,7 @@
     (apply my.get-multival.name args)))
 
 (=mc my.defmultifn-stub (name (o reducer))
-  `(,my!fn-defmultifn-stub ',expand.name ,reducer))
+  `(,my!fn-defmultifn-stub ',deglobalize-var.name ,reducer))
 
 
 )

@@ -66,7 +66,7 @@
 ; with-style parentheses.
 ;
 (def parse-magic-withlike (arglist (o pairerr))
-  (if no.arglist
+  (case arglist nil
     '(())
     (let (first . rest) arglist
       (if alist.first
@@ -92,7 +92,7 @@
       [eval `(= ,,g-name ',_)])))
 
 ; The above (defset global ...) relies on being able to say
-; (eval `(= global-var ',local-expression) even when local-expression
+; (eval `(= global-var ',local-expression)) even when local-expression
 ; has a value that can't usually appear in syntax. In case that
 ; doesn't work on all Arc implementations, here's the previous version
 ; of the (defset global ...) that uses a temporary global variable
@@ -138,45 +138,6 @@
   (case type.x
     int  t
     num  (== x trunc.x)))
-
-; Change 'setforms so that when a place becomes macro-expanded into an
-; unbound (lexically and globally) symbol, there isn't an error.
-; Instead, a global variable is created, as is the usual behavior of =
-; for unbound symbols.
-;
-; The simple way to assure this is to have the setforms be:
-;
-;  `(()                      ; atwith bindings
-;    ,expansion              ; getter expression
-;    [assign ,expansion _])  ; setter function expression
-;
-; However, that breaks functions that swap or rotate places, since one
-; place has its setter executed before its getter. For this reason (I
-; presume), the current arc.arc behavior of setforms is equivalent to:
-;
-;  (w/uniq g-place
-;    `((,g-place ,expansion)
-;      ,expansion
-;      [assign ,expansion _]))
-;
-; As mentioned, this causes there to be an error when the variable is
-; being set for the first time. The solution actually used here is to
-; wrap ,expansion in (errsafe ...), thereby suppressing the error.
-;
-; This has the side effect that swapping or rotating places, one of
-; which macro-expands to an unbound variable name, will have behavior
-; as though the unbound variable had actually been bound to nil (which
-; is the exceptional result of errsafe).
-;
-(let old-setforms setforms
-  (=fn setforms (expr)
-    (let expansion macex.expr
-      (if anormalsym.expansion
-        (w/uniq g-place
-          `((,g-place (errsafe ,expansion))
-            ,g-place
-            [assign ,expansion _]))
-        do.old-setforms.expansion))))
 
 
 ))  ; end (eval '(tldo ...))

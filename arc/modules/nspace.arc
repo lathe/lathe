@@ -31,7 +31,12 @@
 ; works in three ways:
 ;
 ;  - You can pass it a symbol, in which case it will mangle that
-;    symbol. This is the usual case.
+;    symbol and wrap it up as (global 'gs1234-the-variable). This is
+;    the usual case. The 'global call is necessary because 'setforms
+;    will cause an error if its input is ultimately an unbound global
+;    variable, and although 'expand= special-cases most unbound global
+;    variable assignments, it doesn't expand ssyntax or macros before
+;    doing so, and it sends those cases to 'setforms to break.
 ;
 ;  - You can pass it a quoted symbol, in which case it will mangle
 ;    that symbol but yield a quoted version. This is useful when
@@ -69,7 +74,7 @@
         (= .name.backing-table name)))
     (mc (what)
       (if atom.what
-        .what.symfor
+        `(global ',.what.symfor)
         (let (op . params) what
           (case op quote
             (let (name . more) params
@@ -78,6 +83,25 @@
                        "parameter was passed to a namespace."))
               `',.name.symfor)
             `(,.op.symfor ,@params)))))))
+
+(def deglobalize-var (var)
+  (zap expand var)
+  (if anormalsym.var
+    var
+    ; else recognize anything of the form (global 'the-var)
+    (withs (require     [unless _
+                          (err:+ "An unrecognized kind of name was "
+                                 "passed to 'deglobalize-var.")]
+            nil         (do.require (caris var 'global))
+            cdr-var     cdr.var
+            nil         (do.require single.cdr-var)
+            cadr-var    car.cdr-var
+            nil         (do.require (caris cadr-var 'quote))
+            cdadr-var   cdr.cadr-var
+            nil         (do.require single.cdadr-var)
+            cadadr-var  car.cdadr-var
+            nil         (do.require anormalsym.cadadr-var))
+      cadadr-var)))
 
 (mac nspaced body
   `(w/global my (nspace)

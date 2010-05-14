@@ -247,9 +247,9 @@
         (when iterator
           (let i 0
             (while:or (when (< i amount) ++.i call.iterator)
-              wipe.iterator)))
+                      wipe.iterator)))
         (or (do&call iterator)
-          wipe.iterator)))))
+            wipe.iterator)))))
 
 ; NOTE: This should only be used on infinite iterables. It will treat
 ; finite iterables as though they're infinite ones that end in

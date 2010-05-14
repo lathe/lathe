@@ -29,10 +29,11 @@
 (def prepare (dependency)
   (let compiled compile-dependency-mandatory.dependency
     (or prepared.compiled
-      (iflet package (!prepare.compiled)
-        (do (push package prepared-packages*)
-            package)
-        (err:+ "Couldn't prepare " dependency ".")))))  ; NOT compiled
+        (iflet package (!prepare.compiled)
+          (do (push package prepared-packages*)
+              package)
+          ; The error message gives the *uncompiled* dependency.
+          (err:+ "Couldn't prepare " dependency ".")))))
 
 ; This returns a procedure which will undo the activation.
 (def activate (dependency)
@@ -99,7 +100,7 @@
 
 (def compile-dependency-mandatory (dependency)
   (or compile-dependency.dependency
-    (err:+ "Not a valid dependency: " dependency)))
+      (err:+ "Not a valid dependency: " dependency)))
 
 (def package-satisfies (package dependency)
   (let compiled compile-dependency-mandatory.dependency
