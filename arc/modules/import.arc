@@ -51,28 +51,28 @@
   (unless (isa obj 'table)
     (err "A non-table was passed to obj-to-mine."))
   (each (name value) obj
-    (unless (isa name 'sym)
-      (err:+ "A table with a non-symbol key was passed to "
-             "obj-to-mine.")))
+    (unless anormalsym.name
+      (err:+ "A table with a nil, ssyntax, or non-symbol key was "
+             "passed to obj-to-mine.")))
   (w/table overwritten
     (each (name value) obj
-      (= .name.overwritten (list:global my.name)
-         (global my.name) value))))
+      (= .name.overwritten (list:eval `(my ,name))
+         (global:eval `(my ',name)) value))))
 
 (def sobj-to-mine (sobj)
   (unless (isa sobj 'table)
     (err "A non-table was passed to sobj-to-mine."))
   (each (name svalue) sobj
-    (unless (isa name 'sym)
-      (err:+ "A table with a non-symbol key was passed to "
-             "sobj-to-mine."))
+    (unless anormalsym.name
+      (err:+ "A table with a nil, ssyntax, or non-symbol key was"
+             "passed to sobj-to-mine."))
     (unless (acons&single svalue)
       (err:+ "A table with a non-singleton member was passed to "
              "sobj-to-mine.")))
   (w/table overwritten
     (each (name (value)) sobj
-      (= .name.overwritten (list:global my.name)
-         (global my.name) value))))
+      (= .name.overwritten (list:eval `(my ,name))
+         (global:eval `(my ',name)) value))))
 
 
 ; An nmap is a table mapping friendly global names to obscure global
