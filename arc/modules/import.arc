@@ -64,7 +64,7 @@
     (err "A non-table was passed to sobj-to-mine."))
   (each (name svalue) sobj
     (unless anormalsym.name
-      (err:+ "A table with a nil, ssyntax, or non-symbol key was"
+      (err:+ "A table with a nil, ssyntax, or non-symbol key was "
              "passed to sobj-to-mine."))
     (unless (acons&single svalue)
       (err:+ "A table with a non-singleton member was passed to "
