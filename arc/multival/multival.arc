@@ -2,7 +2,7 @@
 ;
 ; ===== Multival implementation and bare API =========================
 
-(mccmp packed using-rels-as ut "../utils.arc"
+(packed:using-rels-as ut "../utils.arc"
 
 
 (= my.reducers* (table))
@@ -41,7 +41,7 @@
 (let multival-cache (table)
   
   (=fn my.get-multival (name)
-    (mccmp !val:car or= do.multival-cache.name
+    (!val:car:or= do.multival-cache.name
       (list ((car my.reducers*.name) my.contribs*.name))))
   
   (=fn my.invalidate-multival names

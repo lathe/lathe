@@ -31,7 +31,7 @@
   `(failure ,description))
 
 (=fn my.call-basic-rulebook (rulebook . args)
-  (mccmp catch let failures '()
+  (catch:let failures '()
     (each rule rulebook
       (let (result-type result-details) (apply rule args)
         (case result-type
@@ -39,7 +39,7 @@
           failure  (when result-details
                      (push result-details failures))
                    (err "There was an unknown rule result type."))))
-    (mccmp err if failures
+    (err:if failures
       (apply +
         "No rule accepted the given arguments. The specific "
         "complaint" (if single.failures " was" "s were") " as "

@@ -47,7 +47,7 @@
 ;  - You can pass it a cons cell where the car is a symbol other than
 ;    'quote, in which case it will yield a cons cell with a mangled
 ;    car and the original cdr. This is useful when invoking a macro,
-;    by way of the syntax (mccmp my the-macro params). Unfortunately,
+;    by way of the syntax (my:the-macro params). Unfortunately,
 ;    (my.the-macro params) doesn't work, since ac doesn't macro-expand
 ;    (my the-macro) until after it's determined that the expression
 ;    (my the-macro) isn't a symbol globally bound to a macro.

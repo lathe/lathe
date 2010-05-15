@@ -1,7 +1,6 @@
 ; multirule.arc
 
-(mccmp packed using-rels-as
-                      mt "multival.arc"
+(packed:using-rels-as mt "multival.arc"
                       oc "order-contribs.arc"
                       ru "../rules.arc"
 

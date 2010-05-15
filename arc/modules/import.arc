@@ -34,7 +34,7 @@
     (unless (isa name 'sym)
       (err:+ "A table with a non-symbol key was passed to "
              "import-sobj."))
-    (unless (.svalue:andf acons single)
+    (unless (acons&single svalue)
       (err:+ "A table with a non-singleton member was passed to "
              "import-sobj.")))
   (w/table overwritten
@@ -66,7 +66,7 @@
     (unless anormalsym.name
       (err:+ "A table with a nil, ssyntax, or non-symbol key was "
              "passed to sobj-to-mine."))
-    (unless (.svalue:andf acons single)
+    (unless (acons&single svalue)
       (err:+ "A table with a non-singleton member was passed to "
              "sobj-to-mine.")))
   (w/table overwritten

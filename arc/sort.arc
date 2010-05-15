@@ -2,7 +2,7 @@
 ;
 ; Utilities for comparing and sorting things.
 
-(mccmp packed using-rels-as ut "utils.arc"
+(packed:using-rels-as ut "utils.arc"
 
 
 ; The "brackets" here are the equivalence classes determined by the
@@ -17,7 +17,7 @@
 
 (=fn my.merge-brackets (<=> a b)
   (= a (keep idfn a) b (keep idfn b))
-  (mccmp ut xloop a a b b acc nil
+  (ut:xloop a a b b acc nil
     (if (and a b)
       (case (do.<=> caar.a caar.b)
         < (do.next cdr.a b (cons car.a acc))
@@ -29,7 +29,7 @@
 (=fn my.mergesort-to-brackets (<=> lst)
   (when lst
     (let merge (fn (a b) (my.merge-brackets <=> a b))
-      (mccmp ut xloop sorted-lists (map list:list lst)
+      (ut:xloop sorted-lists (map list:list lst)
         (let num-of-lists len.sorted-lists
           (case num-of-lists 1
             car.sorted-lists
@@ -67,7 +67,7 @@
       (each test tests
         (with (nta (no do.test.a) ntb (no do.test.b))
           (unless (is nta ntb)
-            (mccmp throw if nta '> '<))))
+            (throw:if nta '> '<))))
       '=)))
 
 

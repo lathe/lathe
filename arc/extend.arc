@@ -16,7 +16,7 @@
 ; extensible or write it in multiple parts, Lathe's multival support
 ; is another option worth considering.
 
-(mccmp packed using-rels-as ut "utils.arc"
+(packed:using-rels-as ut "utils.arc"
 
 
 ; This is a table mapping global function names to singleton lists

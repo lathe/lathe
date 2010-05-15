@@ -52,8 +52,8 @@
 
 (=fn my.readwine ((o stream (stdin)))
   (whenlet firstchar readc.stream
-    (mccmp string accum acc
-      (mccmp my xloop chr firstchar
+    (string:accum acc
+      (my:xloop chr firstchar
         (case chr
           #\newline  nil
           #\return   (case peekc.stream #\newline
@@ -123,7 +123,7 @@
     (let (compare . actual-tabs) tabs
       (unless (isa compare 'fn)
         (= compare iso actual-tabs tabs))
-      (mccmp catch w/table result
+      (catch:w/table result
         (each tab actual-tabs
           (each (k v) tab
             (iflet existing-v do.result.k
