@@ -1,24 +1,39 @@
+                                 Lathe
+                                 =====
+
 Lathe is meant to be a collection of utility libraries that don't
 really have a specific purpose other than to make their host language
 smoother to program in (at least according to one opinion). In
 particular, I'm starting it up so that I have somewhere to post little
 things I'm doing in Arc, so that I can talk about them at the Arc
-forum. Other languages are not off-limits.
+forum (http://forum.arclanguage.org/). Other languages are not
+off-limits.
 
 Right now, this contains:
 
   - a very young Arc module system based on renaming of global
       variables (arc/modules/);
+
   - a young multimethod system built up within that module system
       (arc/multival/);
-  - some general-purpose modules the multimethod system relies on
-      (arc/amb.arc, arc/rules.arc, and arc/utils.arc);
-  - randomly, a module containing an updated version of Andrew
-      Wilcox's 'extend macro so that extensions can be removed and
-      replaced (arc/extend.arc); and finally
-  - very small examples of using the module system and the multimethod
-      system in application code (arc/examples/), which double as the
-      only test cases to date.
+
+  - a continuation-based backtracking library (arc/amb.arc);
+
+  - an extensive continuation-free, combinator-style iterator library
+      which nevertheless supports continuation-based, coroutine-style
+      iterator specification as well, as long as the language
+      implementation supports it (arc/iter.arc);
+
+  - some more general-purpose modules the multimethod system relies on
+      (arc/rules.arc and arc/utils.arc);
+
+  - an updated version of Andrew Wilcox's 'extend macro so that
+      extensions can be removed and replaced (arc/extend.arc); and
+      finally
+
+  - very small examples of using the module system, the multimethod
+      framework, and the iteration library in application code
+      (arc/examples/), which double as the only test cases to date.
 
 The examples (and therefore the tests) don't cover everything Lathe
 has to offer. The code is fairly well commented, so reading those
@@ -30,19 +45,73 @@ things.
 
 The code in the arc/ directory is targeted mainly at Arc 3.1, which
 you can download at http://ycombinator.com/arc/arc3.1.tar. Arc 3.1
-itself depends on MzScheme. For more detailed help setting up Arc,
-including how to adjust it to work on Windows, arclanguage.org is a
-good resource.
+itself depends on MzScheme. For more detailed help setting up Arc 3.1,
+including how to adjust it to work on Windows, http://arclanguage.org/
+is a good resource. If you're just getting started with Arc,
+http://awwx.ws/ lists some other helpful links.
 
-Besides the official Arc 3.1, two other Arc setups are supported: The
-Anarki fork (http://github.com/nex3/arc) and the Java-based
-interpreter Rainbow (http://github.com/conanite/rainbow).
+Besides the official Arc 3.1 implementation, three other Arc setups
+are supported: The Anarki fork (http://github.com/nex3/arc) and the
+Java-based interpreters Rainbow (http://github.com/conanite/rainbow)
+and Jarc (http://jarc.sourceforge.net/).
 
-To use the code, add this to your libs.arc (here assuming you put the
-contents of the Lathe arc/ folder into lib/lathe/ in your Arc setup):
+To load the core Lathe libraries, run the following code (here
+assuming you put the contents of the Lathe arc/ folder into lib/lathe/
+in your Arc setup):
 
   (= lathe-dir* "lib/lathe/")
   (load:+ lathe-dir* "loadfirst.arc")
 
 The lathe-dir* global variable is necessary; the loadfirst.arc code
-uses it to determine where to load other lathe files from.
+uses it to determine where to load other Lathe files from.
+
+This code can be pasted into a REPL. Alternately, if you're using
+Arc 3.1 or Anarki, it can be placed in your libs.arc.
+
+If you want to use a Lathe module, you can do this:
+
+  (use-rels-as ut (+ lathe-dir* "utils.arc"))
+
+This will set 'ut to a namespace from which you can access all the
+things defined in utils.arc. A Lathe namespace is just a macro that
+associates friendly symbols with less friendly global names, and you
+can use a namespace as follows:
+
+  ; function calling with (ut.foo ...)
+  (ut.foldl (fn (a b) (+ (* 10 a) b)) 0 '(1 2 3))
+  
+  ; macro usage with (ut:foo ...), which also works for function calls
+  (ut:foldlet a 0
+              b '(1 2 3)
+    (+ (* 10 a) b))
+  
+  ; using ut.foo lookup somewhere other than function position
+  (iso (flat:map ut.tails (ut:tails:list 1 2 3))
+       '(1 2 3  2 3  3
+                2 3  3
+                     3))
+  
+  ; using ut.foo as a settable place
+  (= old-tails ut.tails
+     ut.tails [do (prn "DEBUG: entering utils.arc's 'tails")
+                  old-tails._])
+  
+  ; lookup of unevaluated global names with ut!foo
+  (mac afoldl (aval bval . body)
+    `(,ut!foldlet a ,aval b ,bval ,@body))
+
+If you're making an Arc application that uses Lathe libraries, that
+should be enough to get started, but you may need to dig through some
+code to find the utilities you actually want to import this way.
+
+If instead you're making a library, then you can continue using
+'use-rels-as like this, but as long as you're using Lathe already,
+you might consider making your library into a module. That's outside
+the scope of this readme, but you should get a good idea of what Lathe
+modules look like once you've looked at the source of a few of the
+modules included with Lathe.
+
+
+Thanks a lot for considering Lathe, and I hope it helps you out!
+
+2010 Ross Angle
