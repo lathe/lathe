@@ -317,13 +317,17 @@
       (fn ()
         (withs (finished t
                 values (accum acc
-                         (reclist [let (a . b) _
-                                    (iflet (result) (do&call a)
-                                      (do do.acc.result
-                                          wipe.finished)
-                                      (do do.acc.pad
-                                          (wipe car._)))
-                                    nil]
+                         ; NOTE: Anarki doesn't support dotted lists
+                         ; as syntax in [...] forms, so we're using an
+                         ; explicit (fn (_) (...)).
+                         (reclist (fn (_)
+                                    (let (a . b) _
+                                      (iflet (result) (do&call a)
+                                        (do do.acc.result
+                                            wipe.finished)
+                                        (do do.acc.pad
+                                            (wipe car._)))
+                                      nil))
                                   iterators)))
           (if finished
             wipe.iterators
