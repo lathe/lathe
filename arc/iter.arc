@@ -35,7 +35,7 @@
 ; existing continuation-avoiding code within a project that doesn't
 ; need to avoid continuations.
 
-(mccmp packed using-rels-as ut "utils.arc"
+(packed:using-rels-as ut "utils.arc"
 
 
 ; NOTE: "Lexico" in variable names here stands for "lexicographic."
@@ -67,20 +67,20 @@
     str    (let copyval copy.val
              (fn () (with (i 0 innerval copyval innerlen len.copyval)
                       (fn () (if (< i innerlen)
-                               (mccmp list do1 do.innerval.i ++.i)
+                               (list:do1 do.innerval.i ++.i)
                                (wipe innerval innerlen))))))
     sym    (if val
              (withs (innerval string.val innerlen len.innerval)
                (fn () (let i 0
                         (fn () (if (< i innerlen)
-                                 (mccmp list do1 do.innerval.i ++.i)
+                                 (list:do1 do.innerval.i ++.i)
                                  (wipe innerval innerlen))))))
              (my.empty-iter))))
 
 (=fn my.iter-trav (func iterable)
   (zap my.must-iterify iterable)
   (let iterator call.iterable
-    (mccmp ut dstwhilet (val) call.iterator
+    (ut:dstwhilet (val) call.iterator
       do.func.val)))
 
 (=mc my.iter-each (var iterable . body)
@@ -101,8 +101,7 @@
   (withs (cache (queue)
           iterator call.iterable
           get (fn (index)
-                (mccmp ut dstwhilet (elem)
-                                     (and iterator
+                (ut:dstwhilet (elem) (and iterator
                                           (<= qlen.cache index)
                                           call.iterator)
                   (enq elem cache))
@@ -158,11 +157,10 @@
 (=fn my.iter*colexico iterables
   (zap [map my.cached-iter _] iterables)
   (my.mapping rev
-    (mccmp ut foldlet
-                combined-iter (my.iterify (list nil))
+    (ut:foldlet combined-iter (my.iterify (list nil))
                 next-iter iterables
-      (mccmp my mappendinglet that-elem next-iter
-        (mccmp my mappinglet these-elems combined-iter
+      (my:mappendinglet that-elem next-iter
+        (my:mappinglet these-elems combined-iter
           (cons that-elem these-elems))))))
 
 (=fn my.nonnegs ()
@@ -199,7 +197,7 @@
            (my.iterify (list nil)))
     1  (my.iterify (list list.sum))
        (my.mapping (if reversed-lexico-significance rev idfn)
-         (mccmp my mappendinglet choice (my.iter-range 0 sum)
+         (my:mappendinglet choice (my.iter-range 0 sum)
            (my.mapping [cons choice _]
              (my.nonneg-tuples-by-sum (- size 1) (- sum choice)))))))
 
@@ -212,7 +210,7 @@
            "'sum-grouped-nonneg-tuples."))
   (case size 0
     (my.iterify (list nil))
-    (mccmp my mappendinglet sum (my.nonnegs)
+    (my:mappendinglet sum (my.nonnegs)
       (my.nonneg-tuples-by-sum size sum
         reversed-lexico-significance))))
 
@@ -222,7 +220,7 @@
   (unless an-int.amount
     (err "A non-integer amount was given to 'skippingover."))
   (fn ()
-    (mccmp ut ret iterator call.iterable
+    (ut:ret iterator call.iterable
       (let i 0
         (while (and (< i amount) call.iterator)
           ++.i)))))
@@ -248,10 +246,9 @@
       (fn ()
         (when iterator
           (let i 0
-            (mccmp while or
-                      (when (< i amount) ++.i call.iterator)
+            (while:or (when (< i amount) ++.i call.iterator)
                       wipe.iterator)))
-        (or (.iterator:andf idfn call)
+        (or (do&call iterator)
             wipe.iterator)))))
 
 ; NOTE: This should only be used on infinite iterables. It will treat
@@ -261,8 +258,7 @@
                                      reversed-lexico-significance)
   (zap [map my.must-iterify _] iterables)
   (withs (len len.iterables range (range 0 (- len 1)))
-    (mccmp my mappinglet coordinates
-                               (my.sum-grouped-nonneg-tuples len
+    (my:mappinglet coordinates (my.sum-grouped-nonneg-tuples len
                                  reversed-lexico-significance)
       (map [car:call:call (my.skippingover do.coordinates._
                                            do.iterables._)]
@@ -322,8 +318,7 @@
         (withs (finished t
                 values (accum acc
                          (reclist [let (a . b) _
-                                    (iflet (result)
-                                                   (.a:andf idfn call)
+                                    (iflet (result) (do&call a)
                                       (do do.acc.result
                                           wipe.finished)
                                       (do do.acc.pad

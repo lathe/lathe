@@ -1,7 +1,6 @@
 ; circularly-order-noccc.arc
 
-(mccmp packed using-rels-as
-                      ir "../iter.arc"
+(packed:using-rels-as ir "../iter.arc"
                       ut "../utils.arc"
 
 
@@ -12,7 +11,7 @@
 (=fn my.begins-with-unordered-is (lst prefix)
   (let len-prefix len.prefix
     (unless (< len.lst len-prefix)
-      (mccmp catch do1 t
+      (catch:do1 t
         (for lst-position 0 (- len-prefix 1)
           (let element do.lst.lst-position
             (iflet prefix-position (pos [is element _] prefix)
@@ -24,7 +23,7 @@
 ; difference itself may be nil.
 (=fn my.hard-subtract-is (lst contents)
   (unless (< len.lst len.contents)
-    (mccmp catch mccmp list mccmp ut ret result lst
+    (catch:list:ut:ret result lst
       (each element contents
         (iflet position (pos [is element _] result)
           (zap [my.rempos _ position] result)
@@ -63,7 +62,7 @@
                               do.rep2comp.sorter.bracket))
          result-so-far nil
          len-brackets len.brackets)
-    (mccmp catch mccmp ut dstwhilet (bracket . _) brackets
+    (catch:ut:dstwhilet (bracket . _) brackets
       (unless (my.begins-with-unordered-is must-come-first bracket)
         (throw nil))
       (let len-bracket len.bracket
@@ -75,20 +74,18 @@
       (iflet (options) (my.hard-subtract-is first-bracket
                                             must-come-first)
         (ir.mapping [join result-so-far _]
-          (mccmp ir mappendinglet option (ir.iterify options)
-            (mccmp ut foldlet
-                        result (my.sort-yourselves
+          (ir:mappendinglet option ir.iterify.options
+            (ut:foldlet result (my.sort-yourselves
                                  rep2comp
                                  (do.sort-one-bracket first-bracket
                                                       option)
                                  (cons option must-come-first))
                         bracket rest-of-brackets
-              (mccmp ir mappendinglet previous-sorted-stuff result
+              (ir:mappendinglet previous-sorted-stuff result
                 (ir.mapping [join previous-sorted-stuff _]
                   (my.sort-yourselves
                     rep2comp
-                    (mccmp ut foldlet
-                                previous-bracket-brackets list.bracket
+                    (ut:foldlet previous-bracket-brackets list.bracket
                                 sorter previous-sorted-stuff
                       (mappend [do.sort-one-bracket _ sorter]
                                previous-bracket-brackets))))))))

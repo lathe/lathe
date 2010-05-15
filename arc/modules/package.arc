@@ -141,8 +141,7 @@
 
 (def pack-nmap (nmap)
   (let export (obj nmap nmap)
-    (= !nspace.export (let ns
-                            (mccmp nspace-indirect fn () !nmap.export)
+    (= !nspace.export (let ns (nspace-indirect:fn () !nmap.export)
                         (fn () ns)))
     (=fn !activate.export ()
       (let overwritten-sobj (import-nmap !nmap.export)
@@ -166,8 +165,7 @@
   `(let nmap (table)
      (w/global my nspace.nmap
        (tldo ,@body))
-     (mccmp pack-nmap obj
-                    ,@(mappend [do `(,_ ((get ',_) nmap))] names))))
+     (pack-nmap:obj ,@(mappend [do `(,_ ((get ',_) nmap))] names))))
 
 ; The 'names here must be either a list of symbols or a symbol.
 (mac pack-hiding (names . body)

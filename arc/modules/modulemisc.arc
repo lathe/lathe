@@ -1,6 +1,6 @@
 ; modulemisc.arc
 
-(unless (!modulemisc-has-been-loaded*:andf bound eval)
+(unless (bound&eval 'modulemisc-has-been-loaded*)
 
 
 (= modulemisc-has-been-loaded* t)
@@ -43,14 +43,6 @@
 (def anormalsym (x)
   (and x (isa x 'sym) (~ssyntax x)))
 
-
-; Jarc doesn't correctly support (foo:bar a b c) syntax where 'foo,
-; 'bar, or both are macros. We'll write it as (mccmp foo bar a b c)
-; instead, where 'mccmp is short for "macro compose"
-(mac mccmp (a b . args)
-  `(,a (,b ,@args)))
-
-
 ; This will transform a list of parameters from
 ; ((var1 val1 var2 val2) body1 body2) format--as seen in Arc's
 ; 'with--into a Scheme- or CL-style
@@ -91,7 +83,7 @@
 (def global (name)
   (unless anormalsym.name
     (err "A nil, ssyntax, or non-symbol name was given to 'global."))
-  (.name:andf bound eval))
+  (bound&eval name))
 
 (defset global (name)
   (w/uniq (g-name g-val)
@@ -147,11 +139,15 @@
     int  t
     num  (== x trunc.x)))
 
+; Jarc doesn't support re-invocable continuations, and we don't blame
+; it. This flag indicates whether the feature is supported.
+(= cccraziness* (errsafe:iflet c catch.throw (c nil) t))
+
 
 ))  ; end (eval '(tldo ...))
 
 
-)  ; end (unless (!modulemisc-has-been-loaded*:andf bound eval)
+)  ; end (unless (bound&eval 'modulemisc-has-been-loaded*) ...)
 
 ; In Rainbow, comments must end with newlines, not EOF, so keep a
 ; newline here.

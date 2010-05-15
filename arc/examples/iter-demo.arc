@@ -2,7 +2,7 @@
 
 (prn "starting iter-demo")
 
-(mccmp nspaced using-rels-as ir "../iter.arc"
+(nspaced:using-rels-as ir "../iter.arc"
 
 
 (= my.tests-succeeded t)
@@ -17,25 +17,21 @@
                 ',complicated ".")))))
 
 
-(mccmp my test-iso '(())
-  (ir.iter->list (ir.nonneg-tuples-by-sum 0 0)))
+(my:test-iso '(()) (ir.iter->list (ir.nonneg-tuples-by-sum 0 0)))
 
-(mccmp my test-iso
-             '((0 0 3) (0 1 2) (0 2 1) (0 3 0)
+(my:test-iso '((0 0 3) (0 1 2) (0 2 1) (0 3 0)
                (1 0 2) (1 1 1) (1 2 0)
                (2 0 1) (2 1 0)
                (3 0 0))
   (ir.iter->list (ir.nonneg-tuples-by-sum 3 3)))
 
-(mccmp my test-iso
-             '((a A 0) (b A 0) (c A 0)
+(my:test-iso '((a A 0) (b A 0) (c A 0)
                (a B 0) (b B 0) (c B 0)
                (a A 1) (b A 1) (c A 1)
                (a B 1) (b B 1) (c B 1))
   (ir.iter->list (ir.iter*colexico '(a b c) '(A B) '(0 1))))
 
-(mccmp my test-iso
-             '((0 0 0)
+(my:test-iso '((0 0 0)
                (0 0 1) (0 1 0)
                (1 0 0)
                (0 0 2) (0 1 1) (0 2 0)
@@ -48,8 +44,7 @@
   (ir.iter->list
     (ir.stoppingafter 20 (ir.sum-grouped-nonneg-tuples 3))))
 
-(mccmp my test-iso
-             '((A a a)
+(my:test-iso '((A a a)
                (A a b) (A b a)
                (B a a)
                (A a c) (A b b) (A c a)
@@ -61,8 +56,7 @@
              uppers (ir.repeating '(A B C D E F G H I J K L M)))
         (ir.iter*sum-grouped uppers lowers lowers)))))
 
-(mccmp my test-iso
-             '((A a a)
+(my:test-iso '((A a a)
                (B a a) (A b a)
                (A a b)
                (C a a) (B b a) (A c a)
@@ -74,18 +68,19 @@
              uppers (ir.repeating '(A B C D E F G H I J K L M)))
         (ir.iter*sum-grouped-colexico uppers lowers lowers)))))
 
-; This is commented out so that this demo can work on Jarc too.
-;
-;(= my.fibs (mccmp ir yielder (a b)
-;             do.yield.a
-;             do.yield.b
-;             (while t
-;               (let next (+ a b)
-;                 (= a b b next)
-;                 do.yield.next))))
-;
-;(mccmp my test-iso '(-8 5 -3 2 -1 1 0 1 1 2 3 5 8)
-;  (ir.iter->list (ir.stoppingafter 13 (my.fibs -8 5))))
+(when cccraziness*
+  
+  (= my.fibs (ir:yielder (a b)
+               do.yield.a
+               do.yield.b
+               (while t
+                 (let next (+ a b)
+                   (= a b b next)
+                   do.yield.next))))
+  
+  (my:test-iso '(-8 5 -3 2 -1 1 0 1 1 2 3 5 8)
+    (ir.iter->list (ir.stoppingafter 13 (my.fibs -8 5))))
+  )
 
 
 (if my.tests-succeeded (prn "All tests succeeded!"))

@@ -1,7 +1,6 @@
 ; circularly-order-ccc.arc
 
-(mccmp packed using-rels-as
-                      am "../amb.arc"
+(packed:using-rels-as am "../amb.arc"
                       ut "../utils.arc"
 
 
@@ -21,7 +20,7 @@
 (=fn my.circularly-order (rep2comp comparator-reps)
   (let amb (am.make-amb
              (fn () (err "The comparators are circularly humble.")))
-    (mccmp ut xloop order-so-far '() rep-brackets list.comparator-reps
+    (ut:xloop order-so-far '() rep-brackets list.comparator-reps
       (unless (my.is-start-of-brackets order-so-far rep-brackets)
         call.amb)
       (let reps (apply join rep-brackets)

@@ -58,8 +58,7 @@
 ; contributed sort method has side effects, no guarantees are made
 ; about when or how often those side effects will happen.
 
-(mccmp packed using-rels-as
-                      co "circularly-order-noccc.arc"
+(packed:using-rels-as co "circularly-order-noccc.arc"
                       mu "multival.arc"
                       st "../sort.arc"
                       ut "../utils.arc"
@@ -81,8 +80,7 @@
                              (apply join (my.circularly-order rep2comp
                                            contribs-that-order))))
     (obj val (fn (contribs-to-order)
-               (mccmp ut foldlet
-                           rankings  list.contribs-to-order
+               (ut:foldlet rankings  list.contribs-to-order
                            orderer   ordered-orderers
                  (mappend orderer rankings)))
          cares '())))
@@ -105,11 +103,11 @@
 ;
 (= my.circularly-order co.circularly-order)
 
-(mccmp mu defmultifn-stub my.order-contribs (my self-orderer-reducer))
+(mu:defmultifn-stub my.order-contribs my.self-orderer-reducer)
 
 (=fn my.fn-label-prec (label . tests)
   (mu.contribute my!order-contribs label my.self-orderer-reducer
-    (mccmp st.<=>-to-bracketer apply (st order-by-tests) tests)))
+    (st:<=>-to-bracketer:apply st.order-by-tests tests)))
 
 (=fn my.prec tests
   (apply my.fn-label-prec (uniq) tests))
