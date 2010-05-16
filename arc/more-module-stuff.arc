@@ -114,7 +114,7 @@
     (unless anormalsym.name
       (err:+ "A table with a nil, ssyntax, or non-symbol key was "
              "passed to sobj-to-mine."))
-    (unless (acons&single svalue)
+    (unless single.svalue
       (err:+ "A table with a non-singleton member was passed to "
              "sobj-to-mine.")))
   (w/table overwritten
@@ -149,7 +149,7 @@
 
 ; The 'names here must be either a list of symbols or a symbol.
 (=mc my.packing (names . body)
-  (unless acons.names (zap list names))
+  (unless alist.names (zap list names))
   (unless (all anormalsym names)
     (err:+ "A nil, ssyntax, or non-symbol name was given to "
            "'packing."))
@@ -160,7 +160,7 @@
 
 ; The 'names here must be either a list of symbols or a symbol.
 (=mc my.pack-hiding (names . body)
-  (unless acons.names (zap list names))
+  (unless alist.names (zap list names))
   (unless (all anormalsym names)
     (err:+ "A nil, ssyntax, or non-symbol name was given to "
            "'pack-hiding."))

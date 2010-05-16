@@ -26,7 +26,7 @@
   (sym:string (uniq) '- name))
 
 (=mc my.w/niceuniq (syms . body)
-  (if acons.syms
+  (if alist.syms
     `(with ,(mappend [do `(,_ (,my!niceuniq ',_))] syms) ,@body)
     `(let ,syms (,my!niceuniq ',syms) ,@body)))
 

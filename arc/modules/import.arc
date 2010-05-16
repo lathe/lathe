@@ -9,7 +9,7 @@
     (unless (isa name 'sym)
       (err:+ "A table with a non-symbol key was passed to "
              "import-sobj."))
-    (unless (acons&single svalue)
+    (unless single.svalue
       (err:+ "A table with a non-singleton member was passed to "
              "import-sobj.")))
   (w/table overwritten
