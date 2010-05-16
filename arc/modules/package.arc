@@ -43,16 +43,6 @@
                (zap [cons package (rem [deactivates package _] _)]
                     activated-packages*)))))))
 
-(mac using (dependency . body)
-  `(protect (fn () ,@body) (activate ,dependency)))
-
-(mac usings (dependencies . body)
-  (if no.dependencies
-    `(tldo ,@body)
-      atom.dependencies
-    `(using ,dependencies ,@body)
-    `(using ,car.dependencies (usings ,cdr.dependencies ,@body))))
-
 (mac using-as withbody
   (withs ((binds . body) (parse-magic-withlike withbody
                            (+ "An odd-sized list of bindings was "
@@ -126,17 +116,6 @@
 (def prepare-nspace (dependency)
   (prepare.dependency!nspace))
 
-; Note that this creates a package with an empty nspace.
-(def pack-sobj (sobj)
-  (let export (obj sobj sobj)
-    (= !nspace.export (let ns (nspace) (fn () ns)))
-    (=fn !activate.export ()
-      (let overwritten-sobj (import-sobj !sobj.export)
-        (fn ()
-          (zap [rem [is export _] _] activated-packages*)
-          import-sobj.overwritten-sobj)))
-    export))
-
 (def pack-nmap (nmap)
   (let export (obj nmap nmap)
     (= !nspace.export (let ns (nspace-indirect:fn () !nmap.export)
@@ -153,25 +132,3 @@
      (w/global my nspace.nmap
        (tldo ,@body))
      pack-nmap.nmap))
-
-; The 'names here must be either a list of symbols or a symbol.
-(mac packing (names . body)
-  (unless acons.names (zap list names))
-  (unless (all anormalsym names)
-    (err:+ "A nil, ssyntax, or non-symbol name was given to "
-           "'packing."))
-  `(let nmap (table)
-     (w/global my nspace.nmap
-       (tldo ,@body))
-     (pack-nmap:obj ,@(mappend [do `(,_ ((get ',_) nmap))] names))))
-
-; The 'names here must be either a list of symbols or a symbol.
-(mac pack-hiding (names . body)
-  (unless acons.names (zap list names))
-  (unless (all anormalsym names)
-    (err:+ "A nil, ssyntax, or non-symbol name was given to "
-           "'pack-hiding."))
-  `(let nmap (table)
-     (w/global my nspace.nmap
-       (tldo ,@body))
-     (pack-nmap:copy nmap ,@(mappend [do `(',_ nil)] names))))

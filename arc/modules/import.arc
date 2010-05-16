@@ -1,30 +1,7 @@
 ; import.arc
 
 
-; This is an obj where each value is wrapped in a singleton list.
-(mac sobj bindings
-  `(obj ,@(mappend [do `(,_.0 (list ,_.1))] pair.bindings)))
-
-; Use this inside an nspaced form in order to save off the values of
-; the given names into a table of singleton lists, using the names
-; themselves as keys. This table can then be sent to import-sobj in
-; order to conveniently use the values in some other context.
-(mac mine-as-sobj names
-  `(sobj ,@(mappend [do `(,_ (my ,_))] names)))
-
-
-(def import-obj (obj)
-  (unless (isa obj 'table)
-    (err "A non-table was passed to import-obj."))
-  (each (name value) obj
-    (unless (isa name 'sym)
-      (err:+ "A table with a non-symbol key was passed to "
-             "import-obj.")))
-  (w/table overwritten
-    (each (name value) obj
-      (= .name.overwritten (list global.name)
-         global.name value))))
-
+; An sobj is an obj where each value is wrapped in a singleton list.
 (def import-sobj (sobj)
   (unless (isa sobj 'table)
     (err "A non-table was passed to import-sobj."))
@@ -39,39 +16,6 @@
     (each (name (value)) sobj
       (= .name.overwritten (list global.name)
          global.name value))))
-
-; You can use these obj-to-mine and sobj-to-mine inside an nspaced
-; form to avoid polluting friendly names in the global environment.
-; This will assign each value foo to my.foo (which will macroexpand to
-; whatever gensym the nspaced form identified with that local name.
-
-(def obj-to-mine (obj)
-  (unless (isa obj 'table)
-    (err "A non-table was passed to obj-to-mine."))
-  (each (name value) obj
-    (unless anormalsym.name
-      (err:+ "A table with a nil, ssyntax, or non-symbol key was "
-             "passed to obj-to-mine.")))
-  (w/table overwritten
-    (each (name value) obj
-      (= .name.overwritten (list:eval `(my ,name))
-         (global:eval `(my ',name)) value))))
-
-(def sobj-to-mine (sobj)
-  (unless (isa sobj 'table)
-    (err "A non-table was passed to sobj-to-mine."))
-  (each (name svalue) sobj
-    (unless anormalsym.name
-      (err:+ "A table with a nil, ssyntax, or non-symbol key was "
-             "passed to sobj-to-mine."))
-    (unless (acons&single svalue)
-      (err:+ "A table with a non-singleton member was passed to "
-             "sobj-to-mine.")))
-  (w/table overwritten
-    (each (name (value)) sobj
-      (= .name.overwritten (list:eval `(my ,name))
-         (global:eval `(my ',name)) value))))
-
 
 ; An nmap is a table mapping friendly global names to obscure global
 ; names. It's the kind of table 'nspace takes.

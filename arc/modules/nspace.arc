@@ -83,28 +83,3 @@
 (mac nspaced body
   `(w/global my (nspace)
      (tldo ,@body)))
-
-(mac copy-to-mine names
-  (unless (all anormalsym names)
-    (err:+ "A non-symbol or special symbol expression was passed to "
-           "copy-to-mine."))
-  `(= ,@(mappend [do `((my ,_) ,_)] names)))
-
-(mac copy-to-nspace (ns . names)
-  (unless (all anormalsym names)
-    (err:+ "A non-symbol or special symbol expression was passed to "
-           "copy-to-nspace."))
-  (w/uniq g-ns
-    `(= ,g-ns ,ns
-        ,@(mappend [do `((,g-ns ,_) ,_)] names)
-        ,g-ns nil)))
-
-; This is a spoof form that imitates an nspaced form without actually
-; protecting any variables. The point is that if you really don't like
-; the effect nspaced has on Arc code, then you can drop in this
-; non-implementation, maybe even saying (= nspaced not-nspaced) at the
-; top level, and thereby use most code that's targeted at nspaced in a
-; way that's closer to what you want without very much hassle.
-(mac not-nspaced body
-  `(w/global my (mc (what) what)
-     (tldo ,@body)))

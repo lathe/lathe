@@ -96,10 +96,6 @@
           loadval.abspath)
       (= load-dir* old-load-dir))))
 
-(mac using-rels (relpaths . body)
-  (unless alist.relpaths (zap list relpaths))
-  `(usings ,(map [do ``(rel ,,_)] relpaths) ,@body))
-
 (mac using-rels-as withbody
   (let (binds . body) (parse-magic-withlike withbody
                         (+ "An odd-sized list of bindings was given "
