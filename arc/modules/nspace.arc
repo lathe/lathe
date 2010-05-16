@@ -61,10 +61,12 @@
   (nspace-indirect (fn () backing-table)))
 
 (def nspace-indirect (backing-table-getter)
-  (let symfor [do (unless anormalsym._
-                    (err:+ "A nil, ssyntax, or non-symbol name was "
-                           "passed to a namespace."))
-                  (or= call.backing-table-getter._ niceuniq._)]
+  (withs (prefix (uniq)
+          symfor [do (unless anormalsym._
+                       (err:+ "A nil, ssyntax, or non-symbol name "
+                              "was passed to a namespace."))
+                     (or= call.backing-table-getter._
+                       (sym:string prefix '- _))])
     (let backing-table call.backing-table-getter
       (each name hackable-names*
         (= .name.backing-table name)))
