@@ -64,23 +64,21 @@
   (let symfor [do (unless anormalsym._
                     (err:+ "A nil, ssyntax, or non-symbol name was "
                            "passed to a namespace."))
-                  (let backing-table call.backing-table-getter
-                    (or ._.backing-table
-                        (= ._.backing-table niceuniq._)))]
+                  (or= call.backing-table-getter._ niceuniq._)]
     (let backing-table call.backing-table-getter
       (each name hackable-names*
         (= .name.backing-table name)))
     (mc (what)
       (if atom.what
-        `(global ',.what.symfor)
+        `(global ',do.symfor.what)
         (let (op . params) what
           (case op quote
             (let (name . more) params
               (when more
                 (err:+ "A (quote ...) expression with more than one "
                        "parameter was passed to a namespace."))
-              `',.name.symfor)
-            `(,.op.symfor ,@params)))))))
+              `',do.symfor.name)
+            `(,do.symfor.op ,@params)))))))
 
 (def deglobalize-var (var)
   (zap expand var)
