@@ -49,7 +49,8 @@
     (my:w/niceuniq g-result
       `(withs (,g-result ,val ,var ,g-result)
          ,@body
-         ,g-result))))
+         ,g-result))
+    ))
 
 (=mc my.between (var val chorus . body)
   (my:w/niceuniq g-started
@@ -184,7 +185,8 @@
             _           (do.require single.cdadr-var)
             cadadr-var  car.cdadr-var
             _           (do.require anormalsym.cadadr-var))
-      cadadr-var)))
+      cadadr-var)
+    ))
 
 
 )
