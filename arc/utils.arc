@@ -22,6 +22,14 @@
 (packed
 
 
+(=fn my.niceuniq (name)
+  (sym:string (uniq) '- name))
+
+(=mc my.w/niceuniq (syms . body)
+  (if acons.syms
+    `(with ,(mappend [do `(,_ (,my!niceuniq ',_))] syms) ,@body)
+    `(let ,syms (,my!niceuniq ',syms) ,@body)))
+
 (=mc my.xloop withbody
   (let (binds . body) parse-magic-withlike.withbody
     `((rfn next ,(map car binds)
@@ -38,13 +46,13 @@
     
     ; We will allow for destructuring, but the result will stay
     ; constant.
-    (w/niceuniq g-result
+    (my:w/niceuniq g-result
       `(withs (,g-result ,val ,var ,g-result)
          ,@body
          ,g-result))))
 
 (=mc my.between (var val chorus . body)
-  (w/niceuniq g-started
+  (my:w/niceuniq g-started
     `(with g-started nil
        (each ,var ,val
          (if ,g-started ,chorus (= ,g-started t))
