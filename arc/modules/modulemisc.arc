@@ -9,9 +9,6 @@
   `(do ,@(map [do `(eval ',_)] body)))
 
 
-(eval '(tldo
-
-
 (mac mc (parms . body)
   `(annotate 'mac (fn ,parms ,@body)))
 
@@ -21,6 +18,7 @@
 (mac =fn (name parms . body)
   `(= ,name (fn ,parms ,@body)))
 
+
 ; Expand both ssyntax and macros until neither is left.
 (def expand (expr)
   (let nextexpr macex.expr
@@ -29,7 +27,7 @@
       nextexpr)))
 
 ; A (call a b c) form should act the same way as a plain (a b c) form,
-; *except* when a is a symbol globally bound to a macro at the time
+; *except* when 'a is a symbol globally bound to a macro at the time
 ; the expression is compiled, in which case (call a b c) will
 ; effectively suppress that macro expansion.
 (def call (f . args)
@@ -75,6 +73,7 @@
                             (do.acc (list name val)))))
           (cons withlist arglist))))))
 
+
 (def global (name)
   (unless anormalsym.name
     (err "A nil, ssyntax, or non-symbol name was given to 'global."))
@@ -85,22 +84,6 @@
     `(((,g-name ,g-val) (let _ ,name (list _ global._)))
       ,g-val
       [eval `(= ,,g-name ',_)])))
-
-; The above (defset global ...) relies on being able to say
-; (eval `(= global-var ',local-expression)) even when local-expression
-; has a value that can't usually appear in syntax. In case that
-; doesn't work on all Arc implementations, here's the previous version
-; of the (defset global ...) that uses a temporary global variable
-; instead.
-;
-;(w/uniq g-temp
-;  (eval `(defset global (name)
-;           (w/uniq (g-name g-val)
-;             `(((,g-name ,g-val) (let _ ,name (list _ global._)))
-;               ,g-val
-;               [do (= ,',g-temp _)
-;                   (eval `(= ,,g-name ,',',g-temp))
-;                   (= ,',g-temp nil)])))))
 
 ; Set a global variable temporarily. This is neither thread-safe nor
 ; continuation-safe, although it will restore the original value of
@@ -124,22 +107,17 @@
         (= result eval.expr))
       result)))
 
+
 (def == args
-  (no (when args
-        (let first car.args
-          (some [or (< first _) (< _ first)] cdr.args)))))
+  (~whenlet (first . rest) args
+    (some [or (< first _) (< _ first)] rest)))
 
 (def an-int (x)
   (case type.x
     int  t
     num  (== x trunc.x)))
 
+
 ; Jarc doesn't support re-invocable continuations, and we don't blame
 ; it. This flag indicates whether the feature is supported.
 (= cccraziness* (errsafe:iflet c catch.throw (c nil) t))
-
-
-))  ; end (eval '(tldo ...))
-
-; In Rainbow, comments must end with newlines, not EOF, so keep a
-; newline here.
