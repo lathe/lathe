@@ -38,24 +38,24 @@
 (= my.contribs* (table))
 
 
-(let multival-cache (table)
-  
-  (=fn my.get-multival (name)
-    (!val:car:or= do.multival-cache.name
-      (list ((car my.reducers*.name) my.contribs*.name))))
-  
-  (=fn my.invalidate-multival names
-    (while names
-      (each name names
-        (wipe do.multival-cache.name))
-      (= names (keep [iflet (reduction) do.multival-cache._
-                       (some [mem _ names] do.reduction!cares)]
-                 keys.multival-cache))))
-  
-  (=fn my.invalidate-all-multivals ()
-    (each key keys.multival-cache
-      (wipe do.multival-cache.key)))
-  )
+(= my.multival-cache* (table))
+
+(=fn my.get-multival (name)
+  (!val:car:or= my.multival-cache*.name
+    (list ((car my.reducers*.name) my.contribs*.name))))
+
+(=fn my.invalidate-multival names
+  (while names
+    (each name names
+      (wipe my.multival-cache*.name))
+    (= names (keep [whenlet (reduction) my.multival-cache*._
+                     (some [mem _ names] do.reduction!cares)]
+                   (keys my.multival-cache*)))))
+
+(=fn my.invalidate-all-multivals ()
+  (each key (keys my.multival-cache*)
+    (wipe my.multival-cache*.key)))
+
 
 (=fn my.submit-reducer (name reducer)
   (iflet (existing-reducer) my.reducers*.name
