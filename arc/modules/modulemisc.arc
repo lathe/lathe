@@ -108,6 +108,15 @@
       result)))
 
 
+(def niceuniq (name)
+  (sym:string (uniq) "-" name))
+
+(mac w/niceuniq (syms . body)
+  (if acons.syms
+    `(with ,(mappend [do `(,_ (niceuniq ',_))] syms) ,@body)
+    `(let ,syms (niceuniq ',syms) ,@body)))
+
+
 ; Jarc doesn't support re-invocable continuations, and we don't blame
 ; it. This flag indicates whether the feature is supported.
 (= cccraziness* (errsafe:iflet c catch.throw (c nil) t))

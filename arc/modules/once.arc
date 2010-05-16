@@ -15,11 +15,3 @@
     (after
       call.body
       (zap [rem test _] car.once-at-a-times*))))
-
-(def niceuniq (name)
-  (sym:string (uniq) "-" name))
-
-(mac w/niceuniq (syms . body)
-  (if acons.syms
-    `(with ,(mappend [do `(,_ (niceuniq ',_))] syms) ,@body)
-    `(let ,syms (niceuniq ',syms) ,@body)))
