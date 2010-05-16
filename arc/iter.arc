@@ -184,11 +184,11 @@
       (size sum (o reversed-lexico-significance))
   (unless (<= 0 size)
     (err "A negative size was given to 'nonneg-tuples-by-sum."))
-  (unless an-int.size
+  (unless ut.an-int.size
     (err "A non-integer size was given to 'nonneg-tuples-by-sum."))
   (unless (<= 0 sum)
     (err "A negative sum was given to 'nonneg-tuples-by-sum."))
-  (unless an-int.sum
+  (unless ut.an-int.sum
     (err "A non-integer sum was given to 'nonneg-tuples-by-sum."))
   (case size
     0  (do (unless (is sum 0)
@@ -205,7 +205,7 @@
        (size (o reversed-lexico-significance))
   (unless (<= 0 size)
     (err "A negative size was given to 'sum-grouped-nonneg-tuples."))
-  (unless an-int.size
+  (unless ut.an-int.size
     (err:+ "A non-integer size was given to "
            "'sum-grouped-nonneg-tuples."))
   (case size 0
@@ -217,7 +217,7 @@
 (=fn my.skippingover (amount iterable)
   (unless (<= 0 amount)
     (err "A negative amount was given to 'skippingover."))
-  (unless an-int.amount
+  (unless ut.an-int.amount
     (err "A non-integer amount was given to 'skippingover."))
   (fn ()
     (ut:ret iterator call.iterable
@@ -228,7 +228,7 @@
 (=fn my.stoppingafter (amount iterable)
   (unless (<= 0 amount)
     (err "A negative amount was given to 'stoppingafter."))
-  (unless an-int.amount
+  (unless ut.an-int.amount
     (err "A non-integer amount was given to 'stoppingafter."))
   (fn ()
     (with (iterator call.iterable i 0)
@@ -239,7 +239,7 @@
 (=fn my.stepping (amount iterable)
   (unless (<= 0 amount)
     (err "A negative amount was given to 'stepping."))
-  (unless an-int.amount
+  (unless ut.an-int.amount
     (err "A non-integer amount was given to 'stepping."))
   (fn ()
     (let iterator call.iterable

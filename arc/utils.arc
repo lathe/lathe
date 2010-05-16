@@ -143,4 +143,14 @@
       (copy next key do.tab2val.tabs))))
 
 
+(=fn my.== args
+  (~whenlet (first . rest) args
+    (some [or (< first _) (< _ first)] rest)))
+
+(=fn my.an-int (x)
+  (case type.x
+    int  t
+    num  (my.== x trunc.x)))
+
+
 )
