@@ -1,10 +1,5 @@
 ; once.arc
 
-(unless global!once-has-been-loaded* (tldo
-
-
-(= once-has-been-loaded* t)
-
 
 (= onces* '(()))
 (= once-at-a-times* '(()))
@@ -41,9 +36,3 @@
   (if acons.syms
     `(with ,(mappend [do `(,_ (niceuniq ',_))] syms) ,@body)
     `(let ,syms (niceuniq ',syms) ,@body)))
-
-
-))  ; end (unless global!once-has-been-loaded* (tldo ...))
-
-; In Rainbow, comments must end with newlines, not EOF, so keep a
-; newline here.

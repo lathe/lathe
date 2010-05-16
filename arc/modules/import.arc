@@ -1,7 +1,5 @@
 ; import.arc
 
-(once-tl "load import.arc"
-
 
 ; This is an obj where each value is wrapped in a singleton list.
 (mac sobj bindings
@@ -93,6 +91,3 @@
     (each (name target) nmap
       (= .name.overwritten (list global.name)
          global.name global.target))))
-
-
-)

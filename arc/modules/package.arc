@@ -12,8 +12,6 @@
 ; are checked to see if they already fit the bill, and only if they
 ; don't does the activation actually take place.
 
-(once-tl "load package.arc"
-
 
 (= prepared-packages* '())
 (def prepared (dependency)
@@ -177,6 +175,3 @@
      (w/global my nspace.nmap
        (tldo ,@body))
      (pack-nmap:copy nmap ,@(mappend [do `(',_ nil)] names))))
-
-
-)

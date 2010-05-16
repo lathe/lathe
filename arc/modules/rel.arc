@@ -21,8 +21,6 @@
 ; relative paths correctly. The loadrel function does all that but
 ; itself takes a relative address.
 
-(once-tl "load rel.arc"
-
 
 (= load-dir* "")
 
@@ -112,6 +110,3 @@
   (when (odd:len bindings)
     (err "An odd-sized list of bindings was given to use-rels-as."))
   `(use-as ,@(mappend [do `(,_.0 `(rel ,,_.1))] pair.bindings)))
-
-
-)

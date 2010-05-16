@@ -1,10 +1,5 @@
 ; modulemisc.arc
 
-(unless (bound&eval 'modulemisc-has-been-loaded*)
-
-
-(= modulemisc-has-been-loaded* t)
-
 
 ; This will evaluate its body, one line at a time, in the top-level
 ; context. This lets the code modify global bindings even if a lexical
@@ -145,9 +140,6 @@
 
 
 ))  ; end (eval '(tldo ...))
-
-
-)  ; end (unless (bound&eval 'modulemisc-has-been-loaded*) ...)
 
 ; In Rainbow, comments must end with newlines, not EOF, so keep a
 ; newline here.

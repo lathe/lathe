@@ -22,8 +22,6 @@
 ; any namespace is created, those names will be used verbatim rather
 ; than replaced with gensyms.
 
-(once-tl "load nspace.arc"
-
 
 (= hackable-names* '())
 
@@ -137,6 +135,3 @@
 (mac not-nspaced body
   `(w/global my (mc (what) what)
      (tldo ,@body)))
-
-
-)
