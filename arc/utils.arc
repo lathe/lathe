@@ -153,4 +153,30 @@
     num  (my.== x trunc.x)))
 
 
+(=fn my.deglobalize-var (var)
+  (zap expand var)
+  (if anormalsym.var
+    var
+    
+    ; else recognize anything of the form (global 'the-var)
+    ;
+    ; NOTE: Rainbow doesn't allow us to say (let nil 2 ...) to create
+    ; no local variables at all, so we're using a throwaway variable
+    ; '_ instead of nil.
+    ;
+    (withs (require     [unless _
+                          (err:+ "An unrecognized kind of name was "
+                                 "passed to 'deglobalize-var.")]
+            _           (do.require (caris var 'global))
+            cdr-var     cdr.var
+            _           (do.require single.cdr-var)
+            cadr-var    car.cdr-var
+            _           (do.require (caris cadr-var 'quote))
+            cdadr-var   cdr.cadr-var
+            _           (do.require single.cdadr-var)
+            cadadr-var  car.cdadr-var
+            _           (do.require anormalsym.cadadr-var))
+      cadadr-var)))
+
+
 )
