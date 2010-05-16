@@ -43,7 +43,7 @@
                         ""
                         (reclist [when (single:cdr _) (pop:cdr _)]
                                  segments)))
-          (when (is #\/ .0.path) (push "" acc))
+          (when (is #\/ do.path.0) (push "" acc))
           (each segment segments
             (case segment
               "."   nil
@@ -70,10 +70,10 @@
                                               path abspath
                                               original original))
                             (=fn !nspace.result ()
-                              (!original.result!nspace))
+                              (do.result!original!nspace))
                             (=fn !activate.result ()
                               (let undo-original
-                                     (!original.result!activate)
+                                     (do.result!original!activate)
                                 (fn ()
                                   call.undo-original
                                   (zap [rem result _]
@@ -81,8 +81,8 @@
                             result))
                 accepts (fn (package)
                           (and (isa package 'table)
-                               (iso !type.package 'loaded-package)
-                               (iso !path.package abspath))))))))))
+                               (is do.package!type 'loaded-package)
+                               (iso do.package!path abspath))))))))))
 
 (def loadrel (relpath)
   (loadabs:string load-dir* relpath))

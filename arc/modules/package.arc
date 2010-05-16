@@ -27,7 +27,7 @@
 (def prepare (dependency)
   (let compiled compile-dependency-mandatory.dependency
     (or prepared.compiled
-        (iflet package (!prepare.compiled)
+        (iflet package (do.compiled!prepare)
           (do (push package prepared-packages*)
               package)
           ; The error message gives the *uncompiled* dependency.
@@ -39,7 +39,7 @@
     (unless activated.compiled
       (once-at-a-time `(activate ,dependency)  ; NOT compiled
         (let package prepare.compiled
-          (do1 (!activate.package)
+          (do1 (do.package!activate)
                (zap [cons package (rem [deactivates package _] _)]
                     activated-packages*)))))))
 
@@ -82,7 +82,7 @@
 (= compile-dependency-rules* '(()))
 (def compile-dependency (dependency)
   (if (and (isa dependency 'table)
-           (is !type.dependency 'compiled-dependency))
+           (is do.dependency!type 'compiled-dependency))
     dependency
     (some [_ dependency] car.compile-dependency-rules*)))
 
@@ -92,7 +92,7 @@
 
 (def package-satisfies (package dependency)
   (let compiled compile-dependency-mandatory.dependency
-    (!accepts.compiled package)))
+    do.compiled!accepts.package))
 
 ; Each of these rules should behave like this, as far as types go:
 ;
@@ -118,10 +118,10 @@
 
 (def pack-nmap (nmap)
   (let export (obj nmap nmap)
-    (= !nspace.export (let ns (nspace-indirect:fn () !nmap.export)
+    (= !nspace.export (let ns (nspace-indirect:fn () do.export!nmap)
                         (fn () ns)))
     (=fn !activate.export ()
-      (let overwritten-sobj (import-nmap !nmap.export)
+      (let overwritten-sobj (import-nmap do.export!nmap)
         (fn ()
           (zap [rem [is export _] _] activated-packages*)
           import-sobj.overwritten-sobj)))

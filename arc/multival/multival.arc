@@ -49,7 +49,7 @@
       (each name names
         (wipe do.multival-cache.name))
       (= names (keep [iflet (reduction) do.multival-cache._
-                       (some [mem _ names] !cares.reduction)]
+                       (some [mem _ names] do.reduction!cares)]
                  keys.multival-cache))))
   
   (=fn my.invalidate-all-multivals ()

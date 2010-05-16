@@ -141,7 +141,7 @@
   (let export (obj sobj sobj)
     (= !nspace.export (let ns (nspace) (fn () ns)))
     (=fn !activate.export ()
-      (let overwritten-sobj (import-sobj !sobj.export)
+      (let overwritten-sobj (import-sobj do.export!sobj)
         (fn ()
           (zap [rem [is export _] _] activated-packages*)
           import-sobj.overwritten-sobj)))
