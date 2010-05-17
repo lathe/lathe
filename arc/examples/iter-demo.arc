@@ -3,6 +3,7 @@
 (prn "starting iter-demo")
 
 (nspaced:using-rels-as ir "../iter.arc"
+                       sn "../tunnel/sniff.arc"
 
 
 (= my.tests-succeeded t)
@@ -68,7 +69,7 @@
              uppers (ir.repeating '(A B C D E F G H I J K L M)))
         (ir.iter*sum-grouped-colexico uppers lowers lowers)))))
 
-(when cccraziness*
+(when sn.cccraziness*
   
   (= my.fibs (ir:yielder (a b)
                do.yield.a

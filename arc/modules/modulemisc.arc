@@ -106,8 +106,3 @@
       (whiler expr (read stream eof) eof
         (= result eval.expr))
       result)))
-
-
-; Jarc doesn't support re-invocable continuations, and we don't blame
-; it. This flag indicates whether the feature is supported.
-(= cccraziness* (errsafe:iflet c catch.throw (c nil) t))
