@@ -3,7 +3,7 @@
 (prn "starting iter-demo")
 
 (nspaced:using-rels-as ir "../iter.arc"
-                       sn "../tunnel/sniff.arc"
+                       sn "../imp/sniff.arc"
 
 
 (= my.tests-succeeded t)
