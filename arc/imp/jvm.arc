@@ -441,7 +441,7 @@
       (err "Unrecognized arguments to a path wrapper."))))
 
 (= my.jvm (when sn.anyjvmdrop*
-            (my.jpathwrapper "" my.jnew my.jinvoke my.staticinvoke)))
+            (my.jpathwrapper "" my.jnew my.jinvoke my.jstaticinvoke)))
 
 (with (is-static [my.jstaticinvoke
                    "java.lang.reflect.Modifier"

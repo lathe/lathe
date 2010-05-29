@@ -38,6 +38,7 @@
   (my:test-iso 1 Rect!OUT_LEFT)
   (my:test-iso 2 (jvm!get (ju!ArrayList-new '(1 2 3)) 1))
   (my:test-iso 3 (jvm!getValue (ju!AbstractMap-SimpleEntry-new 2 3)))
+  (my:test-iso 4 jvm!java-lang-Integer-valueOf.4)
   
   (my:test-jiso rect (Rect!new 1 2 3 4))
   (my:test-iso 1 jvm!OUT_LEFT.rect)
