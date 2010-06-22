@@ -56,9 +56,8 @@
           ; to backtrack to, and call it. If it doesn't exist, use
           ; goto-fail as the continuation instead.
           (if call.has-frame
-            ; Note that nil in ssyntax doesn't work in Rainbow.
-            (call.pop-frame nil)
-            (do.goto-fail nil))
+            call.pop-frame.nil
+            do.goto-fail.nil)
           )))))
 
 ; This function will create a new backtracking continuation stack and

@@ -16,7 +16,7 @@
           (let element do.lst.lst-position
             (iflet prefix-position (pos [is element _] prefix)
               (zap [my.rempos _ prefix-position] prefix)
-              (throw nil))))))))
+              throw.nil)))))))
 
 ; This returns nil on failure and a singleton list containing the
 ; difference on success. The singleton list is necessary because the
@@ -27,7 +27,7 @@
       (each element contents
         (iflet position (pos [is element _] result)
           (zap [my.rempos _ position] result)
-          (throw nil))))))
+          throw.nil)))))
 
 ; This takes a list of multisets (given as lists) of comparators and
 ; returns an iterable (see iter.arc) over lists of the same
@@ -64,7 +64,7 @@
          len-brackets len.brackets)
     (catch:ut:dstwhilet (bracket . _) brackets
       (unless (my.begins-with-unordered-is must-come-first bracket)
-        (throw nil))
+        throw.nil)
       (let len-bracket len.bracket
         (zap [join _ (cut must-come-first 0 len-bracket)]
              result-so-far)

@@ -157,7 +157,7 @@
 (=fn my.iter*colexico iterables
   (zap [map my.cached-iter _] iterables)
   (my.mapping rev
-    (ut:foldlet combined-iter (my.iterify (list nil))
+    (ut:foldlet combined-iter (my.iterify list.nil)
                 next-iter iterables
       (my:mappendinglet that-elem next-iter
         (my:mappinglet these-elems combined-iter
@@ -194,7 +194,7 @@
     0  (do (unless (is sum 0)
              (err:+ "A size of zero and a nonzero sum were given to "
                     "'nonneg-tuples-by-sum."))
-           (my.iterify (list nil)))
+           (my.iterify list.nil))
     1  (my.iterify (list list.sum))
        (my.mapping (if reversed-lexico-significance rev idfn)
          (my:mappendinglet choice (my.iter-range 0 sum)
@@ -209,7 +209,7 @@
     (err:+ "A non-integer size was given to "
            "'sum-grouped-nonneg-tuples."))
   (case size 0
-    (my.iterify (list nil))
+    (my.iterify list.nil)
     (my:mappendinglet sum (my.nonnegs)
       (my.nonneg-tuples-by-sum size sum
         reversed-lexico-significance))))
@@ -388,7 +388,7 @@
                              (= next (fn (succeed-from-this-iter)
                                        (= succeed-from-iter
                                           succeed-from-this-iter)
-                                       (do.return-from-yield nil)))
+                                       do.return-from-yield.nil))
                              do.succeed-from-iter.yielded-value)))))
       (fn ()
         (when next

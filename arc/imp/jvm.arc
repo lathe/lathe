@@ -210,9 +210,7 @@
     `(=fn ,name ,parms
        (err "Dropping to Java isn't supported on this platform."))))
 
-; Rainbow has a weird bug here that requires the use of 'w/global
-; instead of 'w/uniq.
-(w/global missing (uniq)
+(w/uniq missing
   (if
     
     sn.jarcdrop*
@@ -447,8 +445,7 @@
                    "java.lang.reflect.Modifier"
                    'isStatic
                    (my.jinvoke _ 'getModifiers)]
-        )
- (w/global missing (uniq)  ; Rainbow again. Mind the indentation.
+       missing (uniq))
   (my:=jfn my.jclasswrapper (class constructor invoker staticinvoker)
     (my:jvm-path-taker (name . rest1) bigself
       (if (~isa name 'string)
@@ -511,7 +508,7 @@
                                         (do.setter value invoker))))
                                   [my.jget _ field invoker]))
                   (if do.is-static.field
-                    (do.currier nil)
+                    do.currier.nil
                     currier))))
           ">class"
             ; If we didn't return a jvm-path-taker function here and
@@ -601,7 +598,7 @@
               
               ; else
               (err "A field, method, or nested class wasn't found.")
-              )))))))
+              ))))))
 
 
 ; The Class class does not itself have any fields, so we can get by
