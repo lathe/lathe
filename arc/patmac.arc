@@ -1,13 +1,35 @@
 ; patmac.arc
 ;
-; A patmac is a function (assumed pure) tagged with 'patmac that takes
-; some unevaluated arguments in a pattern DSL and returns a
-; two-element list containing a list of variables to bind and an Arc
-; expression describing a function that, when applied to the subject
-; of this part of the pattern, returns an iterable (see iter.arc) over
-; tables which determine what the bound variables are bound to.
+; This is a pattern DSL based on yet another namespace of definitions,
+; making it similar to Arc's macros and setforms. Like Arc's macros, a
+; pattern combinator definition can be a tagged value in the global
+; namespace, but like Arc's setforms, it can instead be a name in the
+; global table my.patmacs* (where "my" is this package's namespace),
+; allowing it to overlap with the name of some existing Arc value. In
+; this case, the values my.patmacs* maps to are names which are then
+; looked up in the global namespace.
 ;
-; TODO: Describe more.
+; The pattern combinators themselves are designed so that it's usually
+; possible to determine at macro-expansion time what variables the
+; pattern will bind, so that those variables can be quantified over in
+; a match-processing body. Therefore, the pattern combinators are very
+; macro-like, returning a compiled Arc expression and the variables to
+; be bound by the pattern described in that expression.
+;
+; In full depth: The pattern combinators are called patmacs. A patmac
+; is a function (assumed pure) tagged with 'patmac that takes some
+; unevaluated arguments from within the pattern DSL expression and
+; returns a two-element list containing first a list of variables to
+; bind and second an Arc expression describing a function that, when
+; applied to the subject of this part of the pattern, returns an
+; iterable--see iter.arc--over tables. These tables determine what the
+; bound variables are bound to in each match of the pattern.
+;
+; Because of the use of iter.arc-style iterables, iterating over the
+; results of a pattern involves mutation. If you need to re-enter such
+; a loop using continuations, you should keep that in mind, since it
+; means you won't necessarily be at the same item in the loop as you
+; were when the continuation was captured.
 
 (packed:using-rels-as ut "utils.arc"
                       ir "iter.arc"
@@ -23,8 +45,7 @@
     (or (check global.globalname [isa _ 'patmac])
         (err:+ "A registered patmac (" name ") wasn't of the patmac "
                "type."))
-    (let result global!globalname
-      (when (isa result 'patmac) result))))
+    (check global.name [isa _ 'patmac])))
 
 ; TODO: See if this could support (a:b c) syntax. It would have to
 ; check the op for a (compose a b) format.
