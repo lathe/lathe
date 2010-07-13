@@ -83,5 +83,7 @@
             `(,do.symfor.op ,@params)))))))
 
 (mac nspaced body
-  `(w/global my (nspace)
-     (tldo ,@body)))
+  (let name (or (and acons.body cdr.body (check car.body anormalsym))
+                'my)
+    `(w/global ,name (nspace)
+       (tldo ,@body))))

@@ -61,9 +61,10 @@
 ; top level, and thereby use most code that's targeted at nspaced in a
 ; way that's closer to what you want without very much hassle.
 (=mc my.not-nspaced body
-  `(w/global my (mc (what) what)
-     (tldo ,@body)))
-
+  (let name (or (and acons.body cdr.body (check car.body anormalsym))
+                'my)
+    `(w/global ,name (mc (what) what)
+       (tldo ,@body))))
 
 ; originally from module/import.arc
 
