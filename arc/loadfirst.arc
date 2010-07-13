@@ -18,5 +18,5 @@
 ; point between files without any of the loaded features being
 ; incomplete and broken.
 ;
-(each file '(modulemisc once nspace import package rel)
+(each file '(modulemisc once nspace import package path)
   (load:string lathe-dir* 'modules/ file '.arc))

@@ -171,7 +171,7 @@
      (pack-nmap:copy nmap ,@(mappend [do `(',_ nil)] names))))
 
 
-; originally from modules/rel.arc
+; originally from modules/path.arc
 
 (=mc my.using-rels (relpaths . body)
   (unless alist.relpaths (zap list relpaths))
