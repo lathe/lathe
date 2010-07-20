@@ -113,7 +113,48 @@
   (apply my.fn-label-prec (uniq) tests))
 
 (=mc my.label-prec (label . tests)
-  `(,my!fn-label-prec ',expand.label ,@tests))
+  `(,my!fn-label-prec ',ut.deglobalize-var.label ,@tests))
+
+
+; These are utilities for making contribs with certain labels have
+; high or low precedence.
+;
+; These were originally posted at
+; http://arclanguage.org/item?id=11784.
+
+(let get-predicates (fn (name labels)
+                      (map (fn (label)
+                             [and (is _!name name)
+                                  (is _!label label)])
+                           labels))
+  
+  (=fn my.fn-label-prec-labels-first
+         (label multival-name . label-names)
+    (let predicates (do.get-predicates multival-name label-names)
+      (apply my.fn-label-prec label predicates)))
+  
+  (=fn my.fn-label-prec-labels-last
+         (label multival-name . label-names)
+    (let predicates (do.get-predicates multival-name label-names)
+      (apply my.fn-label-prec
+        label [~some ._ predicates] predicates)))
+  )
+
+(=fn my.prec-labels-first (multival-name . label-names)
+  (apply my.fn-label-prec-labels-first
+    (uniq) multival-name label-names))
+
+(=fn my.prec-labels-last (multival-name . label-names)
+  (apply my.fn-label-prec-labels-last
+    (uniq) multival-name label-names))
+
+(=mc my.label-prec-labels-first (label multival-name . label-names)
+  `(,my!fn-label-prec-labels-first
+     ',ut.deglobalize-var.label ,multival-name ,@label-names))
+
+(=mc my.label-prec-labels-last (label multival-name . label-names)
+  `(,my!fn-label-prec-labels-last
+     ',ut.deglobalize-var.label ,multival-name ,@label-names))
 
 
 )

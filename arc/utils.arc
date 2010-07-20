@@ -279,5 +279,23 @@
       (err:+ "An unrecognized kind of name was passed to "
              "'deglobalize-var.")))
 
+; This uses 'expand on the first element of the body if the body has
+; multiple elements. After doing that (if it does that), it tries to
+; 'deglobalize-var the expanded element. The return value is a
+; two-element list containing the deglobalized name and the rest of
+; the body. If there isn't a deglobalized name, that part of the
+; return value is nil.
+(=fn my.parse-named-body (body)
+  (iflet (name . rest) body
+    ; We'll expand the label during the (and ...) form so that we only
+    ; expand it once in case it has macros to expand but it isn't
+    ; actually something that can be deglobalized.
+    (if (and rest
+             (zap expand name)
+             (errsafe:zap my.deglobalize-var name))
+      (list name rest)
+      (list nil (cons name rest)))
+    (list nil nil)))
+
 
 )
