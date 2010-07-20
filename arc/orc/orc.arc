@@ -39,7 +39,7 @@
   `(,my!fn-def-inherits ',subtype ,@(map [do `',_] supertypes)))
 
 (=fn my.isinstance (x test-type)
-  (inherits my.otype.x test-type))
+  (my.inherits my.otype.x test-type))
 
 (=fn my.a- (test-type)
   [my.isinstance _ test-type])
@@ -69,12 +69,12 @@
 ; implicit first argument, the argument which was dispatched on.
 (=mc my.ontype (name parms test-type . labeled-body)
   (zap ut.deglobalize-var name)
-  (zap ut.deglobalize-var test-type)
+  (zap (only ut.deglobalize-var) test-type)  ; nil is a special case
   (let (label body) ut.parse-named-body.labeled-body
     `(do (= ( (or= (,my!ontype-types* ',name) (table))
               ',(sym:string label '- test-type))
-            test-type)
-         (,ru!rule ,name ,(cons 'self parms) ,label
+            ',test-type)
+         (,mr!rule ,name ,(cons 'self parms) ,label
            (unless (,my!isinstance self ',test-type)
              (do.fail ,(if test-type
                          (+ "The first argument didn't match the "
@@ -95,14 +95,14 @@
 (mu.contribute oc!order-contribs my!ontype-inheritance
   oc.self-orderer-reducer
   (st:<=>-to-bracketer:st:<=-to-<=>:fn (a b)
-    (with (aname a!name bname b!name)
+    (with (aname do.a!name bname do.b!name)
       (ut:andlets
         (is aname bname)
-        my.ontype-types.aname
-        atype  (it a!label)
-        my.ontype-types.bname
-        btype  (it b!label)
-        (inherits atype btype)))))
+        my.ontype-types*.aname
+        atype  (it do.a!label)
+        my.ontype-types*.bname
+        btype  (it do.b!label)
+        (my.inherits atype btype)))))
 
 
 ; ===== An extensible equivalence predicate ==========================
@@ -121,13 +121,13 @@
 (mr:rule my.oiso2 (a b) my.cons
   (unless (and acons.a acons.b)
     (do.fail "The parameters weren't all cons cells."))
-  (and (oiso2 car.a car.b) (oiso2 cdr.a cdr.b)))
+  (and (my.oiso2 car.a car.b) (my.oiso2 cdr.a cdr.b)))
 
 (mr:rule my.oiso2 (a b) my.table
   (unless (all [isa _ 'table] (list a b))
     (do.fail "The parameters weren't all tables."))
   (and (is len.a len.b)
-       (all [oiso2 _.1 (do.b _.0)] tablist.a)))
+       (all [my.oiso2 _.1 (do.b _.0)] tablist.a)))
 
 (mr:rule my.oiso2 (a b) my.is
   (unless (is a b)
@@ -137,18 +137,18 @@
 (mr:rule my.oiso2 (a b) my.default
   nil)
 
-; We want the default oiso2 to have the lowest precedence since it
+; We want the default 'oiso2 to have the lowest precedence since it
 ; never fails.
-(oc:label-prec-labels-last my.default-last my!oiso2 my!default)
+(oc:label-prec-labels-last my.oiso2-default-last my!oiso2 my!default)
 
 ; It's probably more efficient to test for (is a b) first, so we'll do
 ; that.
-(oc:label-prec-labels-first my.default-first my!oiso2 my!is)
+(oc:label-prec-labels-first my.is-first my!oiso2 my!is)
 
 (=fn my.oiso args
   (or no.args
       (let (first . rest) args
-        (all [oiso2 first _] rest))))
+        (all [my.oiso2 first _] rest))))
 
 
 (my:ontype my.otestify () fn my.fn
@@ -157,7 +157,8 @@
 (mr:rule my.otestify (self) my.default
   [my.oiso2 self _])
 
-(oc:label-prec-labels-last my.default-last my!otestify my!default)
+(oc:label-prec-labels-last my.otestify-default-last my!otestify
+  my!default)
 
 
 )
