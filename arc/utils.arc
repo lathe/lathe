@@ -162,26 +162,122 @@
     num  (my.== x trunc.x)))
 
 
-(=fn my.deglobalize-var (var)
+; These 'proper and 'split-end utilities were originally posted at
+; http://arclanguage.org/item?id=11839.
+
+; For proper lists, this returns a nil-terminated copy of the list.
+; For improper lists, this returns a nil-terminated list whose last
+; element is the value that terminates the improper list.
+(=fn my.proper (lst)
+  (accum acc
+    (while acons.lst
+      (do.acc pop.lst))
+    only.acc.lst))
+
+; This returns a two-element list containing a list of all the cars of
+; the list and the final cdr of the list. For instance,
+; (iso (split-end '(a b . c)) '((a b) c)). For proper lists, it's the
+; same as (split lst len.lst).
+(=fn my.split-end (lst)
+  (let onset (accum acc
+               (while acons.lst
+                 (do.acc pop.lst)))
+    (list onset lst)))
+
+(=fn my.rev-improper (onset end)
+  (my:xloop result end onset onset
+    (iflet (last . nextonset) (check acons rev-onset)
+      (do.next (cons first result) nextonset)
+      result)))
+
+(=fn my.join-end (onset end)
+  (my.rev-improper rev.onset end))
+
+(=fn my.numcars (lst)
+  (summing acc
+    (reclist [let at atom._ (do.acc no.at) at] lst)))
+
+
+; These 'parse-lets and 'lets utilities were originally posted at
+; http://arclanguage.org/item?id=11944 under the single name 'scope.
+
+; This returns a cons cell where the car is a list of bindings and the
+; cdr is either nil or a single-element list containing a final
+; element. The bindings list is represented as an even-length list
+; where each key is guaranteed to be a non-ssyntax symbol, possibly
+; nil.
+;
+; The bindings list is drained from the body. If at some point the
+; body's remainder contains a single element, that element is the
+; final element. If at any other point the start of the body is nil or
+; isn't a valid key (thanks to being a non-symbol or an ssyntax
+; symbol), it's used as the value of the binding instead, and 'nil is
+; used as the key.
+;
+; The point of this is to help parse a form body where it makes sense
+; to have bindings at arbitrary places in the body, even after other
+; calculations without explicit result bindings have taken place.
+;
+(=fn my.parse-lets (body)
+  (withs (rev-bindings nil
+          final nil
+          acc [push _ rev-bindings])
+    (while body
+      (let var pop.body
+        (if no.body
+          (= final list.var)
+            anormalsym.var
+          (do do.acc.var (do.acc pop.body))
+          (do do.acc.nil do.acc.var))))
+    (cons rev.rev-bindings final)))
+
+; This uses 'parse-lets to create a form that acts like a 'do form but
+; allows for simple let bindings to happen within the form.
+(=mc my.lets body
+  `(withs ,@my.parse-lets.body))
+
+; This uses 'parse-lets to create a form that acts like 'aand but
+; allows a name other than 'it to be used.
+;
+; As a consequence of this, (andlets x y) will treat x as a name and y
+; as the value to bind to that name, unlike (aand x y), which will
+; treat both x and y as values. To get the (aand x y) behavior, it may
+; be necessary to explicitly specify a variable name, as in
+; (andlets it x y) or (andlets _ x y).
+(=mc my.andlets body
+  (let (bindings . final) my.parse-lets.body
+    (zap [rev:map [copy _ 0 (or _.0 'it)] pair._] bindings)
+    (when final (push (list nil final) bindings))
+    (iflet (last . rest) bindings
+      (my:foldlet result do.last.1
+                  (key value) rest
+        `(let ,key ,value (if ,key ,result)))
+      't)))
+
+
+(=fn my.soft-deglobalize-var (var)
   (zap expand var)
   (if anormalsym.var
     var
     
     ; else recognize anything of the form (global 'the-var)
-    (withs (require     [unless _
-                          (err:+ "An unrecognized kind of name was "
-                                 "passed to 'deglobalize-var.")]
-            nil         (do.require (caris var 'global))
-            cdr-var     cdr.var
-            nil         (do.require single.cdr-var)
-            cadr-var    car.cdr-var
-            nil         (do.require (caris cadr-var 'quote))
-            cdadr-var   cdr.cadr-var
-            nil         (do.require single.cdadr-var)
-            cadadr-var  car.cdadr-var
-            nil         (do.require anormalsym.cadadr-var))
+    (catch:my:lets
+      (unless (caris var 'global) throw.nil)
+      cdr-var     cdr.var
+      (unless single.cdr-var throw.nil)
+      cadr-var    car.cdr-var
+      (unless (caris cadr-var 'quote) throw.nil)
+      cdadr-var   cdr.cadr-var
+      (unless single.cdadr-var throw.nil)
+      cadadr-var  car.cdadr-var
+      (unless anormalsym.cadadr-var throw.nil)
       cadadr-var)
     ))
+
+(=fn my.deglobalize-var (var)
+  (or my.soft-deglobalize-var.var
+      (err:+ "An unrecognized kind of name was passed to "
+             "'deglobalize-var.")))
 
 
 )
