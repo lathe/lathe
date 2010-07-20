@@ -30,13 +30,12 @@
   (when lst
     (let merge (fn (a b) (my.merge-brackets <=> a b))
       (ut:xloop sorted-lists (map list:list lst)
-        (let num-of-lists len.sorted-lists
-          (case num-of-lists 1
-            car.sorted-lists
-            (do.next (if odd.num-of-lists
-                       (cons car.sorted-lists
-                             (pair cdr.sorted-lists merge))
-                       (pair sorted-lists merge)))))))))
+        (caselet num-of-lists len.sorted-lists 1
+          car.sorted-lists
+          (do.next (if odd.num-of-lists
+                     (cons car.sorted-lists
+                           (pair cdr.sorted-lists merge))
+                     (pair sorted-lists merge))))))))
 
 (=fn my.<=>-to-bracketer (<=>)
   [my.mergesort-to-brackets <=> _])

@@ -40,13 +40,13 @@
 
 (def normalize-path (path)
   (zap [subst "/" "\\" _] path)
-  (case len.path 0
+  (caselet len-path len.path 0
     ""
     (apply + ""         ; would be "(string", except fails on Rainbow
       (intersperse "/"
         (withs (acc nil
                 segments (tokens path #\/)
-                final (case (do.path (- len.path 1)) #\/
+                final (case (do.path (- len-path 1)) #\/
                         ""
                         (reclist [when (single:cdr _) (pop:cdr _)]
                                  segments)))

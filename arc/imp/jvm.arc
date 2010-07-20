@@ -402,14 +402,13 @@
   (afn args
     (iflet (first . rest) args
       (if (in type.first 'sym 'string)
-        (let firstr string.first
-          (case firstr "" self
-            (aif rest
-              (apply self.firstr rest)
-                (pos [in _ #\. #\-] firstr)
-              (let (firsthead firsttail) (split firstr it)
-                (self.firsthead (cut firsttail 1)))
-              (do.alternative list.firstr self))))
+        (caselet firstr string.first "" self
+          (aif rest
+            (apply self.firstr rest)
+              (pos [in _ #\. #\-] firstr)
+            (let (firsthead firsttail) (split firstr it)
+              (self.firsthead (cut firsttail 1)))
+            (do.alternative list.firstr self)))
         (do.alternative args self))
       self)))
 
