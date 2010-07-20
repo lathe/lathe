@@ -17,13 +17,14 @@
 ; be bound by the pattern described in that expression.
 ;
 ; In full depth: The pattern combinators are called patmacs. A patmac
-; is a function (assumed pure) tagged with 'patmac that takes some
-; unevaluated arguments from within the pattern DSL expression and
-; returns a two-element list containing first a list of variables to
-; bind and second an Arc expression describing a function that, when
-; applied to the subject of this part of the pattern, returns an
-; iterable--see iter.arc--over tables. These tables determine what the
-; bound variables are bound to in each match of the pattern.
+; is a function (assumed pure) tagged with my!patmac (where "my" is
+; this package's namespace) that takes some unevaluated arguments from
+; within the pattern DSL expression and returns a two-element list
+; containing first a list of variables to bind and second an Arc
+; expression describing a function that, when applied to the subject
+; of this part of the pattern, returns an iterable--see iter.arc--over
+; tables. These tables determine what the bound variables are bound to
+; in each match of the pattern.
 ;
 ; Because of the use of iter.arc-style iterables, iterating over the
 ; results of a pattern involves mutation. If you need to re-enter such
@@ -42,10 +43,10 @@
     (err:+ "The name given to 'get-patmac was nil, an ssyntax "
            "symbol, or a non-symbol."))
   (iflet globalname my.patmacs*.name
-    (or (check global.globalname [isa _ 'patmac])
+    (or (check global.globalname [isa _ my!patmac])
         (err:+ "A registered patmac (" name ") wasn't of the patmac "
                "type."))
-    (check global.name [isa _ 'patmac])))
+    (check global.name [isa _ my!patmac])))
 
 ; TODO: See if this could support (a:b c) syntax. It would have to
 ; check the op for a (compose a b) format.
@@ -68,7 +69,7 @@
 (= my.patmacs* (table))
 
 (=mc my.patmc (parms . body)
-  `(annotate 'patmac (fn ,parms ,@body)))
+  `(annotate ',my!patmac (fn ,parms ,@body)))
 
 (=mc my.=patmc (name parms . body)
   `(= ,name (,my!patmc ,parms ,@body)))
