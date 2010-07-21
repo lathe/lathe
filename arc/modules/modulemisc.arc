@@ -77,7 +77,8 @@
 (def global (name)
   (unless anormalsym.name
     (err "A nil, ssyntax, or non-symbol name was given to 'global."))
-  bound&eval.name)
+  ; NOTE: Rainbow treats a&b.c differently, so we're avoiding it.
+  (bound&eval name))
 
 (defset global (name)
   (w/uniq (g-name g-val)
