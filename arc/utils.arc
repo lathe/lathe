@@ -186,8 +186,8 @@
 
 (=fn my.rev-improper (onset end)
   (my:xloop result end onset onset
-    (iflet (last . nextonset) (check acons rev-onset)
-      (do.next (cons first result) nextonset)
+    (iflet (last . nextonset) (check onset acons)
+      (do.next (cons last result) nextonset)
       result)))
 
 (=fn my.join-end (onset end)
