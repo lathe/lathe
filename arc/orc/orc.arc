@@ -100,15 +100,17 @@
 ;
 (mu.contribute oc!order-contribs my!ontype-inheritance
   oc.self-orderer-reducer
-  (st:<=>-to-bracketer:st:<=-to-<=>:fn (a b)
+  (st:<=>-to-bracketer:fn (a b)
     (with (aname do.a!name bname do.b!name)
-      (ut:andlets
-        (is aname bname)
-        my.ontype-types*.aname
-        atype  (it do.a!label)
-        my.ontype-types*.bname
-        btype  (it do.b!label)
-        (my.inherits atype btype)))))
+      (or (ut:andlets
+            (is aname bname)
+            my.ontype-types*.aname
+            atype  (it do.a!label)
+            my.ontype-types*.bname
+            btype  (it do.b!label)
+            (if (my.inherits atype btype) '<
+                (my.inherits btype atype) '>))
+          '=))))
 
 
 ; ===== An extensible equivalence predicate ==========================
@@ -165,6 +167,9 @@
 
 (oc:label-prec-labels-last my.otestify-default-last my!otestify
   my!default)
+
+
+
 
 
 )
