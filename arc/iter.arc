@@ -248,7 +248,7 @@
           (let i 0
             (while:or (when (< i amount) ++.i call.iterator)
                       wipe.iterator)))
-        (or do&call.iterator
+        (or only.call.iterator
             wipe.iterator)))))
 
 ; NOTE: This should only be used on infinite iterables. It will treat
@@ -322,7 +322,7 @@
                          ; explicit (fn (_) (...)).
                          (reclist (fn (_)
                                     (let (a . b) _
-                                      (iflet (result) do&call.a
+                                      (iflet (result) only.call.a
                                         (do do.acc.result
                                             wipe.finished)
                                         (do do.acc.pad
