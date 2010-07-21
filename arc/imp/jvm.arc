@@ -526,7 +526,7 @@
                        "string."))
               (let nested (keep [is name
                                     (my.jinvoke _ 'getSimpleName)]
-                            (my:jarray->list:my:jinvoke
+                            (my.jarray->list:my.jinvoke
                               class 'getClasses))
                 (unless nested (err "A nested class wasn't found."))
                 (when cdr.nested
@@ -552,7 +552,7 @@
                        "wrappers.")
                 
                 (keep [is name (my.jinvoke _ 'getName)]
-                  (my:jarray->list:my:jinvoke class 'getMethods))
+                  (my.jarray->list:my.jinvoke class 'getMethods))
                 (do.bigself (if (all is-static it)
                               '>staticmethod
                               '>instancemethod)
@@ -562,7 +562,7 @@
                                 (cut name 0 (- len.name 1))
                                 name)
                   (find [is realname (my.jinvoke _ 'getName)]
-                    (my:jarray->list:my:jinvoke class 'getFields)))
+                    (my.jarray->list:my.jinvoke class 'getFields)))
                 (let result do.bigself!>field.name
                   (if do.is-static.it
                     (fn (object (o value missing))
@@ -578,7 +578,7 @@
             (aif
               
               (keep [is name (my.jinvoke _ 'getName)]
-                (my:jarray->list:my:jinvoke class 'getMethods))
+                (my.jarray->list:my.jinvoke class 'getMethods))
               (do.bigself (if (some is-static it)
                             '>staticmethod
                             '>instancemethod)
@@ -588,11 +588,11 @@
                           (cut name 0 (- len.name 1))
                           name)
                 (some [is name (my.jinvoke _ 'getName)]
-                  (my:jarray->list:my:jinvoke class 'getFields)))
+                  (my.jarray->list:my.jinvoke class 'getFields)))
               do.bigself!>field.name
               
               (some [is name (my.jinvoke _ 'getSimpleName)]
-                (my:jarray->list:my:jinvoke class 'getClasses))
+                (my.jarray->list:my.jinvoke class 'getClasses))
               do.bigself!>class.name
               
               ; else
@@ -618,7 +618,7 @@
 (with (al (when sn.anyjvmdrop*
             (map [list (my.jinvoke
                          (my.jinvoke
-                           (my:jclass:+ "java.lang." _
+                           (my.jclass:+ "java.lang." _
                              (case _ Char "acter" Int "eger"))
                            'getField "TYPE")
                          'get nil)
@@ -635,8 +635,7 @@
         (err:+ "The field name must be a symbol, a string, or a "
                "java.lang.reflect.Field."))
       (zap [let class (if (and my.ajava.object
-                               ; Jarc doesn't like "~my:ajava".
-                               (no:my:ajava object classclass))
+                               (~my.ajava object classclass))
                         (my.jinvoke object 'getClass)
                         my.jclass.object)
              (my.jinvoke class 'getField _)]
