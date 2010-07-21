@@ -19,18 +19,13 @@
     (when do.test.v
       (throw:or k return-on-nil))))
 
-(rc:ontype my.opos (test (o return-on-nil)) cons my.cons
+(rc:ontype my.opos (test (o return-on-nil)) rc.list my.list
   (zap rc.otestify test)
   (ut:xloop result 0 tail self
-    (let (head . nexttail) tail
+    (whenlet (head . nexttail) (check tail acons)
       (if do.test.head
         result
-          acons.nexttail
-        (next (+ result 1) nexttail)
-        nil))))
-
-(rc:ontype my.opos (test (o return-on-nil)) nil my.emptylist
-  nil)
+        (next (+ result 1) nexttail)))))
 
 (rc:ontype my.opos (test (o return-on-nil)) string my.string
   (pos rc.otestify.test self))
@@ -52,15 +47,12 @@
           (list self.i (fn () (do.next (+ i 1)))))))))
 
 
-(rc:ontype my.olazyentries () cons my.cons
+(rc:ontype my.olazyentries () rc.list my.list
   (ut:xloop i 0 tail self
     (annotate my!lazylist
-      (when acons.tail
-        (list (list i car.tail)
-              (fn () (do.next (+ i 1) cdr.tail)))))))
-
-(rc:ontype my.olazyentries () nil my.emptylist
-  (annotate my!lazylist nil))
+      (whenlet (head . nexttail) (check tail acons)
+        (list (list i head)
+              (fn () (do.next (+ i 1) nexttail)))))))
 
 (rc:ontype my.olazyentries () table my.table
   (my.olazylistify tablist.self))
@@ -80,11 +72,8 @@
               (fn () (do.next (+ i 1) call.nexttail)))))))
 
 
-(rc:ontype my.olazykeys () cons my.cons
+(rc:ontype my.olazykeys () rc.list my.list
   (my.lazyrange< 0 my.olen.self))
-
-(rc:ontype my.olazykeys () nil my.emptylist
-  (annotate my!lazylist nil))
 
 (rc:ontype my.olazykeys () table my.table
   (my.omap my.olazyentries.self .0))
@@ -96,14 +85,11 @@
   (my.omap my.olazyentries.self .0))
 
 
-(rc:ontype my.olazyvalues () cons my.cons
+(rc:ontype my.olazyvalues () rc.list my.list
   (ut:xloop tail self
     (annotate my!lazylist
-      (when acons.tail
-        (list car.tail (fn () (do.next cdr.tail)))))))
-
-(rc:ontype my.olazyvalues () nil my.emptylist
-  (annotate my!lazylist nil))
+      (whenlet (head . nexttail) (check tail acons)
+        (list head (fn () do.next.nexttail))))))
 
 (rc:ontype my.olazyvalues () table my.table
   (my.omap my.olazyentries.self .1))
@@ -119,11 +105,8 @@
   self)
 
 
-(rc:ontype my.olazylistify () cons my.cons
+(rc:ontype my.olazylistify () rc.list my.list
   my.olazyvalues.self)
-
-(rc:ontype my.olazylistify () nil my.emptylist
-  (annotate my!lazylist nil))
 
 (rc:ontype my.olazylistify () table my.table
   my.olazyentries.self)
@@ -224,11 +207,8 @@
 (rc:ontype my.olen () table my.table
   len.self)
 
-(rc:ontype my.olen () cons my.cons
+(rc:ontype my.olen () rc.list my.list
   ut.numcars.self)
-
-(rc:ontype my.olen () nil my.emptylist
-  0)
 
 (rc:ontype my.olen () string my.string
   len.self)
@@ -237,15 +217,10 @@
 (rc:ontype my.olen< (number) table my.table
   (< len.self number))
 
-(rc:ontype my.olen< (number) cons my.cons
-  (and (< 0 number)
-    (catch:let count 0
-      (~each x self
-        (unless (< ++.count number)
-          throw.nil)))))
-
-(rc:ontype my.olen< (number) nil my.emptylist
-  (< 0 number))
+(rc:ontype my.olen< (number) rc.list my.list
+  (ut:xloop count 0 tail self
+    (and (< count number)
+         (or atom.tail (do.next (+ count 1) cdr.tail)))))
 
 (rc:ontype my.olen< (number) string my.string
   (< len.self number))
@@ -263,12 +238,9 @@
     (each (k v) self
       (= .k.result do.transform.v))))
 
-(rc:ontype my.omap (transform) cons my.cons
+(rc:ontype my.omap (transform) rc.list my.list
   (let (values end) ut.split-end.self
     (ut.join-end (map transform values) end)))
-
-(rc:ontype my.omap (transform) nil my.emptylist
-  nil)
 
 (rc:ontype my.omap (transform) string my.string
   (tostring:each char self

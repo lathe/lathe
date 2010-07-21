@@ -36,7 +36,8 @@
             (zap [union is supers _] my.indirect-inheritance*.k)))))))
 
 (=mc my.def-inherits (subtype . supertypes)
-  `(,my!fn-def-inherits ',subtype ,@(map [do `',_] supertypes)))
+  `(,my!fn-def-inherits
+     ,@(map [do `',ut.deglobalize-var._] (cons subtype supertypes))))
 
 (=fn my.isinstance (x test-type)
   (my.inherits my.otype.x test-type))
@@ -48,12 +49,19 @@
 ; nil has the type nil. (We assume that without this special
 ; treatment, nothing would be tagged with nil anyway.)
 
-(my:def-inherits nil sym)
+(my:def-inherits my.niltype sym)
+
+; We also provide a list type, to make list methods nicer to create.
+; Note that my!niltype inherits from both my!list and 'sym.
+(my:def-inherits my.niltype my.list)
+(my:def-inherits cons my.list)
 
 ; This can be overwritten to give special behavior to other kinds of
 ; types, such as Java objects and tables with their 'type fields set.
 (=fn my.otype (x)
-  only.type.x)
+  (if x
+    (catch:or (errsafe:throw:type x) my!unknown)
+    my!niltype))
 
 
 ; ===== A mechanism for rules which use single dispatch ==============
@@ -69,17 +77,15 @@
 ; implicit first argument, the argument which was dispatched on.
 (=mc my.ontype (name parms test-type . labeled-body)
   (zap ut.deglobalize-var name)
-  (zap (only ut.deglobalize-var) test-type)  ; nil is a special case
+  (zap ut.deglobalize-var test-type)
   (let (label body) ut.parse-named-body.labeled-body
     `(do (= ( (or= (,my!ontype-types* ',name) (table))
               ',(sym:string label '- test-type))
             ',test-type)
          (,mr!rule ,name ,(cons 'self parms) ,label
            (unless (,my!isinstance self ',test-type)
-             (do.fail ,(if test-type
-                         (+ "The first argument didn't match the "
-                            "type \"" test-type "\".")
-                         (+ "The first argument wasn't nil."))))
+             (do.fail ,(+ "The first argument didn't match the type "
+                          "\"" test-type "\".")))
            ,@body))))
 
 ; We give methods whose types are related by inheritance an automatic
