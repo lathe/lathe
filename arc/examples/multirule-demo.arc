@@ -12,7 +12,7 @@ wipe.fail
 
 (mr:rule my.factorial (n)
   (unless (< 0 n) (fail "The parameter isn't positive."))
-  (* n (factorial:- n 1)))
+  (* n (my.factorial:- n 1)))
 
 (mr:rule my.factorial (n)
   (unless (is n 0) (fail "The parameter isn't zero."))
@@ -24,7 +24,7 @@ wipe.fail
 
 (mr:rule my.expbysquare (base exp)
   (unless even.exp (fail "The exponent isn't even."))
-  (let (prevresult mults) (expbysquare base (/ exp 2))
+  (let (prevresult mults) (my.expbysquare base (/ exp 2))
     (list (* prevresult prevresult) (+ mults 1))))
 
 (mr:rule my.expbysquare (base exp)
@@ -33,10 +33,10 @@ wipe.fail
   ; later in the code, it ends up farther toward the beginning of the
   ; contribution stack, and ultimately this rule would be tried before
   ; the 'one rule (catastrophically) if not for the presence of
-  ; [iso (map _ '(name label)) '(expbysquare one)] in the 'prec line
-  ; below.
+  ; [iso (map _ '(name label)) (list my!expbysquare my!one)] in the
+  ; 'prec line below.
   (unless odd.exp (fail "The exponent isn't odd."))
-  (let (prevresult mults) (expbysquare base (- exp 1))
+  (let (prevresult mults) (my.expbysquare base (- exp 1))
     (list (* base prevresult) (+ mults 1))))
 
 (mr:rule my.expbysquare (base exp) my.diabolical
