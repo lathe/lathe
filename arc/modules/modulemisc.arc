@@ -70,14 +70,14 @@
                         (while (and cdr.arglist
                                     ((orf no anormalsym) car.arglist))
                           (withs (name pop.arglist val pop.arglist)
-                            (do.acc (list name val)))))
+                            (do.acc:list name val))))
           (cons withlist arglist))))))
 
 
 (def global (name)
   (unless anormalsym.name
     (err "A nil, ssyntax, or non-symbol name was given to 'global."))
-  (bound&eval name))
+  bound&eval.name)
 
 (defset global (name)
   (w/uniq (g-name g-val)

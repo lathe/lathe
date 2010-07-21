@@ -407,7 +407,7 @@
             (apply self.firstr rest)
               (pos [in _ #\. #\-] firstr)
             (let (firsthead firsttail) (split firstr it)
-              (self.firsthead (cut firsttail 1)))
+              (self.firsthead:cut firsttail 1))
             (do.alternative list.firstr self)))
         (do.alternative args self))
       self)))
@@ -452,7 +452,7 @@
                   (my.jinvoke class 'isMemberClass)
                   ; NOTE: We're avoiding "do.is-static.class" because
                   ; Jarc warns us that it can't find the class.
-                  (no (do.is-static class)))
+                  (~do.is-static class))
           (err "Unrecognized arguments to a class wrapper.")
           ; TODO: Find or write a library that uses inner classes, and
           ; actually test this.

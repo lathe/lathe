@@ -46,7 +46,7 @@
       (intersperse "/"
         (withs (acc nil
                 segments (tokens path #\/)
-                final (case (do.path (- len-path 1)) #\/
+                final (case (do.path:- len-path 1) #\/
                         ""
                         (reclist [when (single:cdr _) (pop:cdr _)]
                                  segments)))

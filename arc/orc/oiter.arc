@@ -44,7 +44,7 @@
     (ut:xloop i 0
       (annotate my!lazylist
         (when (< i len)
-          (list self.i (fn () (do.next (+ i 1)))))))))
+          (list self.i (fn () (do.next:+ i 1))))))))
 
 
 (rc:ontype my.olazyentries () rc.list my.list
@@ -62,7 +62,7 @@
     (ut:xloop i 0
       (annotate my!lazylist
         (when (< i len)
-          (list (list i self.i) (fn () (do.next (+ i 1)))))))))
+          (list (list i self.i) (fn () (do.next:+ i 1))))))))
 
 (rc:ontype my.olazyentries () my.lazylist my.lazylist
   (ut:xloop i 0 tail self
@@ -99,7 +99,7 @@
     (ut:xloop i 0
       (annotate my!lazylist
         (when (< i len)
-          (list self.i (fn () (do.next (+ i 1)))))))))
+          (list self.i (fn () (do.next:+ i 1))))))))
 
 (rc:ontype my.olazyvalues () my.lazylist my.lazylist
   self)

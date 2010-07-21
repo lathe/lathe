@@ -100,8 +100,7 @@
         (ir.iterify list.result-so-far)))))
 
 (=fn my.circularly-order (rep2comp comparator-reps)
-  (or (call:call (my.sort-yourselves rep2comp
-                   list.comparator-reps))
+  (or (call:call:my.sort-yourselves rep2comp list.comparator-reps)
       (err "The comparators are circularly humble.")))
 
 
