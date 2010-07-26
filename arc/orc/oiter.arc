@@ -119,13 +119,13 @@
 
 
 (=fn my.oallvalues (self test)
-  (~my:opos self (complement rc.otestify.test) t))
+  (~my.opos self (complement rc.otestify.test) t))
 
 (=fn my.oallvaluelet (var self . body)
   `(,my!osomevalue ,self (fn (,var) ,@body)))
 
 (=fn my.osomevalue (self test)
-  (~~my:opos self rc.otestify.test t))
+  (~~my.opos self rc.otestify.test t))
 
 (=fn my.osomevaluelet (var self . body)
   `(,my!osomevalue ,self (fn (,var) ,@body)))
@@ -151,7 +151,7 @@
 
 (=fn my.olistify (seq)
   (accum acc
-    (my:oall acc my.olazylistify.seq)))
+    (my.oall acc my.olazylistify.seq)))
 
 
 ; This corresponds to 'ontable, but it works for lists too.
@@ -227,7 +227,7 @@
 
 
 (=fn my.olen> (self number)
-  (~my:olen< self (+ number 1)))
+  (~my.olen< self (+ number 1)))
 
 (=fn my.oempty (seq)
   (ut.== my.olen 0))

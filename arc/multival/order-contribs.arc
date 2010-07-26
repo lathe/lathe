@@ -4,7 +4,7 @@
 ;
 ; This defines order-contribs, a multival whose purpose is to order
 ; the contributions of multivals, which may be useful for implementing
-; things like multimethod precedence.
+; things like multimethod preference.
 ;
 ; Out of the box, order-contribs does nothing but produce a singleton
 ; list that contains the list of contributions passed to it. This
@@ -105,19 +105,19 @@
 
 (mu:defmultifn-stub my.order-contribs my.self-orderer-reducer)
 
-(=fn my.fn-label-prec (label . tests)
+(=fn my.fn-label-prefer (label . tests)
   (mu.contribute my!order-contribs label my.self-orderer-reducer
     (st:<=>-to-bracketer:apply st.order-by-tests tests)))
 
-(=fn my.prec tests
-  (apply my.fn-label-prec (uniq) tests))
+(=fn my.prefer tests
+  (apply my.fn-label-prefer (uniq) tests))
 
-(=mc my.label-prec (label . tests)
-  `(,my!fn-label-prec ',ut.deglobalize-var.label ,@tests))
+(=mc my.label-prefer (label . tests)
+  `(,my!fn-label-prefer ',ut.deglobalize-var.label ,@tests))
 
 
 ; These are utilities for making contribs with certain labels have
-; high or low precedence.
+; high or low preference.
 ;
 ; These were originally posted at
 ; http://arclanguage.org/item?id=11784.
@@ -128,32 +128,32 @@
                                   (is _!label label)])
                            labels))
   
-  (=fn my.fn-label-prec-labels-first
+  (=fn my.fn-label-prefer-labels-first
          (label multival-name . label-names)
     (let predicates (do.get-predicates multival-name label-names)
-      (apply my.fn-label-prec label predicates)))
+      (apply my.fn-label-prefer label predicates)))
   
-  (=fn my.fn-label-prec-labels-last
+  (=fn my.fn-label-prefer-labels-last
          (label multival-name . label-names)
     (let predicates (do.get-predicates multival-name label-names)
-      (apply my.fn-label-prec
+      (apply my.fn-label-prefer
         label [~some ._ predicates] predicates)))
   )
 
-(=fn my.prec-labels-first (multival-name . label-names)
-  (apply my.fn-label-prec-labels-first
+(=fn my.prefer-labels-first (multival-name . label-names)
+  (apply my.fn-label-prefer-labels-first
     (uniq) multival-name label-names))
 
-(=fn my.prec-labels-last (multival-name . label-names)
-  (apply my.fn-label-prec-labels-last
+(=fn my.prefer-labels-last (multival-name . label-names)
+  (apply my.fn-label-prefer-labels-last
     (uniq) multival-name label-names))
 
-(=mc my.label-prec-labels-first (label multival-name . label-names)
-  `(,my!fn-label-prec-labels-first
+(=mc my.label-prefer-labels-first (label multival-name . label-names)
+  `(,my!fn-label-prefer-labels-first
      ',ut.deglobalize-var.label ,multival-name ,@label-names))
 
-(=mc my.label-prec-labels-last (label multival-name . label-names)
-  `(,my!fn-label-prec-labels-last
+(=mc my.label-prefer-labels-last (label multival-name . label-names)
+  `(,my!fn-label-prefer-labels-last
      ',ut.deglobalize-var.label ,multival-name ,@label-names))
 
 

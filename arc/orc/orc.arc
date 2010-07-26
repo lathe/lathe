@@ -26,7 +26,7 @@
 
 (=fn my.fn-def-inherits (subtype . supertypes)
   (each supertype supertypes
-    (when (~my:inherits subtype supertype)
+    (when (~my.inherits subtype supertype)
       (when (my.inherits supertype subtype)
         (err "There was an inheritance loop."))
       (let supers (cons supertype my.indirect-inheritance*.supertype)
@@ -89,7 +89,7 @@
            ,@body))))
 
 ; We give methods whose types are related by inheritance an automatic
-; precedence order so that the most specific method is tried first.
+; preference order so that the most specific method is tried first.
 ;
 ; Note that the supertype's method may still make a difference if the
 ; subtype's method specifically fails (using its anaphoric 'fail
@@ -100,7 +100,7 @@
 ;
 (mu.contribute oc!order-contribs my!ontype-inheritance
   oc.self-orderer-reducer
-  (st:<=>-to-bracketer:fn (a b)
+  (st.<=>-to-bracketer:fn (a b)
     (with (aname do.a!name bname do.b!name)
       (or (ut:andlets
             (is aname bname)
@@ -145,13 +145,14 @@
 (mr:rule my.oiso2 (a b) my.default
   nil)
 
-; We want the default 'oiso2 to have the lowest precedence since it
+; We want the default 'oiso2 to have the lowest preference since it
 ; never fails.
-(oc:label-prec-labels-last my.oiso2-default-last my!oiso2 my!default)
+(oc:label-prefer-labels-last my.oiso2-default-last my!oiso2
+  my!default)
 
 ; It's probably more efficient to test for (is a b) first, so we'll do
 ; that.
-(oc:label-prec-labels-first my.is-first my!oiso2 my!is)
+(oc:label-prefer-labels-first my.is-first my!oiso2 my!is)
 
 (=fn my.oiso args
   (or no.args
@@ -165,11 +166,8 @@
 (mr:rule my.otestify (self) my.default
   [my.oiso2 self _])
 
-(oc:label-prec-labels-last my.otestify-default-last my!otestify
+(oc:label-prefer-labels-last my.otestify-default-last my!otestify
   my!default)
-
-
-
 
 
 )

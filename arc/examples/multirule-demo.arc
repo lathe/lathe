@@ -29,12 +29,12 @@ wipe.fail
 
 (mr:rule my.expbysquare (base exp)
   ; This condition subsumes the condition for the 'one contribution on
-  ; purpose, so that we can test 'prec. Since this contribution comes
-  ; later in the code, it ends up farther toward the beginning of the
-  ; contribution stack, and ultimately this rule would be tried before
-  ; the 'one rule (catastrophically) if not for the presence of
+  ; purpose, so that we can test 'prefer. Since this contribution
+  ; comes later in the code, it ends up farther toward the beginning
+  ; of the contribution stack, and ultimately this rule would be tried
+  ; before the 'one rule (catastrophically) if not for the presence of
   ; [iso (map _ '(name label)) (list my!expbysquare my!one)] in the
-  ; 'prec line below.
+  ; 'prefer line below.
   (unless odd.exp (fail "The exponent isn't odd."))
   (let (prevresult mults) (my.expbysquare base (- exp 1))
     (list (* base prevresult) (+ mults 1))))
@@ -43,9 +43,9 @@ wipe.fail
   (err:+ "Somehow the 'diabolical contribution to 'expbysquare was "
          "used."))
 
-(oc.prec [iso (map _ '(name label)) (list my!expbysquare my!one)]
-         [~iso (map _ '(name label))
-               (list my!expbysquare my!diabolical)])
+(oc.prefer [iso (map _ '(name label)) (list my!expbysquare my!one)]
+           [~iso (map _ '(name label))
+                 (list my!expbysquare my!diabolical)])
 
 
 (for i 0 10

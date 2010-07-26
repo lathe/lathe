@@ -59,7 +59,7 @@
 ; ">class", and ">instance". Also, looking for any other node of a
 ; class will redirect through whichever of the ">staticmethod",
 ; ">instancemethod", ">field", or ">class" nodes is most appropriate.
-; They're in that precedence order, so looking for a node that's a
+; They're in that preference order, so looking for a node that's a
 ; field name as well as a static method name will result in the static
 ; method wrapper.
 ;
@@ -116,7 +116,7 @@
 ; the call again with the same arguments, including the Java instance.
 ;
 ; The ">instance" accessor mainly changes two behaviors of the path:
-; It makes instance methods have higher precedence than static
+; It makes instance methods have higher preference than static
 ; methods, and it makes static fields behave as though they were
 ; instance fields. That way, jvm!EXIT_ON_CLOSE.main-jframe results in
 ; an int, even though jvm!javax-swing-JFrame-EXIT_ON_CLOSE.main-jframe
@@ -233,7 +233,7 @@
     
     (=fn my.ajava (x (o type missing))
       (unless (is type missing)
-        my.jclass.type           ; Let these errors take precedence.
+        my.jclass.type           ; Let these errors have preference.
         (err "The class passed to ajava wasn't found."))
       nil)
     ))
