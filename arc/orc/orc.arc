@@ -79,8 +79,8 @@
   (zap ut.deglobalize-var name)
   (zap ut.deglobalize-var test-type)
   (let (label body) ut.parse-named-body.labeled-body
-    `(do (= ( (or= (,my!ontype-types* ',name) (table))
-              ',(sym:string label '- test-type))
+    (or= label (sym:string (uniq) '-ontype- test-type))
+    `(do (= ((or= (,my!ontype-types* ',name) (table)) ',label)
             ',test-type)
          (,mr!rule ,name ,(cons 'self parms) ,label
            (unless (,my!isinstance self ',test-type)
