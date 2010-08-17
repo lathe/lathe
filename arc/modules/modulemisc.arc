@@ -86,11 +86,38 @@
       ,g-val
       [eval `(= ,,g-name ',_)])))
 
+(def safe-deglobalize (var)
+  (zap expand var)
+  (if anormalsym.var
+    var
+    
+    ; else recognize anything of the form (global 'the-var)
+    (catch:withs (nil         (unless (caris var 'global) throw.nil)
+                  cdr-var     cdr.var
+                  nil         (unless single.cdr-var throw.nil)
+                  cadr-var    car.cdr-var
+                  nil         (unless (caris cadr-var 'quote) throw.nil)
+                  cdadr-var   cdr.cadr-var
+                  nil         (unless single.cdadr-var throw.nil)
+                  cadadr-var  car.cdadr-var
+                  nil         (unless anormalsym.cadadr-var throw.nil))
+      cadadr-var)
+    ))
+
+(def deglobalize (var)
+  (or safe-deglobalize.var
+      (err:+ "An unrecognized kind of name was passed to "
+             "'deglobalize.")))
+
 ; Set a global variable temporarily. This is neither thread-safe nor
 ; continuation-safe, although it will restore the original value of
 ; the variable upon abnormal exits (as well as normal ones).
+;
+; This uses 'deglobalize on the variable name, so a namespaced
+; variable can be used.
+;
 (mac w/global (name val . body)
-  (zap expand name)
+  (zap deglobalize name)
   (w/uniq g-old-val
     `(let ,g-old-val (global ',name)
        (after

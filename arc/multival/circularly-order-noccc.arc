@@ -89,15 +89,14 @@
                                 sorter previous-sorted-stuff
                       (mappend [do.sort-one-bracket _ sorter]
                                previous-bracket-brackets))))))))
-        (if (my.hard-subtract-is (apply join brackets)
-                                 must-come-first)
-          (ir.empty-iter)
-          (err:+ "Somehow there were sorters that were used but then "
-                 "disappeared.")))
-      (if must-come-first
+          (my.hard-subtract-is (apply join brackets) must-come-first)
+        (ir.empty-iter)
         (err:+ "Somehow there were sorters that were used but then "
-               "disappeared.")
-        (ir.iterify list.result-so-far)))))
+               "disappeared."))
+        must-come-first
+      (err:+ "Somehow there were sorters that were used but then "
+             "disappeared.")
+      (ir.iterify list.result-so-far))))
 
 (=fn my.circularly-order (rep2comp comparator-reps)
   (or (call:call:my.sort-yourselves rep2comp list.comparator-reps)

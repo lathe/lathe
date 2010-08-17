@@ -245,7 +245,7 @@
 ; be necessary to explicitly specify a variable name, as in
 ; (andlets it x y) or (andlets _ x y).
 (=mc my.andlets body
-  (let (bindings . final) my.parse-lets.body
+  (let (bindings final) my.parse-lets.body
     (zap [rev:map [copy _ 0 (or _.0 'it)] pair._] bindings)
     (when final (push (list nil final) bindings))
     (iflet (last . rest) bindings
@@ -255,44 +255,18 @@
       't)))
 
 
-(=fn my.soft-deglobalize-var (var)
-  (zap expand var)
-  (if anormalsym.var
-    var
-    
-    ; else recognize anything of the form (global 'the-var)
-    (catch:my:lets
-      (unless (caris var 'global) throw.nil)
-      cdr-var     cdr.var
-      (unless single.cdr-var throw.nil)
-      cadr-var    car.cdr-var
-      (unless (caris cadr-var 'quote) throw.nil)
-      cdadr-var   cdr.cadr-var
-      (unless single.cdadr-var throw.nil)
-      cadadr-var  car.cdadr-var
-      (unless anormalsym.cadadr-var throw.nil)
-      cadadr-var)
-    ))
-
-(=fn my.deglobalize-var (var)
-  (or my.soft-deglobalize-var.var
-      (err:+ "An unrecognized kind of name was passed to "
-             "'deglobalize-var.")))
-
 ; This uses 'expand on the first element of the body if the body has
 ; multiple elements. After doing that (if it does that), it tries to
-; 'deglobalize-var the expanded element. The return value is a
-; two-element list containing the deglobalized name and the rest of
-; the body. If there isn't a deglobalized name, that part of the
-; return value is nil.
+; 'deglobalize the expanded element. The return value is a two-element
+; list containing the deglobalized name and the rest of the body. If
+; there isn't a deglobalized name, that part of the return value is
+; nil.
 (=fn my.parse-named-body (body)
   (iflet (name . rest) body
     ; We'll expand the label during the (and ...) form so that we only
     ; expand it once in case it has macros to expand but it isn't
     ; actually something that can be deglobalized.
-    (if (and rest
-             (zap expand name)
-             (errsafe:zap my.deglobalize-var name))
+    (if (and rest (zap only.safe-deglobalize:expand name))
       (list name rest)
       (list nil (cons name rest)))
     (list nil nil)))

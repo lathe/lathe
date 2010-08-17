@@ -113,7 +113,7 @@
   (apply my.fn-label-prefer (uniq) tests))
 
 (=mc my.label-prefer (label . tests)
-  `(,my!fn-label-prefer ',ut.deglobalize-var.label ,@tests))
+  `(,my!fn-label-prefer ',deglobalize.label ,@tests))
 
 
 ; These are utilities for making contribs with certain labels have
@@ -150,11 +150,11 @@
 
 (=mc my.label-prefer-labels-first (label multival-name . label-names)
   `(,my!fn-label-prefer-labels-first
-     ',ut.deglobalize-var.label ,multival-name ,@label-names))
+     ',deglobalize.label ,multival-name ,@label-names))
 
 (=mc my.label-prefer-labels-last (label multival-name . label-names)
   `(,my!fn-label-prefer-labels-last
-     ',ut.deglobalize-var.label ,multival-name ,@label-names))
+     ',deglobalize.label ,multival-name ,@label-names))
 
 
 )

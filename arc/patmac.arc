@@ -75,12 +75,12 @@
   `(= ,name (,my!patmc ,parms ,@body)))
 
 (=mc my.named-patmac (arc-name pat-name parms . body)
-  (zap ut.deglobalize-var arc-name)
+  (zap deglobalize arc-name)
   `(do1 (,my!=patmc ,arc-name ,parms ,@body)
         (= (,my!patmacs* ',pat-name) ',arc-name)))
 
 (=mc my.patmac (name parms . body)
-  (zap ut.deglobalize-var name)
+  (zap deglobalize name)
   `(,my!named-patmac ,name ,name ,parms ,@body))
 
 

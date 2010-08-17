@@ -19,7 +19,7 @@
 
 
 (=mc my.rule (name parms . labeled-body)
-  (zap ut.deglobalize-var name)
+  (zap deglobalize name)
   (let (label body) ut.parse-named-body.labeled-body
     `(do (,mt!defmultifn-stub ,name)
          (,mt!contribute ',name ',(or label (uniq))

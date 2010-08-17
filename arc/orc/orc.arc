@@ -37,7 +37,7 @@
 
 (=mc my.def-inherits (subtype . supertypes)
   `(,my!fn-def-inherits
-     ,@(map [do `',ut.deglobalize-var._] (cons subtype supertypes))))
+     ,@(map [do `',deglobalize._] (cons subtype supertypes))))
 
 (=fn my.isinstance (x test-type)
   (my.inherits my.otype.x test-type))
@@ -60,7 +60,9 @@
 ; types, such as Java objects and tables with their 'type fields set.
 (=fn my.otype (x)
   (if x
-    (catch:or (errsafe:throw:type x) my!unknown)
+    ; NOTE: Jarc's 'errsafe suppresses escape continuations, so
+    ; 'catch and 'throw instead of 'car and 'list would fail here.
+    (car:or (errsafe:list:type x) (list my!unknown))
     my!niltype))
 
 
@@ -76,8 +78,8 @@
 ; Within 'labeled-body, the anaphoric variable 'self refers to an
 ; implicit first argument, the argument which was dispatched on.
 (=mc my.ontype (name parms test-type . labeled-body)
-  (zap ut.deglobalize-var name)
-  (zap ut.deglobalize-var test-type)
+  (zap deglobalize name)
+  (zap deglobalize test-type)
   (let (label body) ut.parse-named-body.labeled-body
     (or= label (sym:string (uniq) '-ontype- test-type))
     `(do (= ((or= (,my!ontype-types* ',name) (table)) ',label)

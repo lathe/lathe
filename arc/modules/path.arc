@@ -122,7 +122,7 @@
   (when (odd:len bindings)
     (err:+ "An odd-sized list of bindings was given to "
            "use-fromwds-as."))
-  `(use-as ,@(mappend [do `(,_.0 `(fromwds ,,_.1))] pair.bindings)))
+  `(use-as ,@(mappend [do `(,_.0 `(fromwd ,,_.1))] pair.bindings)))
 
 
 ; ===== The 'rel dependency form =====================================

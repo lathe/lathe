@@ -11,7 +11,7 @@
         no.rep-brackets nil
         no.first-bracket
       (my.is-start-of-brackets order-so-far other-brackets)
-      (iflet the-pos (pos first-so-far first-bracket)
+      (whenlet the-pos (pos first-so-far first-bracket)
         (let (before it-and-after) (split first-bracket the-pos)
           (my.is-start-of-brackets
             others-so-far
