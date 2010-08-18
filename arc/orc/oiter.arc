@@ -230,7 +230,7 @@
   (~my.olen< self (+ number 1)))
 
 (=fn my.oempty (seq)
-  (ut.== my.olen 0))
+  (~my.olen> seq 0))
 
 
 (rc:ontype my.omap (transform) table my.table
