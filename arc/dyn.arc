@@ -15,7 +15,10 @@
 
 ; On non-Racket setups, our implementation of my!param-let uses what
 ; amounts to a "finally" cleanup phase, so it isn't a tail call.
-(= my.param-let-uses-a-tail-call* sn.plt)
+;
+; NOTE: Jarc doesn't like ~~.
+;
+(= my.param-let-uses-a-tail-call* (~no sn.plt))
 
 
 ; TODO: Make sure the two implementations of my!param-let are
