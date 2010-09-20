@@ -31,30 +31,50 @@
   `(failure ,description))
 
 (=fn my.call-basic-rulebook (rulebook . args)
-  (catch:let failures '()
-    (each rule rulebook
+  ; NOTE: We would use a 'catch and 'throw pattern here, except that
+  ; we would capture escape continuation calls in the calls to the
+  ; rules on Jarc 17.
+  (ut:xloop rest rulebook failures nil
+    (iflet (rule . rest) rest
       (let (result-type result-details) (apply rule args)
         (case result-type
-          success  throw.result-details
-          failure  (when result-details
-                     (push result-details failures))
-                   (err "There was an unknown rule result type."))))
-    (err:if failures
-      (apply +
-        "No rule accepted the given arguments. The specific "
-        "complaint" (if single.failures " was" "s were") " as "
-        "follows:\n"
-        "\n"
-        (intersperse "\n" rev.failures))
-      (+ "No rule accepted the given arguments or even had a "
-         "specific complaint."))))
+          success  result-details
+          failure  (do.next rest (if result-details
+                                   (cons result-details failures)
+                                   failures))
+            (err "There was an unrecognized rule result type.")))
+      (err:if failures
+        (apply +
+          "No rule accepted the given arguments. The specific "
+          "complaint" (if single.failures " was" "s were") " as "
+          "follows:\n"
+          "\n"
+          (intersperse "\n" rev.failures))
+        (+ "No rule accepted the given arguments or even had a "
+           "specific complaint.")))))
 
 (=mc my.ru (parms . body)
-  (w/uniq g-return
+  ; NOTE: On Jarc 17, any escape continuation's boundary is eligible
+  ; to receive any escape continuation's result. (The innermost
+  ; boundary wins.) Therefore, in order to seamlessly take advantage
+  ; of escape continuations, we have to identify whether the result we
+  ; get actually belongs to us. If it doesn't, we have to throw it
+  ; back. We'll use a gensym for the identification.
+  (w/uniq (g-return g-token)
     `(fn ,parms
-       (point ,g-return
-         (let fail (fn (msg) (,g-return (,my!rule-failure msg)))
-           (,my!rule-success (do ,@body)))))))
+       (w/uniq ,g-token
+         (let result-holder
+                (point ,g-return
+                  (let fail [,g-return
+                              (list ,g-token (,my!rule-failure _))]
+                    (list ,g-token (,my!rule-success (do ,@body)))))
+           (if (and acons.result-holder (caris result-holder ,g-token))
+             result-holder.1
+             
+             ; NOTE: This is how we throw it back. We should only get
+             ; to here on Jarc.
+             catch.throw.result-holder
+             ))))))
 
 
 )

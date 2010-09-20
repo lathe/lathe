@@ -13,11 +13,24 @@
 ; ===== Convenience utilities ========================================
 
 
+; The purpose of the 'return-on-nil parameter of my!opos is to help
+; distinguish search failures (which return nil) from search successes
+; where the position key is actually nil. Since it's useful for
+; failure to be false, this 'return-on-nil parameter is returned
+; instead of any nil successes.
+
 (rc:ontype my.opos (test (o return-on-nil)) table my.table
   (zap rc.otestify test)
-  (catch:each (k v) self
-    (when do.test.v
-      (throw:or k return-on-nil))))
+  ; NOTE: We would use a 'catch:each and 'throw pattern here, except
+  ; that we would capture escape continuation calls in the call to
+  ; 'test on Jarc 17.
+  (ut:xloop rest tablist.self
+    ; NOTE: Jarc doesn't like (let ((a b) . c) ...).
+    (whenlet (first . rest) rest
+      (let (k v) first
+        (if do.test.v
+          (or k return-on-nil)
+          do.next.rest)))))
 
 (rc:ontype my.opos (test (o return-on-nil)) rc.list my.list
   (zap rc.otestify test)

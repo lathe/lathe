@@ -46,12 +46,18 @@
 ; the extensions to work again.
 (=fn my.enable-extend (name)
   (let old global.name
+    ; NOTE: We would use a 'catch and 'throw pattern here, except that
+    ; we would capture escape continuation calls in the calls to the
+    ; conditions and consequences on Jarc 17.
     (=fn global.name args
-      (catch
-        (each (label (condition consequence)) (car my.extends*.name)
-          (awhen (apply condition args)
-            (throw:apply do.consequence.it args)))
-        (apply old args))))
+      (ut:xloop rest (car my.extends*.name)
+        ; NOTE: Jarc doesn't like (let ((a (b c)) . d) ...).
+        (iflet (first . rest) rest
+          (let (label (condition consequence)) first
+            (aif (apply condition args)
+              (apply do.consequence.it args)
+              do.next.rest))
+          (apply old args)))))
   'ok)
 
 (=fn my.fn-extend (name label condition consequence)

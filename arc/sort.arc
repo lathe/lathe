@@ -61,12 +61,16 @@
 (=fn my.order-by-tests tests
   (zap [map testify _] tests)
   (fn (a b)
-    (catch
-      (each test tests
+    ; NOTE: We would use a 'catch:each and 'throw pattern here, except
+    ; that we would capture escape continuation calls in the calls to
+    ; the 'tests on Jarc 17.
+    (ut:xloop rest tests
+      (iflet (test . rest) rest
         (with (nta (no do.test.a) ntb (no do.test.b))
-          (unless (is nta ntb)
-            (throw:if nta '> '<))))
-      '=)))
+          (if (is nta ntb)
+            do.next.rest
+            (if nta '> '<)))
+        '=))))
 
 
 )
