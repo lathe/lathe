@@ -75,6 +75,15 @@
   (let (binds . body) parse-magic-withlike.withbody
     `(withs ,(apply join binds) ,@body)))
 
+(=mc my.letrec withbody
+  (let (binds . body) parse-magic-withlike.withbody
+    (unless (all anormalsym:car binds)
+      (err:+ "A variable in a 'letrec form wasn't a non-ssyntax, "
+             "non-nil symbol."))
+    `(with ,(mappend [do `(,_.0 nil)] binds)
+       ,@(map [do `(= ,@_)] binds)
+       ,@body)))
+
 (=fn my.tails (lst)
   (accum acc
     (while acons.lst
