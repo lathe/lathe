@@ -79,19 +79,18 @@
 ; The path given here is assumed to have been normalized already.
 (def compile-wd-dependency (wdpath)
   (obj type 'compiled-dependency
-       prepare (fn ()
-                 (withs (original loadfromwd.wdpath
-                         result (obj type 'loaded-package
-                                     path wdpath
-                                     original original))
-                   (=fn !nspace.result ()
-                     (do.result!original!nspace))
-                   (=fn !activate.result ()
-                     (let undo-original (do.result!original!activate)
-                       (fn ()
-                         call.undo-original
-                         (zap [rem result _] activated-packages*))))
-                   result))
+       prepare (thunk:withs (original loadfromwd.wdpath
+                             result (obj type 'loaded-package
+                                         path wdpath
+                                         original original))
+                 (=fn !nspace.result ()
+                   (do.result!original!nspace))
+                 (=fn !activate.result ()
+                   (let undo-original (do.result!original!activate)
+                     (fn ()
+                       call.undo-original
+                       (zap [rem result _] activated-packages*))))
+                 result)
        accepts (fn (package)
                  (and (isa package 'table)
                       (is do.package!type 'loaded-package)

@@ -140,7 +140,7 @@
 ; Note that this creates a package with an empty nspace.
 (=mc my.pack-sobj (sobj)
   (let export (obj sobj sobj)
-    (= !nspace.export (let ns (nspace) (fn () ns)))
+    (= !nspace.export (let ns (nspace) thunk.ns))
     (=fn !activate.export ()
       (let overwritten-sobj (import-sobj do.export!sobj)
         (fn ()

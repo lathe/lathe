@@ -19,7 +19,7 @@
 
 (=fn my.circularly-order (rep2comp comparator-reps)
   (let amb (am.make-amb
-             (fn () (err "The comparators are circularly humble.")))
+             (thunk:err "The comparators are circularly humble."))
     (ut:xloop order-so-far '() rep-brackets list.comparator-reps
       (unless (my.is-start-of-brackets order-so-far rep-brackets)
         call.amb)

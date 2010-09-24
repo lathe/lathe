@@ -57,7 +57,7 @@
     (ut:xloop i 0
       (annotate my!lazylist
         (when (< i len)
-          (list self.i (fn () (do.next:+ i 1))))))))
+          (list self.i (thunk:do.next:+ i 1)))))))
 
 
 (rc:ontype my.olazyentries () rc.list my.list
@@ -65,7 +65,7 @@
     (annotate my!lazylist
       (whenlet (head . nexttail) (check tail acons)
         (list (list i head)
-              (fn () (do.next (+ i 1) nexttail)))))))
+              (thunk:do.next (+ i 1) nexttail))))))
 
 (rc:ontype my.olazyentries () table my.table
   (my.olazylistify tablist.self))
@@ -75,14 +75,14 @@
     (ut:xloop i 0
       (annotate my!lazylist
         (when (< i len)
-          (list (list i self.i) (fn () (do.next:+ i 1))))))))
+          (list (list i self.i) (thunk:do.next:+ i 1)))))))
 
 (rc:ontype my.olazyentries () my.lazylist my.lazylist
   (ut:xloop i 0 tail self
     (annotate my!lazylist
       (whenlet (head nexttail) rep.tail
         (list (list i head)
-              (fn () (do.next (+ i 1) call.nexttail)))))))
+              (thunk:do.next (+ i 1) call.nexttail))))))
 
 
 (rc:ontype my.olazykeys () rc.list my.list
@@ -112,7 +112,7 @@
     (ut:xloop i 0
       (annotate my!lazylist
         (when (< i len)
-          (list self.i (fn () (do.next:+ i 1))))))))
+          (list self.i (thunk:do.next:+ i 1)))))))
 
 (rc:ontype my.olazyvalues () my.lazylist my.lazylist
   self)
@@ -266,7 +266,7 @@
   (ut:xloop self self
     (annotate my!lazylist
       (whenlet (head nexttail) rep.self
-        (list do.transform.head (fn () (do.next call.nexttail)))))))
+        (list do.transform.head (thunk:do.next call.nexttail))))))
 
 
 ; Types used in Arc 3.1, for reference:

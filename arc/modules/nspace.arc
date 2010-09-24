@@ -58,7 +58,7 @@
 ; each one macro-expands the name given to it.
 ;
 (def nspace ((o backing-table (table)))
-  (nspace-indirect (fn () backing-table)))
+  (nspace-indirect thunk.backing-table))
 
 (def nspace-indirect (backing-table-getter)
   (withs (prefix (uniq)

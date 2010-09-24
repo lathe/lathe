@@ -23,8 +23,8 @@
        (push-frame
         has-frame
         pop-frame
-        (o fail (fn () (err:+ "All amb branches have run out of "
-                              "options."))))
+        (o fail
+             (thunk:err "All amb branches have run out of options.")))
   (point return-from-maker
     (let goto-fail (point store-continuation-in-goto-fail
                      ccc.store-continuation-in-goto-fail
@@ -66,11 +66,11 @@
 ; that once the result of the backtracking search is known and the amb
 ; usage is over, the amb function can simply go out of scope, leaving
 ; all its continuations to be garbage-collected.
-(=fn my.make-amb ((o fail (fn () (err:+ "All amb branches have run "
-                                        "out of options."))))
+(=fn my.make-amb ((o fail (thunk:err:+ "All amb branches have run "
+                                       "out of options.")))
   (let amb-frames nil
     (my.make-custom-amb [push _ amb-frames]
-                        (fn () amb-frames)
+                        thunk.amb-frames
                         (fn () pop.amb-frames)
                         fail)))
 

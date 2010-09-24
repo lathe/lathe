@@ -18,6 +18,9 @@
 (mac =fn (name parms . body)
   `(= ,name (fn ,parms ,@body)))
 
+(mac thunk body
+  `(fn () ,@body))
+
 
 ; Expand both ssyntax and macros until neither is left.
 (def expand (expr)

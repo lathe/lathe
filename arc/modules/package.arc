@@ -64,13 +64,12 @@
 ; (fn (dependency)
 ;   (when (this-rule-applies)
 ;     (obj type 'compiled-dependency
-;          prepare (fn ()
-;                    (when (can-get-resources)
-;                      (obj nspace (fn () (return-an-nspace-macro))
-;                           activate
-;                             (fn ()
-;                               (have-side-effects)
-;                               (fn () (undo-those-side-effects))))))
+;          prepare (thunk:when (can-get-resources)
+;                    (obj nspace (thunk:return-an-nspace-macro)
+;                         activate
+;                           (fn ()
+;                             (have-side-effects)
+;                             (thunk:undo-those-side-effects))))
 ;          accepts (fn (package)
 ;                    (bool-implementation))))
 ;
@@ -119,7 +118,7 @@
 (def pack-nmap (nmap)
   (let export (obj nmap nmap)
     (= !nspace.export (let ns (nspace-indirect:fn () do.export!nmap)
-                        (fn () ns)))
+                        thunk.ns))
     (=fn !activate.export ()
       (let overwritten-sobj (import-nmap do.export!nmap)
         (fn ()

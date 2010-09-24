@@ -48,7 +48,7 @@
 ; represented as little-endian byte strings.
 
 (=fn my.empty-iter ()
-  (fn () (fn ())))
+  (thunk:thunk))
 
 (=fn my.must-iterify (val)
   (or my.iterify.val
@@ -59,22 +59,22 @@
   (case type.val
     fn     val
     cons   (let copyval copy.val
-             (fn () (let innerval copyval
-                      (fn () (when innerval (list pop.innerval))))))
+             (thunk:let innerval copyval
+               (thunk:when innerval (list pop.innerval))))
     table  (let copyval tablist.val
-             (fn () (let innerval copyval
-                      (fn () (when innerval (list pop.innerval))))))
+             (thunk:let innerval copyval
+               (thunk:when innerval (list pop.innerval))))
     str    (let copyval copy.val
-             (fn () (with (i 0 innerval copyval innerlen len.copyval)
-                      (fn () (if (< i innerlen)
-                               (list:do1 do.innerval.i ++.i)
-                               (wipe innerval innerlen))))))
+             (thunk:with (i 0 innerval copyval innerlen len.copyval)
+               (thunk:if (< i innerlen)
+                 (list:do1 do.innerval.i ++.i)
+                 (wipe innerval innerlen))))
     sym    (if val
              (withs (innerval string.val innerlen len.innerval)
-               (fn () (let i 0
-                        (fn () (if (< i innerlen)
-                                 (list:do1 do.innerval.i ++.i)
-                                 (wipe innerval innerlen))))))
+               (thunk:let i 0
+                 (thunk:if (< i innerlen)
+                   (list:do1 do.innerval.i ++.i)
+                   (wipe innerval innerlen))))
              (my.empty-iter))))
 
 (=fn my.iter-trav (func iterable)
@@ -88,13 +88,12 @@
 
 (=fn my.iter-join args
   (zap [map my.must-iterify _] args)
-  (fn ()
-    (let iterators (map call args)
-      (afn ()
-        (whenlet (first . rest) iterators
-          (or call.first
-              (do (= iterators rest)
-                  call.self)))))))
+  (thunk:let iterators (map call args)
+    (afn ()
+      (whenlet (first . rest) iterators
+        (or call.first
+            (do (= iterators rest)
+                call.self))))))
 
 (=fn my.cached-iter (iterable)
   (zap my.must-iterify iterable)
@@ -108,37 +107,32 @@
                 (if (< index qlen.cache)
                   (list qlist.cache.index)
                   wipe.iterator)))
-    (fn ()
-      (let i 0
-        (fn ()
-          (do1 do.get.i ++.i))))))
+    (thunk:let i 0
+      (thunk:do1 do.get.i ++.i))))
 
 (=fn my.mapping (func iterable)
   (zap my.must-iterify iterable)
-  (fn ()
-    (let iterator call.iterable
-      (fn ()
-        (iflet (result) call.iterator
-          (list do.func.result)
-          wipe.iterator)))))
+  (thunk:let iterator call.iterable
+    (thunk:iflet (result) call.iterator
+      (list do.func.result)
+      wipe.iterator)))
 
 (=mc my.mappinglet (var iterable . body)
   `(,my!mapping (fn (,var) ,@body) ,iterable))
 
 (=fn my.joining (iterable)
   (zap my.must-iterify iterable)
-  (fn ()
-    (with (outside-iterator call.iterable
-           inside-iterator (call:call my.empty-iter))
-      (afn ()
-        (when inside-iterator
-          (or call.inside-iterator
-              (iflet (next-inside) call.outside-iterator
-                (do (= inside-iterator (aif my.iterify.next-inside
-                                         call.it
-                                         next-inside))
-                    call.self)
-                (wipe outside-iterator inside-iterator))))))))
+  (thunk:with (outside-iterator call.iterable
+               inside-iterator (call:call my.empty-iter))
+    (afn ()
+      (when inside-iterator
+        (or call.inside-iterator
+            (iflet (next-inside) call.outside-iterator
+              (do (= inside-iterator (aif my.iterify.next-inside
+                                       call.it
+                                       next-inside))
+                  call.self)
+              (wipe outside-iterator inside-iterator)))))))
 
 (=fn my.mappending (func iterable)
   (my.joining:my.mapping func iterable))
@@ -164,21 +158,17 @@
           (cons that-elem these-elems))))))
 
 (=fn my.nonnegs ()
-  (fn ()
-    (let i -1
-      (fn ()
-        (list ++.i)))))
+  (thunk:let i -1
+    (thunk:list ++.i)))
 
 (=fn my.iter-range (start finish (o step 1))
   (when (in step 0 0.0)
     (err "A step of zero was given to 'iter-range."))
   (let approaching (if (< 0 step) <= >=)
-    (fn ()
-      (let i start
-        (fn ()
-          (when (do.approaching i finish)
-            (do1 list.i
-                 (++ i step))))))))
+    (thunk:let i start
+      (thunk:when (do.approaching i finish)
+        (do1 list.i
+             (++ i step))))))
 
 (=fn my.nonneg-tuples-by-sum
       (size sum (o reversed-lexico-significance))
@@ -219,37 +209,33 @@
     (err "A negative amount was given to 'skippingover."))
   (unless ut.an-int.amount
     (err "A non-integer amount was given to 'skippingover."))
-  (fn ()
-    (ut:ret iterator call.iterable
-      (let i 0
-        (while (and (< i amount) call.iterator)
-          ++.i)))))
+  (thunk:ut:ret iterator call.iterable
+    (let i 0
+      (while (and (< i amount) call.iterator)
+        ++.i))))
 
 (=fn my.stoppingafter (amount iterable)
   (unless (<= 0 amount)
     (err "A negative amount was given to 'stoppingafter."))
   (unless ut.an-int.amount
     (err "A non-integer amount was given to 'stoppingafter."))
-  (fn ()
-    (with (iterator call.iterable i 0)
-      (fn ()
-        (or (and iterator (< i amount) (do ++.i call.iterator))
-            (wipe iterator amount))))))
+  (thunk:with (iterator call.iterable i 0)
+    (thunk:or (and iterator (< i amount) (do ++.i call.iterator))
+      (wipe iterator amount))))
 
 (=fn my.stepping (amount iterable)
   (unless (<= 0 amount)
     (err "A negative amount was given to 'stepping."))
   (unless ut.an-int.amount
     (err "A non-integer amount was given to 'stepping."))
-  (fn ()
-    (let iterator call.iterable
-      (fn ()
-        (when iterator
-          (let i 0
-            (while:or (when (< i amount) ++.i call.iterator)
-                      wipe.iterator)))
-        (or only.call.iterator
-            wipe.iterator)))))
+  (thunk:let iterator call.iterable
+    (fn ()
+      (when iterator
+        (let i 0
+          (while:or (when (< i amount) ++.i call.iterator)
+                    wipe.iterator)))
+      (or only.call.iterator
+          wipe.iterator))))
 
 ; NOTE: This should only be used on infinite iterables. It will treat
 ; finite iterables as though they're infinite ones that end in
@@ -277,14 +263,12 @@
   `(,my!keeping (fn (,var) ,@body) ,iterable))
 
 (=fn my.folding (func start iterable)
-  (fn ()
-    (with (iterator call.iterable intermediate start)
-      (fn ()
-        (when iterator
-          (do1 list.intermediate
-               (iflet (next) call.iterator
-                 (= intermediate (do.func intermediate next))
-                 (wipe iterator intermediate))))))))
+  (thunk:with (iterator call.iterable intermediate start)
+    (thunk:when iterator
+      (do1 list.intermediate
+           (iflet (next) call.iterator
+             (= intermediate (do.func intermediate next))
+             (wipe iterator intermediate))))))
 
 (=mc my.foldinglet (a start b iterable . body)
   `(,my!folding (fn (,a ,b) ,@body) start iterable))
@@ -298,40 +282,36 @@
 
 (=fn my.repeating (iterable)
   (zap my.must-iterify iterable)
-  (my.joining (fn () (fn () list.iterable))))
+  (my.joining (thunk:thunk list.iterable)))
 
 (=fn my.zipping iterables
   (zap [map my.must-iterify _] iterables)
-  (fn ()
-    (let iterators (map call iterables)
-      (fn ()
-        (let svalues (map call iterators)
-          (if (some no svalues)
-            wipe.iterators
-            (list:map car svalues)))))))
+  (thunk:let iterators (map call iterables)
+    (thunk:let svalues (map call iterators)
+      (if (some no svalues)
+        wipe.iterators
+        (list:map car svalues)))))
 
 (=fn my.padzipping (pad . iterables)
   (zap [map my.must-iterify _] iterables)
-  (fn ()
-    (let iterators (map call iterables)
-      (fn ()
-        (withs (finished t
-                values (accum acc
-                         ; NOTE: Anarki doesn't support dotted lists
-                         ; as syntax in [...] forms, so we're using an
-                         ; explicit (fn (_) (...)).
-                         (reclist (fn (_)
-                                    (let (a . b) _
-                                      (iflet (result) only.call.a
-                                        (do do.acc.result
-                                            wipe.finished)
-                                        (do do.acc.pad
-                                            (wipe car._)))
-                                      nil))
-                                  iterators)))
-          (if finished
-            wipe.iterators
-            list.values))))))
+  (thunk:let iterators (map call iterables)
+    (thunk:withs (finished t
+                  values (accum acc
+                           ; NOTE: Anarki doesn't support dotted lists
+                           ; as syntax in [...] forms, so we're using
+                           ; an explicit (fn (_) (...)).
+                           (reclist (fn (_)
+                                      (let (a . b) _
+                                        (iflet (result) only.call.a
+                                          (do do.acc.result
+                                              wipe.finished)
+                                          (do do.acc.pad
+                                              (wipe car._)))
+                                        nil))
+                                    iterators)))
+      (if finished
+        wipe.iterators
+        list.values))))
 
 (=fn my.iter-some (func iterable)
   (call:call:my.keeping idfn (my.mapping func iterable)))
@@ -380,21 +360,19 @@
 ; Note that this relies on continuations.
 ;
 (=fn my.iter-with-yield (func)
-  (fn ()
-    (let next nil
-      (= next (fn (succeed-from-iter)
-                (do.func:fn (yielded-value)
-                  (point return-from-yield
-                    (= next (fn (succeed-from-this-iter)
-                              (= succeed-from-iter
-                                 succeed-from-this-iter)
-                              do.return-from-yield.nil))
-                    do.succeed-from-iter.yielded-value))))
-      (fn ()
-        (when next
-          (point return-from-iter
-            (do.next return-from-iter:list)
-            wipe.next))))))
+  (thunk:let next nil
+    (= next (fn (succeed-from-iter)
+              (do.func:fn (yielded-value)
+                (point return-from-yield
+                  (= next (fn (succeed-from-this-iter)
+                            (= succeed-from-iter
+                               succeed-from-this-iter)
+                            do.return-from-yield.nil))
+                  do.succeed-from-iter.yielded-value))))
+    (thunk:when next
+      (point return-from-iter
+        (do.next return-from-iter:list)
+        wipe.next))))
 
 
 )
