@@ -21,7 +21,7 @@
 ; rulebooks to be implemented on top of these so that those rulebooks
 ; can be extended with other wacky behaviors as desired.
 
-(packed
+(packed:using-rels-as ut "utils.arc"
 
 
 (=fn my.rule-success (return-value)
