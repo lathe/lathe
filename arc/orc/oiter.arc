@@ -275,7 +275,8 @@
 ;
 ; Types Lathe cares about from Rainbow: java-object
 ;
-; Lathe tagged types: my.lazylist patmac
+; Lathe tagged types: my.lazylist pm.patmac dy.param
+; (where pm is patmac.arc and dy is dyn.arc)
 ;
 ; Lathe handles other kinds of data structures, but these are the only
 ; type names seen using 'type. Other values are untyped ad-hoc
