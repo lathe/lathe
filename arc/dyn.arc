@@ -20,6 +20,9 @@
 ;
 (= my.param-let-uses-a-tail-call* (~no sn.plt))
 
+(=fn my.aparam (x)
+  (isa x my!param))
+
 
 ; TODO: Make sure the two implementations of my!param-let are
 ; equivalent with regard to threads and my!param-set.
@@ -29,24 +32,30 @@
   (let make-parameter (sn:plt make-parameter)
     
     (=fn my.make-param ((o initial-value))
-      make-parameter.initial-value)
-    
-    (=fn my.aparam (x)
-      (~~.x:sn:plt parameter?))
+      (annotate my!param make-parameter.initial-value))
     
     (=fn my.param-get (param)
-      call.param)
+      (unless my.aparam.param
+        (err "A non-parameter was given to 'param-get."))
+      (rep.param))
     
     (=fn my.param-set (param new-value)
-      (do.param new-value)
-      call.param)
+      (unless my.aparam.param
+        (err "A non-parameter was given to 'param-set."))
+      (rep.param thunk.new-value)
+      (rep.param))
     
     (=mc my.param-let body
       (let binds (if (alist car.body)  pop.body
                      cdr.body          (list pop.body pop.body))
         (when (odd len.binds)
           (err "A 'param-let form had an odd-length binding list."))
-        (zap [map [do `(,(uniq) ,_.0 ,(uniq) (fn () ,_.1))] pair._]
+        (zap [map [do `(,(uniq) (rep:check ,_.0 ,my!aparam
+                                  (err:+ "A 'param-let form was "
+                                         "given at least one "
+                                         "non-parameter to bind."))
+                        ,(uniq) (fn () ,_.1))]
+                  pair._]
              binds)
         ; NOTE: Instead of figuring out what hoops to jump through to
         ; get (parameterize () (body)) rather than
@@ -61,17 +70,17 @@
   
   
   ; JVM-based setups
-    jv.jclass!java-lang-InheritableThreadLocal
+  jv.jclass!java-lang-InheritableThreadLocal
   (do
     (=fn my.make-param ((o initial-value))
-      (ut:ret param (jv.jvm!java-lang-InheritableThreadLocal-new)
+      (ut:ret param (annotate my!param
+                      (jv.jvm!java-lang-InheritableThreadLocal-new))
         (my.param-set param initial-value)))
     
-    (=fn my.aparam (x)
-      (jv.ajava x 'java.lang.InheritableThreadLocal))
-    
     (=fn my.param-get (param)
-      jv.jvm!get.param)
+      (unless my.aparam.param
+        (err "A non-parameter was given to 'param-get."))
+      (call:jv.jvm!get rep.param))
     
     ; NOTE: Since my!param-set is used from an 'after block in
     ; my!param-let, we make sure it doesn't depend on 'on-err on
@@ -79,12 +88,16 @@
     (if sn.rainbowdrop*
       
       (=fn my.param-set (param new-value)
-        (param 'set new-value)
-        param!get)
+        (unless my.aparam.param
+          (err "A non-parameter was given to 'param-set."))
+        (rep.param 'set thunk.new-value)
+        (rep.param!get))
       
       (=fn my.param-set (param new-value)
-        (jv.jvm!set param new-value)
-        jv.jvm!get.param)
+        (unless my.aparam.param
+          (err "A non-parameter was given to 'param-set."))
+        (jv.jvm!set rep.param thunk.new-value)
+        (call:jv.jvm!get rep.param))
       )
     
     (=mc my.param-let body
@@ -92,14 +105,16 @@
                      cdr.body          (list pop.body pop.body))
         (when (odd len.binds)
           (err "A 'param-let form had an odd-length binding list."))
-        (zap [map [do `(,(uniq) ,_.0 ,(uniq) (fn () ,_.1))] pair._]
+        (zap [map [do `((,(uniq) (check ,_.0 ,my!aparam
+                                   (err:+ "A 'param-let form was "
+                                          "given at least one "
+                                          "non-parameter to bind.")))
+                        (,(uniq) ,_.1))]
+                  pair._]
              binds)
-        (let resets (map [do `(,my!param-set ,_.0 ,(uniq))] binds)
-          `(with ,(apply join binds)
-             (unless (and ,@(map [do `(,my!aparam ,_.0)] binds))
-               (err:+ "A 'param-let form was given at least one "
-                      "non-parameter to bind."))
-             (with ,(mappend [do `(,_.2 (,_.2))] binds)
+        (let resets (map [do `(,my!param-set ,_.0.0 ,(uniq))] binds)
+          `(with ,(mappend car binds)
+             (with ,(mappend cadr binds)
                (with ,(mappend [do `(,_.2 (,my!param-get ,_.1))]
                                resets)
                  ; NOTE: We only pray that there are no errors when we
@@ -107,7 +122,7 @@
                  ; parameters have been manipulated only according to
                  ; our own API, the only errors should end up being
                  ; pretty exceptional, like StackOverflowErrors.
-                 ,@(map [do `(,my!param-set ,_.0 ,_.2)] binds)
+                 ,@(map [do `(,my!param-set ,_.0.0 ,_.1.0)] binds)
                  (after (do ,@body)
                    ,@resets)))))))
     )
