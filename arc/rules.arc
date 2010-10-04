@@ -2,15 +2,19 @@
 ;
 ; ===== Basic rulebooks ==============================================
 ;
-; A basic rulebook is just a list of functions that return either a
-; rule-success or a rule-failure. Calling a basic rulebook (via
-; call-basic-rulebook) will apply each function one by one to the
-; arguments and either return the first success value or error out
-; with a description of all the failures.
+; A basic rulebook is just a list of functions that either result
+; normally (by returning or raising an error) or call a supplied
+; escape continuation with a failure message. Calling a basic rulebook
+; (via my!call-basic-rulebook) will apply each function one by one to
+; the arguments and either propagate the first normal result or error
+; out with a description of all the rule failure messages.
 ;
-; A rule-failure is sort of a soft failure. A rule can also fail hard
-; by just causing a normal Arc error or by returning a value through
-; rule-success that signifies failure, such as nil.
+; The escape continuation is an anaphoric parameter named 'fail. Using
+; it should look a lot like using 'err, with code like
+; (unless (arguments-are-correct) (fail "The arguments weren't...")).
+; Note, however, that rules are still free to raise errors using 'err
+; if they positively determine that the rulebook should result in an
+; error without trying any other rules.
 ;
 ; There are other responses a rulebook could theoretically support.
 ; For example, in Inform 7's rulebooks and CLOS's multimethods, a
@@ -24,57 +28,48 @@
 (packed:using-rels-as ut "utils.arc"
 
 
-(=fn my.rule-success (return-value)
-  `(success ,return-value))
-
-(=fn my.rule-failure ((o description))
-  `(failure ,description))
-
 (=fn my.call-basic-rulebook (rulebook . args)
-  ; NOTE: We would use a 'catch and 'throw pattern here, except that
-  ; we would capture escape continuation calls in the calls to the
-  ; rules on Jarc 17.
-  (ut:xloop rest rulebook failures nil
-    (iflet (rule . rest) rest
-      (let (result-type result-details) (apply rule args)
-        (case result-type
-          success  result-details
-          failure  (do.next rest (if result-details
-                                   (cons result-details failures)
-                                   failures))
-            (err "There was an unrecognized rule result type.")))
-      (err:if failures
-        (apply +
-          "No rule accepted the given arguments. The specific "
-          "complaint" (if single.failures " was" "s were") " as "
-          "follows:\n"
-          "\n"
-          (intersperse "\n" rev.failures))
-        (+ "No rule accepted the given arguments or even had a "
-           "specific complaint.")))))
-
-(=mc my.ru (parms . body)
   ; NOTE: On Jarc 17, any escape continuation's boundary is eligible
   ; to receive any escape continuation's result. (The innermost
   ; boundary wins.) Therefore, in order to seamlessly take advantage
-  ; of escape continuations, we have to identify whether the result we
-  ; get actually belongs to us. If it doesn't, we have to throw it
-  ; back. We'll use a gensym for the identification.
-  (w/uniq (g-return g-token)
-    `(fn ,parms
-       (w/uniq ,g-token
-         (let result-holder
-                (point ,g-return
-                  (let fail [,g-return
-                              (list ,g-token (,my!rule-failure _))]
-                    (list ,g-token (,my!rule-success (do ,@body)))))
-           (if (and acons.result-holder (caris result-holder ,g-token))
-             result-holder.1
-             
-             ; NOTE: This is how we throw it back. We should only get
-             ; to here on Jarc.
-             catch.throw.result-holder
-             ))))))
+  ; of escape continuations for rule failure, we have to identify
+  ; whether the result we get actually belongs to us. If it doesn't,
+  ; we have to throw it back. We'll use a gensym for the
+  ; identification.
+  (w/uniq g-token
+    ; NOTE: We would use a 'catch and 'throw pattern for this loop,
+    ; hexcept that we would have to go through all the same hurdles to
+    ; keep from intercepting non-failure escape continuations.
+    (ut:xloop rest rulebook failures nil
+      (iflet (rule . rest) rest
+        (let full-result
+               (catch `(,g-token t
+                         ,(apply rule
+                            (fn ((o message))
+                              (throw `(,g-token nil ,message)))
+                            args)))
+          (if (caris full-result g-token)
+            (if do.full-result.1
+              do.full-result.2
+              (do.next rest (consif do.full-result.2 failures)))
+            
+            ; NOTE: This is how we throw it back. We should only get
+            ; to here on Jarc.
+            catch.throw.full-result
+            ))
+        (err:if failures
+          (apply +
+            "No rule accepted the given arguments. The specific "
+            "complaint" (if single.failures " was" "s were") " as "
+            "follows:\n"
+            "\n"
+            (intersperse "\n" rev.failures))
+          (+ "No rule accepted the given arguments or even had a "
+             "specific complaint."))))))
+
+(=mc my.ru (parms . body)
+  `(fn ,(cons 'fail parms)
+     ,@body))
 
 
 )
