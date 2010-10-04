@@ -19,11 +19,10 @@
 ;   practical cases, thanks to 'parse-magic-withlike (which is defined
 ;   in modules/modulemisc.arc).
 
-(packed
+(packed:using-rels-as jv "imp/jvm.arc"
 
 
-(=fn my.niceuniq (name)
-  (sym:string (uniq) '- name))
+(= my.niceuniq jv.niceuniq)
 
 (=mc my.w/niceuniq (syms . body)
   (if alist.syms
@@ -59,17 +58,29 @@
          (if ,g-started ,chorus (= ,g-started t))
          ,@body))))
 
-(=fn my.readwine ((o stream (stdin)))
-  (whenlet firstchar readc.stream
-    (string:accum acc
-      (my:xloop chr firstchar
-        (case chr
-          #\newline  nil
-          #\return   (case peekc.stream #\newline
-                       readc.stream)
-          nil        nil
-                     (do do.acc.chr
-                         (do.next readc.stream)))))))
+; NOTE: On Rainbow, (stdin), of all things, produces an
+; error. When that happens, this utility goes and gets it the JVM way.
+(=fn my.xstdin ()
+  (on-err [when jv.jclass!rainbow-functions-IO
+            (jv.jvm!rainbow-functions-IO-stdin)]
+    (thunk:stdin)))
+
+; NOTE: Rainbow's profiler doesn't like function calls in optional
+; arguments.
+(w/uniq missing
+  (=fn my.readwine ((o stream missing))
+    (when (is stream missing)
+      (= stream (my.xstdin)))
+    (whenlet firstchar readc.stream
+      (string:accum acc
+        (my:xloop chr firstchar
+          (case chr
+            #\newline  nil
+            #\return   (case peekc.stream #\newline
+                         readc.stream)
+            nil        nil
+                       (do do.acc.chr
+                           (do.next readc.stream))))))))
 
 (=mc my.w/ withbody
   (let (binds . body) parse-magic-withlike.withbody

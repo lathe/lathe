@@ -57,8 +57,14 @@
 ; For that reason, mac, def, and safeset are redefined below so that
 ; each one macro-expands the name given to it.
 ;
-(def nspace ((o backing-table (table)))
-  (nspace-indirect thunk.backing-table))
+; NOTE: Rainbow's profiler doesn't like function calls in optional
+; arguments.
+;
+(w/uniq missing
+  (def nspace ((o backing-table missing))
+    (when (is backing-table missing)
+      (= backing-table (table)))
+    (nspace-indirect thunk.backing-table)))
 
 (def nspace-indirect (backing-table-getter)
   (withs (prefix (uniq)

@@ -2,7 +2,6 @@
 
 
 (packed:using-rels-as sn "sniff.arc"
-                      ut "../utils.arc"
 
 
 ; This library should work if either my.jarcdrop* or sn.rainbowdrop*
@@ -197,11 +196,19 @@
 ;       result)
 ;     (err "A non-map was passed to 'jweak.")))
 
+
 ; We'll make local copies of the jarcdrop* and rainbowdrop* flags just
 ; so that people who use this package don't also need to import
 ; sniff.arc.
 (= my.jarcdrop*     sn.jarcdrop*
    my.rainbowdrop*  sn.rainbowdrop*)
+
+
+; This is way more of a general-purpose utility than a JVM one, but
+; utils.arc depends on this file, not the other way around.
+(=fn my.niceuniq (name)
+  (sym:string (uniq) '- name))
+
 
 (if sn.anyjvmdrop*
   (=mc my.=jfn (name parms . body)
@@ -416,7 +423,7 @@
   (let g-self car.alternative
     (aif (and anormalsym.g-self cdr.alternative)
       (= alternative it)
-      (= g-self ut.niceuniq!self))
+      (= g-self my.niceuniq!self))
     `(,my!fn-jvm-path-taker (fn (,args-var ,g-self) ,@alternative))))
 
 
