@@ -275,8 +275,8 @@
     ; We'll expand the label during the (and ...) form so that we only
     ; expand it once in case it has macros to expand but it isn't
     ; actually something that can be deglobalized.
-    (if (and rest (zap only.safe-deglobalize:expand name))
-      (list name rest)
+    (aif (aand rest (zap expand name) safe-deglobalize.it)
+      (list it rest)
       (list nil (cons name rest)))
     (list nil nil)))
 
