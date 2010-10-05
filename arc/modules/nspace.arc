@@ -29,12 +29,17 @@
 ; works in three ways:
 ;
 ;  - You can pass it a symbol, in which case it will mangle that
-;    symbol and wrap it up as (global 'gs1234-the-variable). This is
-;    the usual case. The 'global call is necessary because 'setforms
-;    will cause an error if its input is ultimately an unbound global
-;    variable, and although 'expand= special-cases most unbound global
-;    variable assignments, it doesn't expand ssyntax or macros before
-;    doing so, and it sends those cases to 'setforms to break.
+;    symbol and result in gs1234-the-variable. This is the usual case.
+;    At *expansion time*, this will also set that mangled variable to
+;    nil if it isn't already bound. The 'global call is necessary
+;    because 'setforms will cause an error if its input is ultimately
+;    an unbound global variable, and although 'expand= special-cases
+;    most unbound global variable assignments, it doesn't expand
+;    ssyntax or macros before doing so, and it sends those cases to
+;    'setforms to break.
+;    NOTE: In the past, this has expanded to
+;    (global 'gs1234-the-variable). It was changed for efficiency's
+;    sake.
 ;
 ;  - You can pass it a quoted symbol, in which case it will mangle
 ;    that symbol but yield a quoted version. This is useful when
@@ -78,7 +83,10 @@
         (= .name.backing-table name)))
     (mc (what)
       (if atom.what
-        `(global ',do.symfor.what)
+        (let global-name do.symfor.what
+          (unless bound.global-name
+            (wipe global.global-name))
+          global-name)
         (let (op . params) what
           (case op quote
             (let (name . more) params
