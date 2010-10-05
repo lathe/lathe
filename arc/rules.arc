@@ -61,7 +61,7 @@
           (err:if complaints
             (apply +
               "No rule accepted the given arguments. The specific "
-              "complaint" (if single.complaints " was" "s were") " "
+              "complaint" (if single.complaints " was " "s were ")
               "as follows:\n"
               "\n"
               (intersperse "\n" rev.complaints))
@@ -71,24 +71,39 @@
   ; NOTE: The above implementation should work on all platforms, but
   ; this is a real performance bottleneck for rule-heavy programs, so
   ; we provide a more efficient implementation for non-Jarc platforms.
+  ;
+  ; TODO: This doesn't actually give an escape continuation for the
+  ; 'fail parameter. If rules try to do weird things with
+  ; continuations and/or dynamic scope, this will probably break.
+  ; Figure out whether this gotcha should be part of the specification
+  ; for basic rulebooks, just for speed's sake.
+  ;
   (=fn my.call-basic-rulebook (rulebook . args)
-    (catch:let complaints nil
-      (each rule rulebook
-        (point continue
-          (throw:apply rule (fn ((o complaint))
-                              (when complaint
-                                (push complaint complaints))
-                              do.continue.nil)
-            args)))
-      (err:if complaints
-        (apply +
-          "No rule accepted the given arguments. The specific "
-          "complaint" (if single.complaints " was" "s were") " as "
-          "follows:\n"
-          "\n"
-          (intersperse "\n" rev.complaints))
-        (+ "No rule accepted the given arguments or even had a "
-           "specific complaint."))))
+    ; NOTE: We're avoiding 'catch, 'while, 'push, and 'pop for speed's
+    ; sake. These decisions were made based on Rainbow's profiler, so
+    ; there's a chance they aren't as productive on other platforms.
+    ; Also note that 'if seems to be slower than 'cons on Rainbow, so
+    ; we collect every complaint regardless of whether it's nil.
+    (ccc:fn (throw)
+      (with (complaints nil
+             loop (fn (loop fail)
+                    (if rulebook
+                      (do (throw:apply car.rulebook fail args)
+                          (do.loop loop fail))
+                      throw.nil)))
+        (do.loop loop (afn ((o complaint))
+                        (= complaints (cons complaint complaints)
+                           rulebook cdr.rulebook)
+                        (do.loop loop self)))
+        (err:if (zap [rem no _] complaints)
+          (apply +
+            "No rule accepted the given arguments. The specific "
+            "complaint" (if single.complaints " was" "s were") " as "
+            "follows:\n"
+            "\n"
+            (intersperse "\n" rev.complaints))
+          (+ "No rule accepted the given arguments or even had a "
+             "specific complaint.")))))
   )
 
 (=mc my.ru (parms . body)
