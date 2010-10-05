@@ -622,7 +622,10 @@
 (with (my idfn
        jinvoke my.jinvoke)
 
-(with (al (when sn.anyjvmdrop*
+; NOTE: Rainbow's profiler doesn't like function calls in optional
+; arguments.
+(with (missing (uniq)
+       al (when sn.anyjvmdrop*
             (map [list (my.jinvoke
                          (my.jinvoke
                            (my.jclass:+ "java.lang." _
@@ -651,19 +654,33 @@
     (withs (fieldtype (my.jinvoke field 'getType)
             (type get set) (or (find [equals fieldtype car._] al)
                                (list nil 'get 'set)))
-      (list (fn ((o invoker my.jinvoke))
+      (list (fn ((o invoker missing))
+              (when (is invoker missing)
+                (= invoker my.jinvoke))
               (do.invoker field get object))
-            (fn (value (o invoker my.jinvoke))
+            (fn (value (o invoker missing))
+              (when (is invoker missing)
+                (= invoker my.jinvoke))
               (do.invoker field set object value)
               value)))))
 
-(my:=jfn my.jget (object field (o invoker my.jinvoke))
-  (let (getter setter) (my.jgetset object field)
-    do.getter.invoker))
+; NOTE: Rainbow's profiler doesn't like function calls in optional
+; arguments.
+(w/uniq missing
+  (my:=jfn my.jget (object field (o invoker missing))
+    (when (is invoker missing)
+      (= invoker my.jinvoke))
+    (let (getter setter) (my.jgetset object field)
+      do.getter.invoker)))
 
-(my:=jfn my.jset (object field value (o invoker my.jinvoke))
-  (let (getter setter) (my.jgetset object field)
-    (do.setter value invoker)))
+; NOTE: Rainbow's profiler doesn't like function calls in optional
+; arguments.
+(w/uniq missing
+  (my:=jfn my.jset (object field value (o invoker missing))
+    (when (is invoker missing)
+      (= invoker my.jinvoke))
+    (let (getter setter) (my.jgetset object field)
+      (do.setter value invoker))))
 
 )
 
