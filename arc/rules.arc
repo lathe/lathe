@@ -28,7 +28,8 @@
 (packed:using-rels-as ut "utils.arc"
 
 
-(=fn my.call-basic-rulebook (rulebook . args)
+(if (catch:no:point intercept throw.nil)
+  
   ; NOTE: On Jarc 17, any escape continuation's boundary is eligible
   ; to receive any escape continuation's result. (The innermost
   ; boundary wins.) Therefore, in order to seamlessly take advantage
@@ -36,36 +37,59 @@
   ; whether the result we get actually belongs to us. If it doesn't,
   ; we have to throw it back. We'll use a gensym for the
   ; identification.
-  (w/uniq g-token
-    ; NOTE: We would use a 'catch and 'throw pattern for this loop,
-    ; hexcept that we would have to go through all the same hurdles to
-    ; keep from intercepting non-failure escape continuations.
-    (ut:xloop rest rulebook failures nil
-      (iflet (rule . rest) rest
-        (let full-result
-               (catch `(,g-token t
-                         ,(apply rule
-                            (fn ((o message))
-                              (throw `(,g-token nil ,message)))
-                            args)))
-          (if (caris full-result g-token)
-            (if do.full-result.1
-              do.full-result.2
-              (do.next rest (consif do.full-result.2 failures)))
-            
-            ; NOTE: This is how we throw it back. We should only get
-            ; to here on Jarc.
-            catch.throw.full-result
-            ))
-        (err:if failures
-          (apply +
-            "No rule accepted the given arguments. The specific "
-            "complaint" (if single.failures " was" "s were") " as "
-            "follows:\n"
-            "\n"
-            (intersperse "\n" rev.failures))
-          (+ "No rule accepted the given arguments or even had a "
-             "specific complaint."))))))
+  (=fn my.call-basic-rulebook (rulebook . args)
+    (w/uniq g-token
+      ; NOTE: We would use a 'catch and 'throw pattern for this loop,
+      ; except that we would have to go through all the same hurdles to
+      ; keep from intercepting non-failure escape continuations.
+      (ut:xloop rest rulebook complaints nil
+        (iflet (rule . rest) rest
+          (let full-result
+                 (catch `(,g-token t
+                           ,(apply rule
+                              (fn ((o complaint))
+                                (throw `(,g-token nil ,complaint)))
+                              args)))
+            (if (caris full-result g-token)
+              (if do.full-result.1
+                do.full-result.2
+                (do.next rest (consif do.full-result.2 complaints)))
+              
+              ; NOTE: This is how we throw it back.
+              catch.throw.full-result
+              ))
+          (err:if complaints
+            (apply +
+              "No rule accepted the given arguments. The specific "
+              "complaint" (if single.complaints " was" "s were") " "
+              "as follows:\n"
+              "\n"
+              (intersperse "\n" rev.complaints))
+            (+ "No rule accepted the given arguments or even had a "
+               "specific complaint."))))))
+  
+  ; NOTE: The above implementation should work on all platforms, but
+  ; this is a real performance bottleneck for rule-heavy programs, so
+  ; we provide a more efficient implementation for non-Jarc platforms.
+  (=fn my.call-basic-rulebook (rulebook . args)
+    (catch:let complaints nil
+      (each rule rulebook
+        (point continue
+          (throw:apply rule (fn ((o complaint))
+                              (when complaint
+                                (push complaint complaints))
+                              do.continue.nil)
+            args)))
+      (err:if complaints
+        (apply +
+          "No rule accepted the given arguments. The specific "
+          "complaint" (if single.complaints " was" "s were") " as "
+          "follows:\n"
+          "\n"
+          (intersperse "\n" rev.complaints))
+        (+ "No rule accepted the given arguments or even had a "
+           "specific complaint."))))
+  )
 
 (=mc my.ru (parms . body)
   `(fn ,(cons 'fail parms)
