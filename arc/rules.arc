@@ -74,9 +74,9 @@
   ;
   ; TODO: This doesn't actually give an escape continuation for the
   ; 'fail parameter. If rules try to do weird things with
-  ; continuations and/or dynamic scope, this will probably break.
-  ; Figure out whether this gotcha should be part of the specification
-  ; for basic rulebooks, just for speed's sake.
+  ; continuations, dynamic scope, and/or error catching, this will
+  ; probably break. Figure out whether this gotcha should be part of
+  ; the specification for basic rulebooks, just for speed's sake.
   ;
   (=fn my.call-basic-rulebook (rulebook . args)
     ; NOTE: We're avoiding 'catch, 'while, 'push, and 'pop for speed's
@@ -86,24 +86,23 @@
     ; we collect every complaint regardless of whether it's nil.
     (ccc:fn (throw)
       (with (complaints nil
-             loop (fn (loop fail)
+             next (fn (fail)
                     (if rulebook
-                      (do (throw:apply car.rulebook fail args)
-                          (do.loop loop fail))
-                      throw.nil)))
-        (do.loop loop (afn ((o complaint))
-                        (= complaints (cons complaint complaints)
-                           rulebook cdr.rulebook)
-                        (do.loop loop self)))
-        (err:if (zap [rem no _] complaints)
-          (apply +
-            "No rule accepted the given arguments. The specific "
-            "complaint" (if single.complaints " was" "s were") " as "
-            "follows:\n"
-            "\n"
-            (intersperse "\n" rev.complaints))
-          (+ "No rule accepted the given arguments or even had a "
-             "specific complaint.")))))
+                      (throw:apply car.rulebook fail args)
+                      (err:if (zap [rem no _] complaints)
+                        (apply +
+                          "No rule accepted the given arguments. The "
+                          "specific complaint"
+                          (if single.complaints " was" "s were")
+                          " as follows:\n"
+                          "\n"
+                          (intersperse "\n" rev.complaints))
+                        (+ "No rule accepted the given arguments or "
+                           "even had a specific complaint.")))))
+        (do.next:afn ((o complaint))
+          (= complaints (cons complaint complaints)
+             rulebook cdr.rulebook)
+          do.next.self))))
   )
 
 (=mc my.ru (parms . body)
