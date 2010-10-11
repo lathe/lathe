@@ -85,20 +85,20 @@
     ; Also note that 'if seems to be slower than 'cons on Rainbow, so
     ; we collect every complaint regardless of whether it's nil.
     (ccc:fn (throw)
-      (with (complaints nil
-             next (fn (fail)
-                    (if rulebook
-                      (throw:apply car.rulebook fail args)
-                      (err:if (zap [rem no _] complaints)
-                        (apply +
-                          "No rule accepted the given arguments. The "
-                          "specific complaint"
-                          (if single.complaints " was" "s were")
-                          " as follows:\n"
-                          "\n"
-                          (intersperse "\n" rev.complaints))
-                        (+ "No rule accepted the given arguments or "
-                           "even had a specific complaint.")))))
+      (withs (complaints nil
+              next (fn (fail)
+                     (if rulebook
+                       (throw:apply car.rulebook fail args)
+                       (err:if (zap [rem no _] complaints)
+                         (apply +
+                           "No rule accepted the given arguments. "
+                           "The specific complaint"
+                           (if single.complaints " was" "s were")
+                           " as follows:\n"
+                           "\n"
+                           (intersperse "\n" rev.complaints))
+                         (+ "No rule accepted the given arguments or "
+                            "even had a specific complaint.")))))
         (do.next:afn ((o complaint))
           (= complaints (cons complaint complaints)
              rulebook cdr.rulebook)
