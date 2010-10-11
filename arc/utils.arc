@@ -62,7 +62,7 @@
 ; error. When that happens, this utility goes and gets it the JVM way.
 (=fn my.xstdin ()
   (on-err [when jv.jclass!rainbow-functions-IO
-            (jv.jvm!rainbow-functions-IO-stdin)]
+            (jv.jvm!rainbow-functions-IO-stdIn)]
     (thunk:stdin)))
 
 ; NOTE: Rainbow's profiler doesn't like function calls in optional
