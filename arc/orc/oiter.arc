@@ -4,9 +4,7 @@
 ; similar to arc.arc's utilities, but extensible in a way that
 ; cooperates with orc.arc's inheritance system.
 
-(packed:using-rels-as mr "../multival/multirule.arc"
-                      oc "../multival/order-contribs.arc"
-                      rc "orc.arc"
+(packed:using-rels-as rc "orc.arc"
                       ut "../utils.arc"
 
 
