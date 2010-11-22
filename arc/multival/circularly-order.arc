@@ -1,4 +1,4 @@
-; circularly-order-noccc.arc
+; circularly-order.arc
 
 (packed:using-rels-as ir "../iter.arc"
                       ut "../utils.arc"
