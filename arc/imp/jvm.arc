@@ -235,7 +235,7 @@
         (zap my.jclass type)
         (unless type (err "The class passed to ajava wasn't found.")))
       (and (isa x 'java-object)
-           (~errsafe rep.x)
+           (is x rep.x)
            (or (is type missing) (type 'isInstance x))))
     
     (=fn my.ajava (x (o type missing))
