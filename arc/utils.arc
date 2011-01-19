@@ -122,6 +122,15 @@
 (=mc my.mappendlet (var lst . body)
   `(mappend (fn (,var) ,@body) ,lst))
 
+(=mc my.keeplet (var lst . body)
+  `(keep (fn (,var) ,@body) ,lst))
+
+(=mc my.somelet (var lst . body)
+  `(some (fn (,var) ,@body) ,lst))
+
+(=mc my.all-let (var lst . body)
+  `(all (fn (,var) ,@body) ,lst))
+
 (=mc my.zapmappendlet (var lst . body)
   (w/uniq g-lst
     `(zap (fn (,g-lst) (mappend (fn (,var) ,@body) ,g-lst)) ,lst)))
