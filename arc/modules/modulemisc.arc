@@ -87,7 +87,7 @@
   (w/uniq (g-name g-val)
     `(((,g-name ,g-val) (let _ ,name (list _ global._)))
       ,g-val
-      [eval `(= ,,g-name ',_)])))
+      [eval `(= ,,g-name (',thunk._))])))
 
 (def safe-deglobalize (var)
   (zap expand var)
