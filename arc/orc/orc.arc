@@ -6,7 +6,6 @@
 (packed:using-rels-as mr "../multival/multirule.arc"
                       mu "../multival/multival.arc"
                       oc "../multival/order-contribs.arc"
-                      st "../sort.arc"
                       ut "../utils.arc"
 
 
@@ -128,16 +127,22 @@
 ;
 (mu.contribute oc!order-contribs my!ontypes-inheritance
   oc.self-orderer-reducer
-  (st.<=>-to-bracketer:fn (a b)
-    (with (aname do.a!name bname do.b!name)
-      (or (aand (is aname bname) my.ontypes-types*.aname
-            (with (atypes (it do.a!label) btypes (it do.b!label))
-              (catch:while (or atypes btypes)
-                (with (atype (if atypes pop.atypes my!any)
-                       btype (if btypes pop.btypes my!any))
-                  (if (my.inherits atype btype) throw!<
-                      (my.inherits btype atype) throw!>)))))
-          '=))))
+  (fn (contribs)
+    (accum acc
+      (while contribs
+        (let a pop.contribs
+          (each b contribs
+            (with (aname do.a!name bname do.b!name)
+              (aand (is aname bname) my.ontypes-types*.aname
+                (with (atypes (it do.a!label) btypes (it do.b!label))
+                  (catch:while (or atypes btypes)
+                    (with (atype (if atypes pop.atypes my!any)
+                           btype (if btypes pop.btypes my!any))
+                      (only.throw:if
+                        (my.inherits atype btype)  (do.acc:list a b)
+                        (my.inherits btype atype)  (do.acc:list b a)
+                        
+                        ))))))))))))
 
 
 ; ===== An extensible equivalence predicate ==========================

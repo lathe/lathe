@@ -125,6 +125,9 @@
 (=mc my.keeplet (var lst . body)
   `(keep (fn (,var) ,@body) ,lst))
 
+(=mc my.remlet (var lst . body)
+  `(rem (fn (,var) ,@body) ,lst))
+
 (=mc my.somelet (var lst . body)
   `(some (fn (,var) ,@body) ,lst))
 
