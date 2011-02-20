@@ -28,15 +28,11 @@
 (packed:using-rels-as ut "utils.arc"
 
 
-(if (catch:no:point intercept throw.nil)
+(if nil
   
-  ; NOTE: On Jarc 17, any escape continuation's boundary is eligible
-  ; to receive any escape continuation's result. (The innermost
-  ; boundary wins.) Therefore, in order to seamlessly take advantage
-  ; of escape continuations for rule failure, we have to identify
-  ; whether the result we get actually belongs to us. If it doesn't,
-  ; we have to throw it back. We'll use a gensym for the
-  ; identification.
+  ; NOTE: This implementation should work, but it's a real performance
+  ; bottleneck for rule-heavy programs, so we provide a more efficient
+  ; implementation below.
   (=fn my.call-basic-rulebook (rulebook . args)
     (w/uniq g-token
       ; NOTE: We would use a 'catch and 'throw pattern for this loop,
@@ -68,10 +64,6 @@
             (+ "No rule accepted the given arguments or even had a "
                "specific complaint."))))))
   
-  ; NOTE: The above implementation should work on all platforms, but
-  ; this is a real performance bottleneck for rule-heavy programs, so
-  ; we provide a more efficient implementation for non-Jarc platforms.
-  ;
   ; TODO: This doesn't actually give an escape continuation for the
   ; 'fail parameter. If rules try to do weird things with
   ; continuations, dynamic scope, and/or error catching, this will

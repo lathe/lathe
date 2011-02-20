@@ -13,7 +13,8 @@
   (map [list _ nil nil] elems))
 
 (=fn my.transitive-dag-has-edge (transitive-dag before after)
-  (mem [is after _] (!2:find [is before _.0] transitive-dag)))
+  ; NOTE: In Jarc 21, !2 uses the symbol |2|.
+  (mem [is after _] (get.2:find [is before _.0] transitive-dag)))
 
 (=fn my.transitive-dag-add-edge
        (transitive-dag before after error-thunk)
@@ -39,7 +40,8 @@
                             _]
                        transitive-dag))
       (while transitive-dag
-        (do.commit:map !0
+        ; NOTE: In Jarc 21, !0 uses the symbol |0|.
+        (do.commit:map get.0
           (keep [my.subset is _.2 result] transitive-dag))))))
 
 (=fn my.circularly-order (rep2comp comparator-reps)
