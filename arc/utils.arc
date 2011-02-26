@@ -304,4 +304,24 @@
     (list nil nil)))
 
 
+; This branches to a different strategy when a continuation is called.
+; Note that it's a pretty significant performance bottleneck if
+; overused.
+(=fn my.fn-onpoint (alternate body)
+  (let (called result)
+         (catch:list nil (do.body:fn args (throw:list t args)))
+    (if called
+      (apply alternate result)
+      result)))
+
+(=mc my.onpoint (point alternate . body)
+  `(,my!fn-onpoint ,alternate (fn (,point) ,@body)))
+
+
+; TODO: See if it even makes sense to support destructuring.
+(=mc my.named (name . body)
+  `(let ,name nil
+     (= ,name (do ,@body))))
+
+
 )

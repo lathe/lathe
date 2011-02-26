@@ -11,7 +11,7 @@
 ; perfectly to the quantification's dynamic extent on Jarc 17 (where
 ; reentrant continuations aren't supported), and on Racket-based
 ; setups (where we can use Racket's 'parameterize).
-(= my.reentrant-params* (or (no sn.cccraziness*) sn.plt))
+(= my.reentrant-params* (~~or (no sn.cccraziness*) sn.plt))
 
 ; On non-Racket setups, our implementation of my!param-let uses what
 ; amounts to a "finally" cleanup phase, so it isn't a tail call.
