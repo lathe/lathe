@@ -63,10 +63,10 @@
 
 (= my.failparam* dy.make-param.nil)
 (= my.failcalling* dy.make-param.nil)
-(= my.fail-awares* (wk.weak-set))
+(= my.fail-awares* (wk.weqtable))
 
 (=fn my.failcall (func fail . args)
-  (if (wk.weak-set-has my.fail-awares* func)
+  (if (wk.weqtable-get my.fail-awares* func)
     (dy:param-let (my.failcalling* t my.failparam* fail)
       (apply func args))
     (apply func args)))
@@ -78,7 +78,7 @@
                        (apply inner-func args))
                      ; The default failure is my!raise-failure.
                      (apply my.failcall self my.raise-failure args)))
-    (wk.weak-set-add my.fail-awares* result)))
+    (wk.weqtable-set my.fail-awares* result t)))
 
 
 ; Make partial functions using this.

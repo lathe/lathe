@@ -273,7 +273,7 @@
 ;
 ; Types Lathe cares about from Rainbow: java-object
 ;
-; Lathe tagged types: my.lazylist pm.patmac dy.param wk.weak-set
+; Lathe tagged types: my.lazylist pm.patmac dy.param wk.weqtable
 ; fc.function-failure fc.rulebook-failure (where pm is patmac.arc, dy
 ; is dyn.arc, wk is weak.arc, and fc is failcall.arc)
 ;
