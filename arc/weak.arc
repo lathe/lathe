@@ -21,14 +21,15 @@
       )
   
   ; JVM-based setups
-  sn.jvm
-  (ut:lets jwhm jv.jvm!java-util-WeakHashMap
-           jnew do.jwhm!new
-           jput do.jwhm!put
-           jhas do.jwhm!containsKey
+  jv.jvm
+  (with (jnew jv.jvm!java-util-WeakHashMap-new
+         (jput jget) (map (if jv.jclass!jarc-table
+                            jv.jvm!jarc-Table
+                            jv.jvm!java-util-Map)
+                          '(put get)))
     
     (=fn my.weak-set ()
-      (annotate my!weak-set call.j-weak-hash-table))
+      (annotate my!weak-set call.jnew))
     
     (=fn my.weak-set-add (set elem)
       (unless (isa elem 'fn)
@@ -36,10 +37,10 @@
                "JVM. Only a type whose equals() is == is easy to "
                "support, and for now that means we only support "
                "functions."))
-      (do.jput rep.set elem))
+      (do.jput rep.set elem t))
     
     (=fn my.weak-set-has (set elem)
-      (do.jhas rep.set elem))
+      (do.jget rep.set elem))
     )
   )
 
