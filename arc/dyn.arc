@@ -71,16 +71,17 @@
   
   ; JVM-based setups
   jv.jclass!java-lang-InheritableThreadLocal
-  (do
+  (let (jnew jget jset) (map jv.jvm!java-lang-InheritableThreadLocal
+                             '(new get set))
+    
     (=fn my.make-param ((o initial-value))
-      (ut:ret param (annotate my!param
-                      (jv.jvm!java-lang-InheritableThreadLocal-new))
+      (ut:ret param (annotate my!param call.jnew)
         (my.param-set param initial-value)))
     
     (=fn my.param-get (param)
       (unless my.aparam.param
         (err "A non-parameter was given to 'param-get."))
-      (call:jv.jvm!get rep.param))
+      (call:do.jget rep.param))
     
     ; NOTE: Since my!param-set is used from an 'after block in
     ; my!param-let, we make sure it doesn't depend on 'on-err on
@@ -96,8 +97,8 @@
       (=fn my.param-set (param new-value)
         (unless my.aparam.param
           (err "A non-parameter was given to 'param-set."))
-        (jv.jvm!set rep.param thunk.new-value)
-        (call:jv.jvm!get rep.param))
+        (do.jset rep.param thunk.new-value)
+        (call:do.jget rep.param))
       )
     
     (=mc my.param-let body
