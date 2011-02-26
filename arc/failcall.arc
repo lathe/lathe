@@ -67,9 +67,8 @@
 
 (=fn my.failcall (func fail . args)
   (if (wk.weak-set-has my.fail-awares* func)
-    (ut:onpoint throw fail
-      (dy:param-let (my.failcalling* t my.failparam* throw)
-        (apply func args)))
+    (dy:param-let (my.failcalling* t my.failparam* fail)
+      (apply func args))
     (apply func args)))
 
 (=fn my.failable-wrapper (inner-func)
