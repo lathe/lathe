@@ -3,6 +3,7 @@
 ; Dynamically bound parameters.
 
 (packed:using-rels-as ut "utils.arc"
+                      wk "weak.arc"
                       sn "imp/sniff.arc"
                       jv "imp/jvm.arc"
 
@@ -128,6 +129,64 @@
                    ,@resets)))))))
     )
   )
+
+
+; We also introduce the concept of a "secretarg," which is essentially
+; a dynamic parameter that only lasts for a single function call, and
+; which a my!secretarg-fn can use throughout the *lexical* context of
+; the function. It's a lot like giving an extra argument to every
+; function in the language, where most functions ignore the argument
+; and most function calls provide the same default value for the
+; argument.
+;
+; By default, core Arc utilities like 'apply and 'memo aren't prepared
+; for secretargs. Neither are most Lathe utilities. To partially make
+; up for that, we provide my!secretarg-aware-apply. Other utilities
+; need to be similarly redefined as they're needed.
+
+(= my.passing-secretargs* my.make-param.nil)
+(= my.secretargs* (my.make-param))
+(= my.secretarg-aware* (wk.weqtable))
+
+(=fn my.secretarg (default)
+  (annotate my!secretarg list.default))
+
+(=fn my.secretargs ()
+  (my.param-get my.secretargs*))
+
+(=fn my.secretarg-get (secretarg)
+  (aif (find [is _.0 secretarg] (my.secretargs))
+    it.1
+    rep.secretarg.0))
+
+(=fn my.call-w/secrets (func secrets . args)
+  (unless (all [and alist._ (is len._ 2)] secrets)
+    (err:+ "The secrets passed to call-w/secrets weren't in an "
+           "association list."))
+  (if (wk.weqtable-get my.secretarg-aware* func)
+    (my:param-let (my.passing-secretargs* t my.secretargs* secrets)
+      (apply func args))
+    (apply func args)))
+
+(=fn my.secretarg-aware (inner-func)
+  (ut:ret result (afn args
+                   (if (my.param-get my.passing-secretargs*)
+                     (my:param-let my.passing-secretargs* nil
+                       (apply inner-func args))
+                     (apply my.call-w/secrets self nil args)))
+    (wk.weqtable-set my.secretarg-aware* result t)))
+
+(=mc my.secretarg-fn (parms . secretbinds-and-body)
+  (let (secretbinds . body) parse-magic-withlike.secretbinds-and-body
+    `(,my!secretarg-aware
+       (fn ,parms
+         (with ,(mappend [list _.0 `(,my!secretarg-get ,_.1)]
+                         secretbinds)
+           ,@body)))))
+
+(= my.secretarg-aware-apply
+   (my.secretarg-aware:fn (func . args)
+     (apply my.call-w/secrets func (my.secretargs) args)))
 
 
 )

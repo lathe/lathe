@@ -61,47 +61,36 @@
                       wk "weak.arc"
 
 
-(= my.failparam* dy.make-param.nil)
-(= my.failcalling* dy.make-param.nil)
-(= my.fail-awares* (wk.weqtable))
+; This is the default fail parameter. We'd wrap up a failure in a
+; custom error type, but Arc doesn't support throwing arbitrary values
+; as exceptions, so we just pretty-print the failure right here.
+(=fn my.raise-failure (failure)
+  (err my.pprint-failure.failure))
+
+(= my.failsecret* (dy.secretarg my.raise-failure))
 
 (=fn my.failcall (func fail . args)
-  (if (wk.weqtable-get my.fail-awares* func)
-    (dy:param-let (my.failcalling* t my.failparam* fail)
-      (apply func args))
-    (apply func args)))
-
-(=fn my.failable-wrapper (inner-func)
-  (ut:ret result (afn args
-                   (if (dy.param-get my.failcalling*)
-                     (dy:param-let my.failcalling* nil
-                       (apply inner-func args))
-                     ; The default failure is my!raise-failure.
-                     (apply my.failcall self my.raise-failure args)))
-    (wk.weqtable-set my.fail-awares* result t)))
+  (apply dy.call-w/secrets func (list:list my.failsecret* fail) args))
 
 
 ; Make partial functions using this.
+;
 ; TODO: Make number-of-argument errors into failures rather than what
 ; we're currently doing, which is binding things to nil using
 ; destructuring.
+;
 (=mc my.failfn (fail parms . body)
-  (w/uniq (g-self g-args g-return)
+  (w/uniq (g-self g-args g-fail)
     `(,ut!named ,g-self
-       (,my!failable-wrapper
-         (fn ,g-args
-           ; We wrap the failures up in a value that should be easy to
-           ; pretty-print and inspect.
-           (,ut!onpoint
-               ,fail [ (,dy!param-get ,my!failparam*)
-                       (annotate ',my!function-failure
-                         (list ,g-self ,g-args
-                           '(failfn ,fail ,parms ,@body)
-                           _))]
-             ; The value of my!failparam* shouldn't be used after this
-             ; point, but we don't enforce that.
-             (let ,parms ,g-args
-               ,@body)))))))
+       (,dy!secretarg-fn ,g-args ,g-fail ,my!failsecret*
+         ; We wrap the failures up in a value that should be easy to
+         ; pretty-print and inspect.
+         (,ut!onpoint ,fail [,g-fail
+                              (annotate ',my!function-failure
+                                (list ,g-self ,g-args
+                                  '(failfn ,fail ,parms ,@body) _))]
+            (let ,parms ,g-args
+             ,@body))))))
 
 
 ; TODO: Make this a rulebook.
@@ -130,33 +119,25 @@
     ; If it's an unrecognized type, we just use its 'disp appearance.
     (tostring pr.failure)))
 
-; This is the default fail parameter. We'd wrap up a failure in a
-; custom error type, but Arc doesn't support throwing arbitrary values
-; as exceptions, so we just pretty-print the failure right here.
-(=fn my.raise-failure (failure)
-  (err my.pprint-failure.failure))
 
-
-(=fn my.fn-ifsuccess (func args then else)
+(=fn my.fn-ifsuccess (thunk then else)
   (my.failcall (my:failfn fail ()
-                 (do.then:apply my.failcall func fail args))
+                 (do.then:my.failcall thunk fail))
                else))
 
-; TODO: See if ssyntax should be supported.
-(=mc my.ifsuccess (success failure (func . args) then . elses)
-  `(,my!fn-ifsuccess ,func (list ,@args)
+(=mc my.ifsuccess (success failure thunk then . elses)
+  `(,my!fn-ifsuccess ,thunk
      (fn (,success) ,then) (fn (,failure) (if ,@elses))))
 
-(= my.fail-aware-apply (my:failfn fail (func . args)
-                         (apply apply my.failcall func fail args)))
-
-(=fn my.failcall-cases (cases wrap-details fail . args)
+(=fn my.failcall-cases (cases fail . args)
   (ut:xloop cases cases collected-details nil
     (iflet (case . rest) cases
-      (my:ifsuccess success failure (my.fail-aware-apply case args)
+      (my:ifsuccess
+          success failure (my:failfn fail ()
+                            (apply my.failcall case fail args))
         success
         (do.next rest (cons failure collected-details)))
-      (do.fail do.wrap-details.collected-details))))
+      do.fail.collected-details)))
 
 
 ; Without further ado, here's one way to explicitly set up a generic
@@ -167,8 +148,9 @@
              (apply my.failcall-cases my.fact-cases*
               ; We wrap the failures up in a value that should be easy
               ; to pretty-print and inspect.
-              [annotate my!rulebook-failure (list 'fact args _)]
-              fail args)))
+              [do.fail:annotate my!rulebook-failure
+                (list 'fact args rev._)]
+              args)))
 
 (push (my:failfn fail (n)
         (* n (my.fact:- n 1)))
@@ -176,7 +158,7 @@
 
 (push (my:failfn fail (n)
         (unless (is n 0)
-          (fail "The number wasn't 0."))
+          (do.fail "The number wasn't 0."))
         1)
       my.fact-cases*)
 
