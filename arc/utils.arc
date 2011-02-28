@@ -122,6 +122,18 @@
 (=mc my.mappendlet (var lst . body)
   `(mappend (fn (,var) ,@body) ,lst))
 
+(=mc my.keeplet (var lst . body)
+  `(keep (fn (,var) ,@body) ,lst))
+
+(=mc my.remlet (var lst . body)
+  `(rem (fn (,var) ,@body) ,lst))
+
+(=mc my.somelet (var lst . body)
+  `(some (fn (,var) ,@body) ,lst))
+
+(=mc my.all-let (var lst . body)
+  `(all (fn (,var) ,@body) ,lst))
+
 (=mc my.zapmappendlet (var lst . body)
   (w/uniq g-lst
     `(zap (fn (,g-lst) (mappend (fn (,var) ,@body) ,g-lst)) ,lst)))
@@ -290,6 +302,26 @@
       (list it rest)
       (list nil (cons name rest)))
     (list nil nil)))
+
+
+; This branches to a different strategy when a continuation is called.
+; Note that it's a pretty significant performance bottleneck if
+; overused.
+(=fn my.fn-onpoint (alternate body)
+  (let (called result)
+         (catch:list nil (do.body:fn args (throw:list t args)))
+    (if called
+      (apply alternate result)
+      result)))
+
+(=mc my.onpoint (point alternate . body)
+  `(,my!fn-onpoint ,alternate (fn (,point) ,@body)))
+
+
+; TODO: See if it even makes sense to support destructuring.
+(=mc my.named (name . body)
+  `(let ,name nil
+     (= ,name (do ,@body))))
 
 
 )

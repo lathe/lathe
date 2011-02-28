@@ -1,106 +1,119 @@
 ; circularly-order.arc
 
-(packed:using-rels-as ir "../iter.arc"
-                      ut "../utils.arc"
+(packed:using-rels-as ut "../utils.arc"
 
 
-(=fn my.rempos (lst position)
-  (let (before (removed . after)) (split lst position)
-    (join before after)))
+(=fn my.set-minus (== a b)
+  (ut:remlet elem a (mem [do.== elem _] b)))
 
-(=fn my.begins-with-unordered-is (lst prefix)
-  (let len-prefix len.prefix
-    (unless (< len.lst len-prefix)
-      (catch:do1 t
-        (for lst-position 0 (- len-prefix 1)
-          (let element do.lst.lst-position
-            (iflet prefix-position (pos [is element _] prefix)
-              (zap [my.rempos _ prefix-position] prefix)
-              throw.nil)))))))
+(=fn my.subset (== a b)
+  (~my.set-minus == a b))
 
-; This returns nil on failure and a singleton list containing the
-; difference on success. The singleton list is necessary because the
-; difference itself may be nil.
-(=fn my.hard-subtract-is (lst contents)
-  (unless (< len.lst len.contents)
-    (catch:list:ut:ret result lst
-      (each element contents
-        (iflet position (pos [is element _] result)
-          (zap [my.rempos _ position] result)
-          throw.nil)))))
+(=fn my.make-transitive-dag (elems)
+  (map [list _ nil nil] elems))
 
-; This takes a list of multisets (given as lists) of comparators and
-; returns an iterable (see iter.arc) over lists of the same
-; comparators, such that you can apply the first comparator in the
-; output list to each of the input brackets to get a bunch more
-; bracket collections, concatenate those bracket collections into a
-; single collection of brackets, remove the *same* sorter from the
-; *first* of these new brackets, and repeat the process (sorting by
-; the next sorter and removing it from the new first bracket) until
-; there are no sorters left.
-;
-; If 'must-come-first is nonempty, then the comparators in that list
-; will be considered to have already sorted the given brackets. They
-; must be at the beginning of the input brackets (the brackets'
-; internal orders notwithstanding), and they will be returned first in
-; every result. The intended reason for providing them in the first
-; place is so that if they only represent part of the starting
-; bracket, then further elements chosen from within that bracket can
-; be tested to make sure they don't sort any 'must-come-first elements
-; incorrectly when they sort that starting bracket.
-;
-; If in fact the 'must-come-first elements exist in the brackets but
-; don't come first, it isn't an error. Instead, the resulting iterable
-; is empty, signifying that there are no valid comparator orderings.
-; That being the case, if the 'must-come-first elements don't exist in
-; the brackets at all, that is an error.
-;
-(=fn my.sort-yourselves (rep2comp brackets (o must-come-first))
-  (with (sort-one-bracket (fn (bracket sorter)
-                            (if (< len.bracket 2)
-                              list.bracket
-                              do.rep2comp.sorter.bracket))
-         result-so-far nil
-         len-brackets len.brackets)
-    (catch:ut:dstwhilet (bracket . _) brackets
-      (unless (my.begins-with-unordered-is must-come-first bracket)
-        throw.nil)
-      (let len-bracket len.bracket
-        (zap [join _ (cut must-come-first 0 len-bracket)]
-             result-so-far)
-        (zap cdr brackets)
-        (zap [cut _ len-bracket] must-come-first)))
-    (iflet (first-bracket . rest-of-brackets) brackets
-      (iflet (options) (my.hard-subtract-is first-bracket
-                                            must-come-first)
-        (ir.mapping [join result-so-far _]
-          (ir:mappendinglet option ir.iterify.options
-            (ut:foldlet result (my.sort-yourselves
-                                 rep2comp
-                                 (do.sort-one-bracket first-bracket
-                                                      option)
-                                 (cons option must-come-first))
-                        bracket rest-of-brackets
-              (ir:mappendinglet previous-sorted-stuff result
-                (ir.mapping [join previous-sorted-stuff _]
-                  (my.sort-yourselves
-                    rep2comp
-                    (ut:foldlet previous-bracket-brackets list.bracket
-                                sorter previous-sorted-stuff
-                      (mappend [do.sort-one-bracket _ sorter]
-                               previous-bracket-brackets))))))))
-          (my.hard-subtract-is (apply join brackets) must-come-first)
-        (ir.empty-iter)
-        (err:+ "Somehow there were sorters that were used but then "
-               "disappeared."))
-        must-come-first
-      (err:+ "Somehow there were sorters that were used but then "
-             "disappeared.")
-      (ir.iterify list.result-so-far))))
+(=fn my.transitive-dag-has-edge (transitive-dag before after)
+  ; NOTE: In Jarc 21, !2 uses the symbol |2|.
+  (mem [is after _] (get.2:find [is before _.0] transitive-dag)))
+
+(=fn my.transitive-dag-add-edge
+       (transitive-dag before after error-thunk)
+  (ut:xloop before before after after
+    (unless (my.transitive-dag-has-edge transitive-dag before after)
+      (when (my.transitive-dag-has-edge transitive-dag after before)
+        call.error-thunk)
+      (with (before-node (find [is before _.0] transitive-dag)
+             after-node (find [is after _.0] transitive-dag))
+         (each beforebefore do.before-node.1
+           (do.next beforebefore after))
+         (each afterafter do.after-node.2
+           (do.next before afterafter))
+         (push before do.after-node.1)
+         (push after do.before-node.2)))))
+
+(=fn my.transitive-dag-flatten (transitive-dag)
+  (ut:ret result nil
+    (let commit (fn (elems)
+                  (each elem elems
+                    (push elem result))
+                  (zap [rem (fn (node) (mem [is do.node.0 _] elems))
+                            _]
+                       transitive-dag))
+      (while transitive-dag
+        ; NOTE: In Jarc 21, !0 uses the symbol |0|.
+        (do.commit:map get.0
+          (keep [my.subset is _.2 result] transitive-dag))))))
 
 (=fn my.circularly-order (rep2comp comparator-reps)
-  (or (call:call:my.sort-yourselves rep2comp list.comparator-reps)
-      (err "The comparators are circularly humble.")))
+  (accum acc
+    (withs (; unpromoted recommendations
+            ; ((recommender before after) ...)
+            urs (mappend [ut:maplet rec do.rep2comp._.comparator-reps
+                           (cons _ rec)]
+                         comparator-reps)
+            ; promoted recommendation graph, transitive closure
+            ; ((comparator-rep befores afters) ...)
+            prg my.make-transitive-dag.comparator-reps
+            already-promoted
+              (fn (before after)
+                (my.transitive-dag-has-edge prg before after))
+            add-rec (fn (before after)
+                      (my.transitive-dag-add-edge prg before after
+                        (thunk:err "Can't circularly-order.")))
+            ucs comparator-reps  ; unpromoted comparator-reps
+            pcs nil              ; promoted comparator-reps
+            promote-recs
+              (fn (recs)
+                (each rec (rem [do.already-promoted _.2 _.1] recs)
+                  (do.add-rec do.rec.1 do.rec.2))
+                (zap [my.set-minus is _ recs] urs))
+            promote-cs (fn (cs)
+                         (each c cs
+                           (do.promote-recs:keep [is c _.0] urs)
+                           do.acc.c)
+                         (zap [my.set-minus is _ cs] ucs)))
+      (while ucs
+        (withs (considered-cs (ut:remlet uc ucs
+                                (some [do.already-promoted _ uc] ucs))
+                considered-rs
+                  (ut:keeplet ur urs
+                    (and (mem [is do.ur.0 _] considered-cs)
+                         (mem [is do.ur.1 _] ucs)
+                         (mem [is do.ur.2 _] considered-cs))))
+          (do.promote-cs:or (ut:remlet uc considered-cs
+                              (some [is uc _.2] considered-rs))
+                            ; NOTE: We would say
+                            ; (map !0 considered-rs), except that that
+                            ; could have duplicates.
+                            (ut:keeplet uc considered-cs
+                              (some [is uc _.0] considered-rs))))))))
+
+; NOTE: We implement this in a sorta spaghetti way just to draw
+; parallels with 'circularly-order. This should actually be totally
+; consistent with 'circularly-order if the elements being sorted are
+; seen as giving no recommendations of their own. However, they may in
+; be exactly the same values as were used to represent the
+; comparators, so we can't choose any single 'rep2comp function to
+; encompass all the values. Besides, it's nice not to have to
+; 'circularly-order the same things over and over again.
+(=fn my.normally-order (comparators elements)
+  (withs (; promoted recommendation graph, transitive closure
+          ; ((element befores afters) ...)
+          prg my.make-transitive-dag.elements
+          already-promoted
+            (fn (before after)
+              (my.transitive-dag-has-edge prg before after))
+          add-rec (fn (before after)
+                    (my.transitive-dag-add-edge prg before after
+                      (thunk:err "Can't normally-order.")))
+          promote-recs
+            (fn (recs)
+              (each rec (rem [do.already-promoted _.1 _.0] recs)
+                (do.add-rec do.rec.0 do.rec.1)))
+          recommendation-sets (map .elements comparators))
+    (each recommendation-set recommendation-sets
+      do.promote-recs.recommendation-set)
+    my.transitive-dag-flatten.prg))
 
 
 )

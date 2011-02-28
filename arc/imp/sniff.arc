@@ -5,7 +5,10 @@
 
 ; Jarc doesn't support re-invocable continuations, and we don't blame
 ; it. This flag indicates whether the feature is supported.
-(= my.cccraziness* (errsafe:iflet c catch.throw do.c.nil t))
+(= my.cccraziness* nil)
+; NOTE: We'd use catch.throw instead of ccc.idfn here, but Rainbow
+; can't handle that. Has Rainbow implemented escape continuations?
+(catch:after (ccc.idfn [= my.cccraziness* t]) throw.nil)
 
 
 ; This is based on a bug in official Arc's quasiquote which makes it
