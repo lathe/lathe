@@ -120,6 +120,7 @@ Racket is a bit easier to set up. It already has a module system, so
 you can import a Lathe module like so:
 
   (require "your/path/to/lathe/racket/utils.rkt")
+  (require (for-syntax "your/path/to/lathe/racket/utils.rkt"))
 
 In fact, utils.rkt is all the Racket support there is for now. It's
 not especially exciting, either; PLaneT has two or three other,
