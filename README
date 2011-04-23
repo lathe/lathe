@@ -45,10 +45,12 @@ things.
 
 The code in the arc/ directory is targeted mainly at Arc 3.1, which
 you can download at http://ycombinator.com/arc/arc3.1.tar. Arc 3.1
-itself depends on MzScheme. For more detailed help setting up Arc 3.1,
+itself depends on Racket, which you can get from
+http://racket-lang.org/. For more detailed help setting up Arc 3.1,
 including how to adjust it to work on Windows, http://arclanguage.org/
 is a good resource. If you're just getting started with Arc,
-http://awwx.ws/ lists some other helpful links.
+http://awwx.ws/ and http://sites.google.com/site/arclanguagewiki/ list
+some other helpful links.
 
 Besides the official Arc 3.1 implementation, three other Arc setups
 are supported: The Anarki fork (http://github.com/nex3/arc) and the
@@ -112,6 +114,25 @@ modules look like once you've looked at the source of a few of the
 modules included with Lathe.
 
 
+== Setup in Racket ==
+
+Racket is a bit easier to set up. It already has a module system, so
+you can import a Lathe module like so:
+
+  (require "your/path/to/lathe/racket/utils.rkt")
+  (require (for-syntax "your/path/to/lathe/racket/utils.rkt"))
+
+In fact, utils.rkt is all the Racket support there is for now. It's
+not especially exciting, either; PLaneT has two or three other,
+significantly more well-developed utility libraries, and I don't have
+any frameworks to set me apart from the crowd. In fact, what I do have
+largely disregards or works against frameworks that are already built
+into Racket! Use it at your own peril, or figure out some way to use
+Arc in your Racket program instead.
+
+
+== Afterword ==
+
 Thanks a lot for considering Lathe, and I hope it helps you out!
 
-2010 Ross Angle
+2010, 2011 Ross Angle
