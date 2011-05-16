@@ -29,6 +29,36 @@
 
 // TODO: Document the purpose of lathe.js.
 
+// We currently follow a good portion of the Google JavaScript style
+// guide at <http://google-styleguide.googlecode.com/svn/trunk/
+// javascriptguide.xml> (Revision 2.20, checked on 16-May-2011), but
+// with plenty of exceptions:
+//
+//   - We attach methods inside the constructor instead of using
+//     prototypes.
+//   - We don't go to any special effort to create closures in scopes
+//     that only contain the variables they need.
+//   - We use the this keyword outside of constructors and methods,
+//     because it's necessary for our generic function-handling
+//     utilites.
+//   - We alias the lathe "namespace" as _ and the window as root.
+//   - We have at least one (noted) impure toString() method.
+//   - We stop lines at 70 characters rather than 80.
+//   - We indent by four spaces rather than two.
+//   - We put spaces inside of all brackets, except when they're
+//     grouping parentheses.
+//   - We don't indent *anything* based on an increment that couldn't
+//     be consistently converted to an integer number of tabs (but we
+//     use spaces anyway).
+//   - We freely put any && and || infix operator on the start of a
+//     line rather than the end if it's inside an if condition.
+//   - We use grouping parentheses to clarify &&'s precedence over ||
+//     even when we don't have to.
+//   - We prefer " to '.
+//   - We don't use JSDoc comments, and they probably wouldn't make
+//     sense or compile most of the time thanks to the frameworks this
+//     code establishes and uses.
+
 
 (function () {
 
@@ -42,12 +72,13 @@ root.lathe = _;
 _.idfn = function ( x ) { return x; };
 
 _.hasOwn = function ( self, property ) {
-    return Object.prototype.hasOwnProperty.call( self, property );
+    return root.Object.prototype.hasOwnProperty.call(
+        self, property );
 };
 
 _.isString = function ( x ) {
     return typeof x == "string" ||
-        (typeof x == "object" && x instanceof String);
+        (typeof x == "object" && x instanceof root.String);
 };
 
 _.constfn = function ( result ) {
@@ -60,17 +91,18 @@ _.acc = function ( body ) {
     return result;
 };
 
-_.isArray = function ( x ) { return x instanceof Array; };
+_.isArray = function ( x ) { return x instanceof root.Array; };
 
 _.given = function ( a ) { return a !== void 0; }
 
-_.arrCut = function ( self, start, end ) {
+_.arrCut = function ( self, opt_start, opt_end ) {
     // NOTE: In IE 8, passing slice a third argument of undefined is
     // different from passing it only two arguments.
-    if ( _.given( end ) )
-        return Array.prototype.slice.call( self, start, end );
+    if ( _.given( opt_end ) )
+        return root.Array.prototype.slice.call(
+            self, opt_start, opt_end );
     else
-        return Array.prototype.slice.call( self, start );
+        return root.Array.prototype.slice.call( self, opt_start );
 }
 
 _.arrAny = function ( arr, check ) {
@@ -102,18 +134,18 @@ _.arrKeep = function ( arr, check ) {
     } );
 };
 
-_.arrMap = function ( arr, conversion ) {
+_.arrMap = function ( arr, convert ) {
     return _.acc( function ( y ) {
-        _.arrEach( arr, function ( it ) { y( conversion( it ) ); } );
+        _.arrEach( arr, function ( it ) { y( convert( it ) ); } );
     } );
 };
 
-_.arrUnbend = function ( args, n ) {
-    args = _.arrCut( args, n );
+_.arrUnbend = function ( args, opt_start ) {
+    args = _.arrCut( args, opt_start );
     return args.concat( _.arrCut( args.pop() ) );
 }
 
-_.classicApply = function ( self, func ) {
+_.classicApply = function ( self, func, var_args ) {
     return func.apply( self, _.arrUnbend( arguments, 2 ) );
 }
 
@@ -121,8 +153,7 @@ _.classicApply = function ( self, func ) {
 /*
 
 _.arrAnyDown = function ( arr, check ) {
-    for ( var i = arr.length; 0 <= i; i-- )
-    {
+    for ( var i = arr.length; 0 <= i; i-- ) {
         var result = check( arr[ i ] );
         if ( result )
             return result;
@@ -142,9 +173,9 @@ _.arrFoldr = function ( arr, func, init ) {
     return result;
 };
 
-_.compose = function () {
+_.compose = function ( var_args ) {
     var args = arguments;
-    return function () {
+    return function ( var_args ) {
         return _.arrFoldr( args, function ( a, b ) { return a( b ); },
             b.apply( this, arguments ) );
     };
@@ -158,32 +189,30 @@ _.arrRem = function ( arr, check ) {
     return _.arrKeep( arr, function ( it ) { return !check( it ); } );
 };
 
-_.same = function ( a, b ) {
+_.sameTwo = function ( a, b ) {
     // NOTE: The second option covers NaN.
     return a === b || (a !== a && b !== b);
 }
 
-_.alGet = function ( al, k, onfound, onmissed ) {
-    if ( !_.given( onfound ) ) onfound = _.idfn;
-    for ( var i = 0; i < al.length; i++ )
-    {
+_.alGet = function ( al, k, opt_onfound, opt_onmissed ) {
+    if ( !_.given( opt_onfound ) ) opt_onfound = _.idfn;
+    var len = al.length;
+    for ( var i = 0; i < len; i++ ) {
         var it = al[ i ];
-        if ( _.same( it[ 0 ], k ) )
-            return onfound( it[ 1 ] );
+        if ( _.sameTwo( it[ 0 ], k ) )
+            return opt_onfound( it[ 1 ] );
     }
-    if ( _.given( onmissed ) )
-        return onmissed();
+    if ( _.given( opt_onmissed ) )
+        return opt_onmissed();
     return void 0;
 };
 
 _.alCons = function ( k, v, al ) {
     var result = [];
-    for ( var i = 0; i < al.length; i++ )
-    {
-        var it = al[ i ];
-        if ( !_.same( it[ 0 ], k ) )
+    _.arrEach( al, function ( it ) {
+        if ( !_.sameTwo( it[ 0 ], k ) )
             result.unshift( it );
-    }
+    } );
     result.unshift( [ k, v ] );
     return result;
 };
@@ -194,52 +223,49 @@ _.alCons = function ( k, v, al ) {
 _.blahlogs = {};
 
 _.blahlogs.docPara = function ( text ) {
-    document.write( "<p class='blahlog'>" +
+    root.document.write( "<p class='blahlog'>" +
         ("" + text).replace( /\n/g, "<br />" ) + "</p>" );
     return text;
 }
 
 _.blahlog = _.blahlogs.docPara;
 
-_.blah = function ( name, body, skipBeginning ) {
-    if ( !_.given( body ) ) body = name;
+_.blah = function ( opt_name, body, opt_options ) {
+    if ( !_.given( body ) ) body = opt_name;
     if ( _.isString( body ) )
-        return _.blahlog( "|- " + name );
-    if ( !_.given( skipBeginning ) )
-        _.blahlog( "/- " + name );
+        return _.blahlog( "|- " + opt_name );
+    if ( !_.given( opt_options ) && opt_options.skipBeginning )
+        _.blahlog( "/- " + opt_name );
     try { var result = body(); }
-    catch ( e )
-    {
-        _.blahlog( "\\* " + name + " " + e );
+    catch ( e ) {
+        _.blahlog( "\\* " + opt_name + " " + e );
         throw e;
     }
-    _.blahlog( "\\- " + name + " " + result );
+    _.blahlog( "\\- " + opt_name + " " + result );
     return result;
 };
 
-_.blahfn = function ( name, func ) {
-    if ( !_.given( func ) ) func = name;
+_.blahfn = function ( opt_name, func ) {
+    if ( !_.given( func ) ) func = opt_name;
     return _.sargfn( function () {
         var self = this, args = _.arrCut( arguments );
         var sargs = _.sargs();
-        _.blahlog( "/= " + name + " " + args );
-        return _.blah( name, function () {
+        _.blahlog( "/= " + opt_name + " " + args );
+        return _.blah( opt_name, function () {
             return _.sapply( self, func, sargs, args );
-        }, true );
+        }, { skipBeginning: true } );
     } );
 };
 
 
 // ===== Escape continuations. =======================================
 
-_.point = function ( body, onraise, onreturn, onthrow ) {
-    if ( !_.given( onraise ) ) onraise = _.idfn;
-    if ( !_.given( onreturn ) ) onreturn = _.idfn;
-    if ( !_.given( onthrow ) ) onthrow = function ( e ) { throw e; };
-    function EscapeContinuation( value )
-    {
-        this.value = value;
-    }
+_.point = function ( body, opt_onraise, opt_onreturn, opt_onthrow ) {
+    if ( !_.given( opt_onraise ) ) opt_onraise = _.idfn;
+    if ( !_.given( opt_onreturn ) ) opt_onreturn = _.idfn;
+    if ( !_.given( opt_onthrow ) )
+        opt_onthrow = function ( e ) { throw e; };
+    function EscapeContinuation( value ) { this.value = value; }
     var stillValid = true;
     var result;
     try {
@@ -251,32 +277,29 @@ _.point = function ( body, onraise, onreturn, onthrow ) {
         stillValid = false;
     } catch ( e ) {
         stillValid = false;
-        if ( e instanceof EscapeContinuation )
-            return onraise( e.value );
-        return onthrow( e );
+        if ( typeof e == "object"
+            && e.constructor === EscapeContinuation )
+            return opt_onraise( e.value );
+        return opt_onthrow( e );
     }
-    return onreturn( result );
+    return opt_onreturn( result );
 };
 
 _.tramp = function ( body ) {
-    function onraise( raised )
-    {
-        return raised[ 1 ].apply( raised[ 0 ], raised[ 2 ] );
-    }
     return _.point(
         function ( raise ) {
-            function trampapply( self, func )
-            {
+            function trampapply( self, func, var_args ) {
                 return raise(
-                    [ self, func, _.arrUnbend( arguments, 2 ) ],
-                    onraise );
+                    [ self, func, _.arrUnbend( arguments, 2 ) ] );
             }
-            return body( function ( self, func ) {
+            return body( function ( self, func, var_args ) {
                 return trampapply(
                     self, func, _.arrCut( arguments, 2 ) );
             }, trampapply );
         },
-        onraise
+        function ( raised ) {
+            return raised[ 1 ].apply( raised[ 0 ], raised[ 2 ] );
+        }
     );
 };
 
@@ -289,12 +312,11 @@ _.tramp = function ( body ) {
 _.namedlet = function () {
     var init = _.arrCut( arguments );
     var body = init.pop();
-    function loop()
-    {
+    function loop( var_args ) {
         var vals = _.arrCut( arguments );
         return _.tramp( function ( trampcall, trampapply ) {
             return body.apply( null, vals.concat( [
-                function () {
+                function ( var_args ) {
                     return trampapply( null, loop, arguments );
                 },
                 loop
@@ -330,15 +352,15 @@ _.isSargfn = function ( func ) {
 
 _.sargs = function () { return currentSargs; };
 
-_.Sarg = function ( fallback ) {
+_.Sarg = function ( opt_fallback ) {
     var self = this;
     this.getValue = function () {
         return _.alGet(
-            _.sargs(), self, _.idfn, _.constfn( fallback ) );
+            _.sargs(), self, _.idfn, _.constfn( opt_fallback ) );
     };
 };
 
-_.sapply = function ( self, func, sargs ) {
+_.sapply = function ( self, func, sargs, var_args ) {
     var args = _.arrUnbend( arguments, 3 );
     if ( !_.isSargfn( func ) )
         return func.apply( self, args );
@@ -348,16 +370,14 @@ _.sapply = function ( self, func, sargs ) {
     finally { passingSargs = oldPassing, currentSargs = oldSargs; }
 };
 
-_.scall = function ( self, func, sargs ) {
+_.scall = function ( self, func, sargs, var_args ) {
     return _.sapply( self, func, sargs, _.arrCut( arguments, 3 ) );
 };
 
 _.sargfn = function ( innerFunc ) {
-    function result()
-    {
+    function result( var_args ) {
         var self = this, args = arguments;
-        if ( passingSargs )
-        {
+        if ( passingSargs ) {
             passingSargs = false;
             try { return innerFunc.apply( self, args ); }
             finally { passingSargs = true; }
@@ -438,11 +458,13 @@ _.latefn = function ( getFunc ) {
 // framework lets the control flow be implicit whether or not the
 // program's complete.
 
-_.FailureError = function ( failure ) {
-    this.failure = failure;
-    this.toString = function () {
-        return _.pprintMessage( failure );
-    };
+// TODO: See if this should inherit from Error.
+_.FailureError = function ( failure ) { this.failure = failure; };
+
+// TODO: This can cause side effects or fail, if pprintMessage is set
+// up to do that. See if there's an alternative.
+_.FailureError.prototype.toString = function () {
+    return _.pprintMessage( this.failure );
 };
 
 // This is the default fail parameter.
@@ -452,27 +474,23 @@ _.raiseFailure = function ( failure ) {
 
 _.failSarg = new _.Sarg( _.raiseFailure );
 
-_.failapply = function ( self, func, fail ) {
+_.failapply = function ( self, func, fail, var_args ) {
     return _.sapply( self, func, [ [ _.failSarg, fail ] ],
         _.arrUnbend( arguments, 3 ) );
 };
 
-_.failcall = function ( self, func, fail ) {
+_.failcall = function ( self, func, fail, var_args ) {
     return _.failapply( self, func, fail, _.arrCut( arguments, 3 ) );
 };
 
-_.fcall = function () {
-    var args = _.arrCut( arguments );
+_.fcall = function ( func, var_args ) {
+    var args = _.arrCut( arguments, 1 );
     var fail = args.pop();
-    var func = args.shift();
     return _.failapply( null, func, fail, args );
 };
 
-_.rely = function () {
-    var args = _.arrCut( arguments );
-    var fail = args.shift();
-    var func = args.shift();
-    return _.failapply( null, func, fail, args );
+_.rely = function ( fail, func, var_args ) {
+    return _.failapply( null, func, fail, _.arrCut( arguments, 2 ) );
 };
 
 
@@ -485,12 +503,12 @@ _.FunctionFailure = function ( func, self, args, complaint ) {
 
 
 // Make partial functions using this.
-_.failfn = function () {
+_.failfn = function ( opt_obj, opt_name, func ) {
     var args = _.arrCut( arguments );
     var obj = _.isString( args[ 1 ] ) ? args.shift() : {};
     var name = _.isString( args[ 0 ] ) ? args.shift() : void 0;
     var func = _.sargfn( args[ 0 ] );
-    var result = _.sargfn( function () {
+    var result = _.sargfn( function ( var_args ) {
         var self = this, args = _.arrCut( arguments )
         var sargs = _.sargs(), fail = _.failSarg.getValue();
         return _.point(
@@ -525,19 +543,19 @@ _.ifsuccess = function ( thunk, consequence, alternative ) {
 };
 
 // TODO: Redesign the Arc version this way.
-_.casefn = function ( getCases, getImpl, name ) {
-    if ( !_.given( getImpl ) ) getImpl = _.idfn;
+_.casefn = function ( getCases, opt_getImpl, opt_name ) {
+    if ( !_.given( opt_getImpl ) ) opt_getImpl = _.idfn;
     return _.sargfn( function () {
         var self = this, args = _.arrCut( arguments );
         var sargs = _.sargs(), fail = _.failSarg.getValue();
         return _.point( function ( decide ) {
-            return fail( new _.RulebookFailure( name, self, args,
+            return fail( new _.RulebookFailure( opt_name, self, args,
                 _.acc( function ( complain ) {
                     _.arrEach( getCases(), function ( thisCase ) {
                         _.point(
                             function ( fail ) {
                                 return _.sapply( self,
-                                    getImpl( thisCase ),
+                                    opt_getImpl( thisCase ),
                                     _.alCons(
                                         _.failSarg, fail, sargs ),
                                     args );
@@ -562,12 +580,10 @@ _.ruleIsNamed = function ( rule, name ) {
     return rule.name == name;
 };
 
-_.rulebook = function ( obj, name ) {
-    if ( arguments.length < 2 )
-    {
-        name = obj;
-        obj = {};
-    }
+_.rulebook = function ( opt_obj, opt_name ) {
+    var args = _.arrCut( arguments );
+    var obj = _.isString( args[ 1 ] ) ? args.shift() : {};
+    var name = _.isString( args[ 0 ] ) ? args.shift() : void 0;
     var result =
         _.casefn( function () { return _.getRules( result ); },
             _.getRuleImpl, name );
@@ -592,11 +608,12 @@ _.addNamedRule = function ( rb, name, func ) {
     _.addRule( rb, { name: name, impl: func } );
 };
 
-_.rule = function ( rb, name, func ) {
-    if ( arguments.length == 2 )
-        _.addRule( rb, { impl: _.failfn( "-rule-", name ) } );
+_.rule = function ( rb, opt_name, func ) {
+    if ( _.given( func ) )
+        _.addNamedRule(
+            rb, opt_name, _.failfn( "rule:" + opt_name, func ) );
     else
-        _.addNamedRule( rb, name, _.failfn( "rule:" + name, func ) );
+        _.addRule( rb, { impl: _.failfn( "-rule-", opt_name ) } );
 };
 
 
@@ -650,7 +667,7 @@ _.rule( _.pprintMessageRb, "RulebookFailure",
 
 // ===== Rulebook-based types. =======================================
 
-_.deftype = function () {
+_.deftype = function ( opt_obj, opt_name, var_args ) {
     var args = _.arrCut( arguments );
     var obj = _.isString( args[ 1 ] ) ? args.shift() : {};
     var name = _.isString( args[ 0 ] ) ? args.shift() : void 0;
@@ -684,12 +701,12 @@ _.deftype = function () {
 
 _.rulebook( _, "isRb" );
 
-_.is = function () {
+_.is = function ( var_args ) {
     var args = _.cut( arguments );
     if ( args.length == 0 ) return true;
     var first = args.shift();
     return _.arrAll( args, function ( arg ) {
-        return _.same( first, arg ) ||
+        return _.sameTwo( first, arg ) ||
             _.fcall( _.isRb, first, arg, _.constfn( false ) );
     } );
 }
@@ -698,8 +715,8 @@ _.is = function () {
 _.rulebook( _, "toCheckRb" );
 
 _.rule( _.toCheckRb, "function", function ( fail, x ) {
-    if ( !(typeof x == "function" ||
-        (typeof x == "object" && x instanceof Function)) )
+    if ( !(typeof x == "function"
+        || (typeof x == "object" && x instanceof root.Function)) )
         fail( "It isn't a function." );
     return x;
 } );
@@ -713,10 +730,10 @@ _.toCheck = function ( x ) {
 
 _.rulebook( _, "ifanyRb" );
 
-_.failfn( _, "ifany", function ( fail, coll, check, then, els ) {
-    if ( !_.given( els ) ) els = _.constfn( false );
+_.failfn( _, "ifany", function ( fail, coll, check, then, opt_els ) {
+    if ( !_.given( opt_els ) ) opt_els = _.constfn( false );
     return _.rely( fail,
-        _.ifanyRb, coll, _.toCheck( check ), then, els );
+        _.ifanyRb, coll, _.toCheck( check ), then, opt_els );
 } );
 
 _.failfn( _, "any", function ( fail, coll, check ) {
@@ -727,9 +744,11 @@ _.failfn( _, "any", function ( fail, coll, check ) {
 
 _.rulebook( _, "ifanykeyRb" );
 
-_.failfn( _, "ifanykey", function ( fail, coll, check, then, els ) {
-    if ( !_.given( els ) ) els = _.constfn( false );
-    return _.rely( fail, _.ifanykeyRb, coll, check, then, els );
+_.failfn( _, "ifanykey",
+    function ( fail, coll, check, then, opt_els ) {
+    
+    if ( !_.given( opt_els ) ) opt_els = _.constfn( false );
+    return _.rely( fail, _.ifanykeyRb, coll, check, then, opt_els );
 } );
 
 _.failfn( _, "anykey", function ( fail, coll, check ) {
@@ -804,9 +823,9 @@ _.rule( _.toKeyseq, "asKeyseq", function ( fail, x ) {
 
 _.deftype( _, "Keyseq", "iffirstkeyRb" );
 
-_.failfn( _, "iffirstkey", function ( fail, coll, then, els ) {
-    if ( !_.given( els ) ) els = _.constfn( void 0 );
-    return _.rely( fail, _.iffirstkeyRb, coll, then, els );
+_.failfn( _, "iffirstkey", function ( fail, coll, then, opt_els ) {
+    if ( !_.given( opt_els ) ) opt_els = _.constfn( void 0 );
+    return _.rely( fail, _.iffirstkeyRb, coll, then, opt_els );
 } );
 
 _.rule( _.ifanykeyRb, "toKeyseq",
@@ -885,9 +904,9 @@ _.rule( _.asKeyseq, "Keyseq", function ( fail, x, body ) {
 
 _.deftype( _, "Seq", "iffirstRb" );
 
-_.failfn( _, "iffirst", function ( fail, coll, then, els ) {
-    if ( !_.given( els ) ) els = _.constfn( void 0 );
-    return _.rely( fail, _.iffirstRb, coll, then, els );
+_.failfn( _, "iffirst", function ( fail, coll, then, opt_els ) {
+    if ( !_.given( opt_els ) ) opt_els = _.constfn( void 0 );
+    return _.rely( fail, _.iffirstRb, coll, then, opt_els );
 } );
 
 _.rulebook( _, "cons" );
@@ -994,21 +1013,23 @@ _.rule( _.foldl, "each", function ( fail, init, coll, func ) {
 _.rulebook( _, "plus" );
 
 // TODO: Give this rule a name in the Penknife draft.
-_.rule( _.plus, "unary", function ( fail, result ) {
+_.rule( _.plus, "unary", function ( fail, opt_result, var_args ) {
     if ( arguments.length != 2 )
         fail( "There isn't exactly one argument." );
-    return result;
+    return opt_result;
 } );
 
 _.rulebook( _, "binaryPlus" );
 
 // TODO: Give this rule a name in the Penknife draft.
-_.rule( _.plus, "binaryPlus", function ( fail, a, b ) {
+_.rule( _.plus, "binaryPlus",
+    function ( fail, opt_a, opt_b, var_args ) {
+    
     if ( arguments.length < 3 )
         fail( "There aren't at least two arguments." );
     var rest = _.arrCut( arguments, 3 );
-    return _.classicApply(
-        null, _.plus, _.rely( fail, _.binaryPlus, a, b ), rest );
+    return _.classicApply( null,
+        _.plus, _.rely( fail, _.binaryPlus, opt_a, opt_b ), rest );
 } );
 
 
@@ -1075,6 +1096,13 @@ _.mappend = function ( first, coll, func ) {
         null, _.plus, first, _.toArray( _.map( coll, func ) ) );
 };
 
+// TODO: According to <http://google-styleguide.googlecode.com/svn/
+// trunk/javascriptguide.xml>, it may be better to set this up in a
+// way that doesn't calculate the length every time. Is that possible?
+//
+// TODO: Figure out what to do about concurrent modification to the
+// underlying array (in any of these utilities!).
+//
 _.rule( _.asSeq, "array", function ( fail, x, body ) {
     if ( !_.isArray( x ) ) fail( "It isn't an array." );
     return _.toArray( body(
