@@ -1,4 +1,4 @@
-// lathe.js
+o// lathe.js
 
 // Copyright (c) 2011 Ross Angle
 //
@@ -47,6 +47,8 @@
 //   - We indent by four spaces rather than two.
 //   - We put spaces inside of all brackets, except when they're
 //     grouping parentheses.
+//   - We put trailing spaces on empty lines to match the surrounding
+//     indentation.
 //   - We don't indent *anything* based on an increment that couldn't
 //     be consistently converted to an integer number of tabs (but we
 //     use spaces anyway).
@@ -81,8 +83,12 @@ _.isString = function ( x ) {
         (typeof x == "object" && x instanceof root.String);
 };
 
-_.constfn = function ( result ) {
-    return function () { return result; };
+_.kfn = function ( result ) {
+    return function ( var_args ) { return result; };
+};
+
+_.pluckfn = function ( prop ) {
+    return function ( obj ) { return obj[ prop ]; };
 };
 
 _.acc = function ( body ) {
@@ -140,14 +146,23 @@ _.arrMap = function ( arr, convert ) {
     } );
 };
 
+_.arrMappend = function ( arr, convert ) {
+    return root.Array.prototype.concat.apply(
+        [], _.map( arr, convert ) );
+};
+
 _.arrUnbend = function ( args, opt_start ) {
     args = _.arrCut( args, opt_start );
     return args.concat( _.arrCut( args.pop() ) );
 }
 
-_.classicApply = function ( self, func, var_args ) {
+_.classicapply = function ( self, func, var_args ) {
     return func.apply( self, _.arrUnbend( arguments, 2 ) );
 }
+
+_.classiccall = function ( func, var_args ) {
+    return _.classicapply( null, func, _.arrCut( arguments, 1 ) );
+};
 
 // TODO: Write compose() with sargs in mind.
 /*
@@ -189,6 +204,18 @@ _.arrRem = function ( arr, check ) {
     return _.arrKeep( arr, function ( it ) { return !check( it ); } );
 };
 
+_.arrSetMinus = function ( eq, as, bs ) {
+    return _.arrRem( as, function( a ) {
+        return _.arrAny( bs, function ( b ) { return eq( a, b ); } );
+    } );
+};
+
+_.arrSubset = function ( eq, as, bs ) {
+    return _.arrAll( as, function( a ) {
+        return _.arrAny( bs, function ( b ) { return eq( a, b ); } );
+    } );
+};
+
 _.sameTwo = function ( a, b ) {
     // NOTE: The second option covers NaN.
     return a === b || (a !== a && b !== b);
@@ -217,6 +244,31 @@ _.alCons = function ( k, v, al ) {
     return result;
 };
 
+_.noname = { toString: function () { return "(noname)"; } };
+
+_.isName = function ( x ) {
+    return x === _.noname || _.isString( x );
+};
+
+_.definer = function ( opt_obj, opt_name, func ) {
+    var args = _.arrCut( arguments );
+    var obj = _.isName( args[ 1 ] ) ? args.shift() : {};
+    var name = _.isName( args[ 0 ] ) ? args.shift() : _.noname;
+    var func = args[ 0 ];
+    function result( opt_obj, opt_name, var_args ) {
+        var args = _.arrCut( arguments );
+        var obj = _.isName( args[ 1 ] ) ? args.shift() : void 0;
+        var name = _.isName( args[ 0 ] ) ? args.shift() : _.noname;
+        var result = _.classicapply( this, func, obj, name, args );
+        if ( _.given( obj ) && _.isString( name ) )
+            obj[ name ] = result;
+        return result;
+    }
+    if ( _.given( obj ) && _.isString( name ) )
+        obj[ name ] = result;
+    return result;
+};
+
 
 // ===== Debugging. ==================================================
 
@@ -230,32 +282,199 @@ _.blahlogs.docPara = function ( text ) {
 
 _.blahlog = _.blahlogs.docPara;
 
-_.blah = function ( opt_name, body, opt_options ) {
-    if ( !_.given( body ) ) body = opt_name;
-    if ( _.isString( body ) )
-        return _.blahlog( "|- " + opt_name );
-    if ( !_.given( opt_options ) && opt_options.skipBeginning )
-        _.blahlog( "/- " + opt_name );
+_.blah = _.definer( function ( obj, name, opt_body, opt_options ) {
+    if ( !_.given( opt_body ) )
+        return _.blahlog( "|- " + name );
+    if ( !(_.given( opt_options ) && opt_options.skipBeginning) )
+        _.blahlog( "/- " + name );
     try { var result = body(); }
     catch ( e ) {
-        _.blahlog( "\\* " + opt_name + " " + e );
+        _.blahlog( "\\* " + name + " " + e );
         throw e;
     }
-    _.blahlog( "\\- " + opt_name + " " + result );
+    _.blahlog( "\\- " + name + " " + result );
     return result;
-};
+} );
 
-_.blahfn = function ( opt_name, func ) {
-    if ( !_.given( func ) ) func = opt_name;
+_.blahfn = _.definer( function ( obj, name, func ) {
+    if ( !_.given( name ) ) name = "" + func;
     return _.sargfn( function () {
         var self = this, args = _.arrCut( arguments );
         var sargs = _.sargs();
-        _.blahlog( "/= " + opt_name + " " + args );
-        return _.blah( opt_name, function () {
+        _.blahlog( "/= " + name + " " + args );
+        return _.blah( name, function () {
             return _.sapply( self, func, sargs, args );
         }, { skipBeginning: true } );
     } );
+} );
+
+
+// ===== Sargs. ======================================================
+
+// We introduce the concept of a "secret argument," or "sarg" for
+// short, which is essentially a dynamic parameter that only lasts for
+// a single function call, and which a sargfn can use throughout the
+// *lexical* context of the function. It's a lot like giving an extra
+// argument to every function in the language, where most functions
+// ignore the argument and most function calls provide the same
+// default value for the argument.
+//
+// Non-Lathe JavaScript utilities which use Function#apply to forward
+// the arguments of one function to the arguments of another will lose
+// track of sargs. In the context of Lathe, those utilities should
+// instead involve sargfn() and sapply(), as demonstrated here in
+// latefn() and casefn().
+
+var passingSargs = false;
+var currentSargs;
+
+_.isSargfn = function ( func ) {
+    return _.hasOwn( func, "lathe_" ) && func.lathe_.isSargfn;
 };
+
+_.sargs = function () { return currentSargs; };
+
+_.Sarg = function ( opt_fallback ) {
+    var self = this;
+    this.getValue = function () {
+        return _.alGet(
+            _.sargs(), self, _.idfn, _.kfn( opt_fallback ) );
+    };
+};
+
+_.sapply = function ( self, func, sargs, var_args ) {
+    var args = _.arrUnbend( arguments, 3 );
+    if ( !_.isSargfn( func ) )
+        return func.apply( self, args );
+    var oldPassing = passingSargs, oldSargs = currentSargs;
+    passingSargs = true, currentSargs = sargs;
+    try { return func.apply( self, args ); }
+    finally { passingSargs = oldPassing, currentSargs = oldSargs; }
+};
+
+_.scall = function ( func, sargs, var_args ) {
+    return _.sapply( null, func, sargs, _.arrCut( arguments, 3 ) );
+};
+
+_.sargfn = _.definer( function ( obj, name, innerFunc ) {
+    function result( var_args ) {
+        var self = this, args = arguments;
+        if ( passingSargs ) {
+            passingSargs = false;
+            try { return innerFunc.apply( self, args ); }
+            finally { passingSargs = true; }
+        }
+        return _.sapply( self, result, [], args );
+    }
+    result.lathe_ = { isSargfn: true };
+    result.toString = function () { return "[sargfn]"; };
+    return result;
+} );
+
+
+// ===== Explicit tail calls (hesitant API). =========================
+//
+// A tfn's body can make a trampolined tail call using tcall(),
+// tapply(), or tsapply() (which passes secretargs).
+//
+// TODO: Actually use these where they'll help.
+
+// TODO: These are placebos. Uncomment the real things once there's
+// evidence that the placebos aren't good enough. (I'm not altogether
+// sure the lack of TCO will cause stack overflow problems at all.)
+_.isTramping = function ( x ) { return false; };
+_.tailTrampObjSarg = new _.Sarg( void 0 );
+_.tsapply = _.sapply;
+_.tapply = _.classicapply;
+_.tcall = _.classiccall;
+_.tfn = _.sargfn;
+
+/*
+// TODO: See if this should inherit from Error.
+// TODO: Write a toString() method for this.
+function NoTrampolineError( trampObj, continuation ) {
+    this.trampObj = trampObj;
+    this.continuation = continuation;
+}
+
+_.isTramping = function ( x ) {
+    return x instanceof NoTrampolineError && x.trampObj.valid;
+};
+
+_.tailTrampObjSarg = new Sarg( { valid: false } );
+
+_.tsapply = function ( self, func, sargs, var_args ) {
+    var args = _.arrUnbend( arguments, 3 );
+    var tailTrampObj = _.tailTrampObjSarg.getValue();
+    
+    if ( tailTrampObj.valid )
+        throw new NoTrampolineError( tailTrampObj, function() {
+            return _.sapply( self, func, sargs, args );
+        } );
+    
+    return _.sapply( self, func, sargs, args );
+};
+
+_.tapply = function ( self, func, var_args ) {
+    return _.tsapply( self, func, [], _.arrUnbend( arguments, 2 ) );
+};
+
+_.tcall = function ( func, var_args ) {
+    return _.tapply( null, func, _.arrCut( arguments, 1 ) );
+};
+
+_.tfn = _.definer( function ( obj, name, innerFunc ) {
+    return _.sargfn( name, function ( var_args ) {
+        var self = this, args = arguments, sargs = _.sargs();
+        if ( _.tailTrampObjSarg.getValue().valid )
+            return _.tsapply( self, innerFunc, sargs, args );
+        
+        tailTrampObj = { valid: true };
+        function continuation() {
+            return _.sapply( self, innerFunc,
+                _.alCons( _.tailTrampObjSarg, tailTrampObj, sargs ),
+                args );
+        }
+        
+        try {
+            while ( true ) {
+                try { return continuation(); }
+                catch ( e ) {
+                    if ( !_.isTramping( e ) )
+                        throw e;
+                    continuation = e.continuation;
+                }
+            }
+        }
+        finally { tailTrampObj.valid = false; }
+    } );
+} );
+*/
+
+
+// TODO: See if this works and is useful. It's supposed to be a
+// trampoline-friendly form of the finally keyword.
+/*
+var afters = [];
+_.after = function ( body, after ) {
+    afters.push( after );
+    var succeeded = false;
+    try { return body(); succeeded = true; }
+    catch ( e ) {
+        if ( !_.isTramping( e ) )
+            _.pop()();
+        throw e;
+    };
+    if ( succeeded )
+        _.pop()();
+};
+*/
+
+_.latefn = _.definer( function ( obj, name, getFunc ) {
+    return _.tfn( function () {
+        return _.tsapply( this, getFunc(), _.sargs(), arguments );
+    } );
+} );
 
 
 // ===== Escape continuations. =======================================
@@ -327,72 +546,316 @@ _.namedlet = function () {
 };
 
 
-// ===== Sargs. ======================================================
+// ===== Self-organizing precedence system. ==========================
 
-// We introduce the concept of a "secret argument," or "sarg" for
-// short, which is essentially a dynamic parameter that only lasts for
-// a single function call, and which a sargfn can use throughout the
-// *lexical* context of the function. It's a lot like giving an extra
-// argument to every function in the language, where most functions
-// ignore the argument and most function calls provide the same
-// default value for the argument.
-//
-// Non-Lathe JavaScript utilities which use Function#apply to forward
-// the arguments of one function to the arguments of another will lose
-// track of sargs. In the context of Lathe, those utilities should
-// instead involve sargfn() and sapply(), as demonstrated here in
-// latefn() and casefn().
-
-var passingSargs = false;
-var currentSargs;
-
-_.isSargfn = function ( func ) {
-    return _.hasOwn( func, "_lathe" ) && func._lathe.isSargfn;
-};
-
-_.sargs = function () { return currentSargs; };
-
-_.Sarg = function ( opt_fallback ) {
-    var self = this;
-    this.getValue = function () {
-        return _.alGet(
-            _.sargs(), self, _.idfn, _.constfn( opt_fallback ) );
+_.TransitiveDag = function ( elems ) {
+    this.nodes = _.map( elems, function ( elem ) {
+        return { elem: elem, befores: [], afters: [] };
+    } );
+    this.getNode = function ( elem ) {
+        return _.find( this.nodes, function ( node ) {
+            return _.sameTwo( elem, node.elem );
+        } );
+    };
+    this.hasEdge = function ( before, after ) {
+        return _.any(
+            this.findNode( before ).afters,
+            function ( it ) { return _.sameTwo( after, it ) }
+        );
+    };
+    this.addEdge = function ( before, after, errorThunk ) {
+        var self = this;
+        return _.namedlet( before, after,
+            function ( before, after, trampnext, next ) {
+                if ( self.hasEdge( before, after ) )
+                    return;
+                if ( self.hasEdge( after, before ) )
+                    errorThunk();
+                // TODO: The Arc version conses. See if we need to
+                // clone these arrays or something to avoid concurrent
+                // modification.
+                var beforeNode = self.findNode( before );
+                var afterNode = self.findNode( after );
+                _.each( beforeNode.befores, function ( it ) {
+                    next( it, after );
+                } );
+                _.each( afterNode.afters, function ( it ) {
+                    next( before, it );
+                } );
+                afterNode.befores.push( before );
+                beforeNode.afters.push( after );
+            } );
+    };
+    this.flatten = function () {
+        var nodes = this.nodes;
+        var result = [];
+        function commit( elems ) {
+            _.each( elems,
+                function ( elem ) { result.unshift( elem ); } );
+            nodes = _.rem( nodes, function ( node ) {
+                return _.any( elems, function ( it ) {
+                    return _.sameTwo( it, node.elem );
+                } );
+            } );
+        }
+        while ( nodes.length != 0 ) {
+            commit( _.map(
+                _.keep( nodes, function ( node ) {
+                     return _.arrSubset(
+                         _.sameTwo, node.afters, result );
+                } ),
+                function ( it ) { return it.elem; }
+            ) );
+        }
+        return result;
     };
 };
 
-_.sapply = function ( self, func, sargs, var_args ) {
-    var args = _.arrUnbend( arguments, 3 );
-    if ( !_.isSargfn( func ) )
-        return func.apply( self, args );
-    var oldPassing = passingSargs, oldSargs = currentSargs;
-    passingSargs = true, currentSargs = sargs;
-    try { return func.apply( self, args ); }
-    finally { passingSargs = oldPassing, currentSargs = oldSargs; }
-};
-
-_.scall = function ( self, func, sargs, var_args ) {
-    return _.sapply( self, func, sargs, _.arrCut( arguments, 3 ) );
-};
-
-_.sargfn = function ( innerFunc ) {
-    function result( var_args ) {
-        var self = this, args = arguments;
-        if ( passingSargs ) {
-            passingSargs = false;
-            try { return innerFunc.apply( self, args ); }
-            finally { passingSargs = true; }
+_.circularlyOrder = function ( repToComp, comparatorReps ) {
+    return _.acc( function ( y ) {
+        // unpromoted recommendations
+        // [ { recommender: ..., rec: { before: ..., after: ... } },
+        //     ... ]
+        var urs = _.arrMappend( comparatorReps, function ( it ) {
+            return _.arrMap( repToComp( it )( comparatorReps ),
+                function ( rec ) {
+                    return { recommender: it, rec: rec };
+                } );
+        } );
+        // promoted recommendation graph, transitive closure
+        var prg = new TransitiveDag( comparatorReps );
+        function alreadyPromoted( before, after ) {
+            return prg.hasEdge( before, after );
         }
-        return _.sapply( self, result, [], args );
-    }
-    result._lathe = { isSargfn: true };
-    result.toString = function () { return "[sargfn]"; };
-    return result;
+        function addRec( before, after ) {
+            prg.addEdge( before, after, function () {
+                throw new Error( "Can't circularlyOrder." );
+            } )
+        }
+        var ucs = comparatorReps;  // unpromoted comparatorReps
+        var pcs = [];              // promoted comparatorReps
+        function promoteRecs( recs ) {
+            _.arrEach( recs, function ( rec ) {
+                if ( !alreadyPromoted( rec.after, rec.before ) )
+                    addRec( rec.before, rec.after );
+            } );
+        }
+        function promoteCs( cs ) {
+            _.arrEach( cs, function ( c ) {
+                promoteRecs( _.arrKeep( urs, function ( ur ) {
+                   return _.sameTwo( c, ur.recommender );
+                } ) );
+                y( c );
+            } );
+            ucs = _.arrSetMinus( _.sameTwo, ucs, cs );
+        }
+        while ( ucs.length != 0 ) {
+            var consideredCs = _.arrRem( ucs, function ( uc ) {
+                return _.arrAny( ucs, function ( it ) {
+                    return alreadyPromoted( it, uc );
+                } );
+            } );
+            var consideredRs = _.arrKeep( urs, function ( ur ) {
+                return ( true
+                    && _.arrAny( consideredCs, function ( c ) {
+                        return _.sameTwo( c, ur.recommender );
+                    } )
+                    && _.arrAny( ucs, function ( c ) {
+                        return _.sameTwo( c, ur.rec.before );
+                    } )
+                    && _.arrAny( consideredCs, function ( c ) {
+                        return _.sameTwo( c, ur.rec.after );
+                    } )
+                );
+            } );
+            var uncontestedCs =
+                _.arrRem( consideredCs, function ( uc ) {
+                    return _.arrAny( consideredRs, function ( r ) {
+                        return _.sameTwo( uc, r.rec.after );
+                    } );
+                } );
+            if ( uncontroversialCs.length != 0 ) {
+                promoteCs( uncontroversialCs );
+            } else {
+                
+                // NOTE: We would say
+                // _.map( consideredRs, _.pluckfn( "recommender" ) ),
+                // except that that could have duplicates.
+                //
+                promoteCs( _.arrKeep( consideredCs, function ( uc ) {
+                    return _.arrAny( consideredRs, function ( r ) {
+                        return _.sameTwo( uc, r.recommender );
+                    } );
+                } ) );
+            }
+        }
+    } );
 };
 
-_.latefn = function ( getFunc ) {
-    return _.sargfn( function () {
-        return _.sapply( this, getFunc(), _.sargs(), arguments );
+// TODO: Add "fact" to the Arc version of this comment.
+//
+// NOTE: We implement this in a sorta spaghetti way just to draw
+// parallels with circularlyOrder(). This should actually be totally
+// consistent with circularlyOrder() if the elements being sorted are
+// seen as giving no recommendations of their own. However, they may
+// in fact be exactly the same values as were used to represent the
+// comparators, so we can't choose any single repToComp function to
+// encompass all the values. Besides, it's nice not to have to
+// circularlyOrder the same things over and over again.
+//
+_.normallyOrder = function ( comparators, elements ) {
+    // promoted recommendation graph, transitive closure
+    var prg = new TransitiveDag( elements );
+    function alreadyPromoted( before, after ) {
+        return prg.hasEdge( before, after );
+    }
+    function addRec( before, after ) {
+        prg.addEdge( before, after, function () {
+            throw new Error( "Can't normallyOrder." );
+        } )
+    }
+    function promoteRecs( recs ) {
+        _.each( recs, function ( rec ) {
+            if ( !alreadyPromoted( rec.after, rec.before ) )
+                addRec( rec.before, rec.after );
+        } );
+    }
+    // TODO: The Arc version uses 'map and 'rem just before 'each in
+    // some places, such as right here. See if those places could be
+    // more direct.
+    _.each( comparators, function ( compare ) {
+        promoteRecs( compare( elements ) );
     } );
+    return prg.flatten();
+};
+
+
+_.orderRules = [];
+_.orderRbToken = {};
+
+_.delOrderRules = function ( check ) {
+    _.orderRules = _.arrRem( _.orderRules, check );
+};
+
+_.addOrderRule = function ( rule ) {
+    _.orderRules.unshift( rule );
+};
+
+_.addUnnamedOrderRule = function ( func ) {
+    _.addOrderRule( { rbToken: _.orderRbToken, impl: func } );
+};
+
+_.addNamedOrderRule = function ( name, func ) {
+    if ( _.sameTwo( _.noname, name ) )
+        return _.addUnnamedOrderRule( func );
+    _.delOrderRules( function ( it ) {
+        return _.ruleIsNamed( it, name );
+    } );
+    _.addOrderRule(
+        { rbToken: _.orderRbToken, name: name, impl: func } );
+};
+
+_.orderRule = function ( opt_name, func ) {
+    if ( !_.isName( opt_name ) )
+        _.addUnnamedOrderRule( _.failfn( "-rule-", opt_name ) );
+    if ( _.sameTwo( _.noname, opt_name ) )
+        _.addUnnamedOrderRule( _.failfn( "-rule-", func ) );
+    else
+        _.addNamedOrderRule(
+            opt_name, _.failfn( "rule:" + opt_name, func ) );
+};
+
+_.orderedRulebooks = [];
+
+_.orderRulebooks = function () {
+    _.orderRules =
+        _.circularlyOrder( _.pluckfn( "impl" ),  _.orderRules );
+    var impls = _.arrMap( _.orderRules, _.pluckfn( "impl" ) );
+    _.arrEach( _.orderedRulebooks, function ( rb ) {
+        var rbl = rb.lathe_;
+        rbl.rules = _.normallyOrder( impls, rbl.rules );
+    } );
+};
+
+_.preferfn = function ( var_args ) {
+    var tests = _.arrCut( arguments );
+    return function ( rules ) {
+        var ranks = _.arrMap( tests, function ( test ) {
+            var rank = _.arrKeep( rules, test );
+            rules = _.setMinus( _.sameTwo, rules, rank );
+            return rank;
+        } );
+        return _.acc( function ( y ) {
+            while ( 1 < ranks.length ) {
+                _.each( ranks.unshift(), function ( before ) {
+                    _.each( ranks[ 0 ], function ( after ) {
+                        y( { before: before, after: after } );
+                    } );
+                } );
+            }
+        } );
+    };
+};
+
+_.prefer = function ( opt_name, var_args ) {
+    if ( _.isName( opt_name ) )
+        _.orderRule( opt_name,
+            _.preferfn.apply( null, _.arrCut( arguments, 1 ) ) );
+    else
+        _.orderRule( _.preferfn.apply( null, arguments ) );
+};
+
+
+// These are utilities for making rules with certain names have high
+// or low preference.
+//
+// These were originally posted at
+// http://arclanguage.org/item?id=11784.
+
+function getPredicates( rbToken, names ) {
+    return _.map( names, function ( name ) {
+        return function ( rule ) {
+            return _.sameTwo( rule.rbToken, rbToken ) &&
+                _.sameTwo( rule.name, name );
+        };
+    } );
+}
+
+_.preferNamesFirst = function (
+    opt_orderRuleName, rbToken, var_args ) {
+    
+    var ruleNames = _.arrCut( arguments, 1 )
+    if ( _.isName( opt_orderRuleName ) ) {
+        ruleNames.shift();
+    } else {
+        rbToken = opt_orderRuleName;
+        opt_orderRuleName = _.noname;
+    }
+    var predicates =
+        getPredicates( _.toRbToken( rbToken ), ruleNames );
+    return _.classicapply( null, _.prefer, opt_orderRuleName,
+        predicates );
+};
+
+_.preferNamesLast = function (
+    opt_orderRuleName, rbToken, var_args ) {
+    
+    var ruleNames = _.arrCut( arguments, 1 )
+    if ( _.isName( opt_orderRuleName ) ) {
+        ruleNames.shift();
+    } else {
+        rbToken = opt_orderRuleName;
+        opt_orderRuleName = _.noname;
+    }
+    var predicates =
+        getPredicates( _.toRbToken( rbToken ), ruleNames );
+    return _.classicapply( null, _.prefer, opt_orderRuleName,
+        function ( rule ) {
+            return !any( predicates, function ( predicate ) {
+                return predicate( rule );
+            } );
+        },
+        predicates );
 };
 
 
@@ -474,14 +937,23 @@ _.raiseFailure = function ( failure ) {
 
 _.failSarg = new _.Sarg( _.raiseFailure );
 
-_.failapply = function ( self, func, fail, var_args ) {
-    return _.sapply( self, func, [ [ _.failSarg, fail ] ],
+_.tfailapply = function ( self, func, fail, var_args ) {
+    return _.tsapply( self, func, [ [ _.failSarg, fail ] ],
         _.arrUnbend( arguments, 3 ) );
 };
 
-_.failcall = function ( self, func, fail, var_args ) {
-    return _.failapply( self, func, fail, _.arrCut( arguments, 3 ) );
+_.tfn( _, "failapply", function ( self, func, fail, var_args ) {
+    return _.tfailapply(
+        self, func, fail, _.arrUnbend( arguments, 3 ) );
+} );
+
+_.tfailcall = function ( func, fail, var_args ) {
+    return _.tfailapply( null, func, fail, _.arrCut( arguments, 2 ) );
 };
+
+_.tfn( _, "failcall", function ( func, fail, var_args ) {
+    return _.tfailapply( null, func, fail, _.arrCut( arguments, 2 ) );
+} );
 
 _.fcall = function ( func, var_args ) {
     var args = _.arrCut( arguments, 1 );
@@ -503,12 +975,11 @@ _.FunctionFailure = function ( func, self, args, complaint ) {
 
 
 // Make partial functions using this.
-_.failfn = function ( opt_obj, opt_name, func ) {
-    var args = _.arrCut( arguments );
-    var obj = _.isString( args[ 1 ] ) ? args.shift() : {};
-    var name = _.isString( args[ 0 ] ) ? args.shift() : void 0;
-    var func = _.sargfn( args[ 0 ] );
-    var result = _.sargfn( function ( var_args ) {
+_.failfn = _.definer( function ( obj, name, func ) {
+    // NOTE: This is a tfn rather than an sargfn so that it will set
+    // up the tailTrampObjSarg for use in the user-defined function
+    // body.
+    var result = _.tfn( function ( var_args ) {
         var self = this, args = _.arrCut( arguments )
         var sargs = _.sargs(), fail = _.failSarg.getValue();
         return _.point(
@@ -522,8 +993,8 @@ _.failfn = function ( opt_obj, opt_name, func ) {
         );
     } );
     result.toString = function () { return "[failfn " + name + "]"; };
-    return obj[ name ] = result;
-};
+    return result;
+} );
 
 // TODO: Implement this in Arc.
 _.RulebookFailure = function ( name, self, args, complaints ) {
@@ -543,13 +1014,14 @@ _.ifsuccess = function ( thunk, consequence, alternative ) {
 };
 
 // TODO: Redesign the Arc version this way.
-_.casefn = function ( getCases, opt_getImpl, opt_name ) {
+_.casefn = _.definer( function ( obj, name, getCases, opt_getImpl ) {
     if ( !_.given( opt_getImpl ) ) opt_getImpl = _.idfn;
-    return _.sargfn( function () {
+    // TODO: See if it makes sense for this to be a tfn.
+    return _.sargfn( name, function () {
         var self = this, args = _.arrCut( arguments );
         var sargs = _.sargs(), fail = _.failSarg.getValue();
         return _.point( function ( decide ) {
-            return fail( new _.RulebookFailure( opt_name, self, args,
+            return fail( new _.RulebookFailure( name, self, args,
                 _.acc( function ( complain ) {
                     _.arrEach( getCases(), function ( thisCase ) {
                         _.point(
@@ -565,55 +1037,67 @@ _.casefn = function ( getCases, opt_getImpl, opt_name ) {
                 } ) ) );
         } );
     } );
-};
+} );
 
 
 _.getRules = function ( rb ) {
-    return rb._lathe.rules;
+    return rb.lathe_.rules;
 };
 
-_.getRuleImpl = function ( rule ) {
-    return rule.impl;
-};
+_.getRuleImpl = _.pluckfn( "impl" );
 
 _.ruleIsNamed = function ( rule, name ) {
     return rule.name == name;
 };
 
+_.unorderedRulebook = _.definer( function ( obj, name ) {
+    var result = _.casefn( name,
+        function () { return _.getRules( result ); }, _.getRuleImpl );
+    // Since result() is an sargfn, it already has a lathe_ property.
+    result.lathe_.rules = [];
+    result.lathe_.rbToken = {};
+    return result;
+} );
+
 _.rulebook = function ( opt_obj, opt_name ) {
-    var args = _.arrCut( arguments );
-    var obj = _.isString( args[ 1 ] ) ? args.shift() : {};
-    var name = _.isString( args[ 0 ] ) ? args.shift() : void 0;
-    var result =
-        _.casefn( function () { return _.getRules( result ); },
-            _.getRuleImpl, name );
-    // Since result() is an sargfn, it already has a _lathe property.
-    result._lathe.rules = [];
-    return obj[ name ] = result;
+    var result = _.unorderedRulebook( opt_obj, opt_name );
+    _.orderedRulebooks.push( result );
+    return result;
 };
 
+function toRbToken( rb ) {
+    if ( _.hasOwn( rb, "lathe_" ) )
+        return rb.lathe_.rbToken;
+    return rb;
+}
+
 _.delRules = function ( rb, check ) {
-    var rbl = rb._lathe;
+    var rbl = rb.lathe_;
     rbl.rules = _.arrRem( rbl.rules, check );
 };
 
 _.addRule = function ( rb, rule ) {
-    rb._lathe.rules.unshift( rule );
+    rb.lathe_.rules.unshift( rule );
+};
+
+_.addUnamedRule = function ( rb, func ) {
+    _.addRule( rb, { rbToken: rb.lathe_.rbToken, impl: func } );
 };
 
 _.addNamedRule = function ( rb, name, func ) {
     _.delRules( rb, function ( it ) {
         return _.ruleIsNamed( it, name );
     } );
-    _.addRule( rb, { name: name, impl: func } );
+    _.addRule(
+        rb, { rbToken: rb.lathe_.rbToken, name: name, impl: func } );
 };
 
 _.rule = function ( rb, opt_name, func ) {
-    if ( _.given( func ) )
+    if ( _.isName( opt_name ) )
         _.addNamedRule(
             rb, opt_name, _.failfn( "rule:" + opt_name, func ) );
     else
-        _.addRule( rb, { impl: _.failfn( "-rule-", opt_name ) } );
+        _.addUnnamedRule( rb, _.failfn( "-rule-", opt_name ) );
 };
 
 
@@ -667,10 +1151,8 @@ _.rule( _.pprintMessageRb, "RulebookFailure",
 
 // ===== Rulebook-based types. =======================================
 
-_.deftype = function ( opt_obj, opt_name, var_args ) {
-    var args = _.arrCut( arguments );
-    var obj = _.isString( args[ 1 ] ) ? args.shift() : {};
-    var name = _.isString( args[ 0 ] ) ? args.shift() : void 0;
+_.deftype = _.definer( function ( obj, name, var_args ) {
+    var args = _.arrCut( arguments, 2 );
     var nameGiven = _.given( name );
     var ruleName = "deftype:" + name;
     function Result() { this.impl = _.arrCut( arguments ); }
@@ -680,7 +1162,7 @@ _.deftype = function ( opt_obj, opt_name, var_args ) {
         var rule = function ( fail, x ) {
             if ( !(x instanceof Result) )
                 fail( "It isn't a(n) " + name + "." );
-            return _.sapply( this, x.impl[ i ], _.sargs(),
+            return _.tsapply( this, x.impl[ i ], _.sargs(),
                 _.arrCut( arguments, 2 ) );
         };
         if ( nameGiven )
@@ -691,8 +1173,8 @@ _.deftype = function ( opt_obj, opt_name, var_args ) {
     Result.prototype.toString = function () {
         return "[deftype " + name + "]";
     };
-    return obj[ name ] = Result;
-};
+    return Result;
+} );
 
 
 
@@ -707,7 +1189,7 @@ _.is = function ( var_args ) {
     var first = args.shift();
     return _.arrAll( args, function ( arg ) {
         return _.sameTwo( first, arg ) ||
-            _.fcall( _.isRb, first, arg, _.constfn( false ) );
+            _.fcall( _.isRb, first, arg, _.kfn( false ) );
     } );
 }
 
@@ -731,7 +1213,7 @@ _.toCheck = function ( x ) {
 _.rulebook( _, "ifanyRb" );
 
 _.failfn( _, "ifany", function ( fail, coll, check, then, opt_els ) {
-    if ( !_.given( opt_els ) ) opt_els = _.constfn( false );
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( false );
     return _.rely( fail,
         _.ifanyRb, coll, _.toCheck( check ), then, opt_els );
 } );
@@ -747,7 +1229,7 @@ _.rulebook( _, "ifanykeyRb" );
 _.failfn( _, "ifanykey",
     function ( fail, coll, check, then, opt_els ) {
     
-    if ( !_.given( opt_els ) ) opt_els = _.constfn( false );
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( false );
     return _.rely( fail, _.ifanykeyRb, coll, check, then, opt_els );
 } );
 
@@ -824,7 +1306,7 @@ _.rule( _.toKeyseq, "asKeyseq", function ( fail, x ) {
 _.deftype( _, "Keyseq", "iffirstkeyRb" );
 
 _.failfn( _, "iffirstkey", function ( fail, coll, then, opt_els ) {
-    if ( !_.given( opt_els ) ) opt_els = _.constfn( void 0 );
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( void 0 );
     return _.rely( fail, _.iffirstkeyRb, coll, then, opt_els );
 } );
 
@@ -905,7 +1387,7 @@ _.rule( _.asKeyseq, "Keyseq", function ( fail, x, body ) {
 _.deftype( _, "Seq", "iffirstRb" );
 
 _.failfn( _, "iffirst", function ( fail, coll, then, opt_els ) {
-    if ( !_.given( opt_els ) ) opt_els = _.constfn( void 0 );
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( void 0 );
     return _.rely( fail, _.iffirstRb, coll, then, opt_els );
 } );
 
@@ -947,7 +1429,7 @@ _.rule( _.map, "asSeq", function ( fail, coll, convert ) {
                 },
                 // TODO: Fix the Penknife draft, which returns f
                 // rather than nil here.
-                _.constfn( _.nilseq )
+                _.kfn( _.nilseq )
             );
         } );
     } );
@@ -964,7 +1446,7 @@ _.rule( _.eager, "keyseq", function ( fail, coll ) {
         function ( k, v, rest ) {
             return _.keycons( k, v, _.eager( rest ) );
         },
-        _.constfn( nil )
+        _.kfn( _.nilseq )
     );
 } );
 
@@ -973,7 +1455,7 @@ _.rule( _.eager, "seq", function ( fail, coll ) {
         function ( first, rest ) {
             return _.cons( first, _.eager( rest ) );
         },
-        _.constfn( nil )
+        _.kfn( _.nilseq )
     );
 } );
 
@@ -1028,7 +1510,7 @@ _.rule( _.plus, "binaryPlus",
     if ( arguments.length < 3 )
         fail( "There aren't at least two arguments." );
     var rest = _.arrCut( arguments, 3 );
-    return _.classicApply( null,
+    return _.classicapply( null,
         _.plus, _.rely( fail, _.binaryPlus, opt_a, opt_b ), rest );
 } );
 
@@ -1046,30 +1528,30 @@ _.rule( _.sentall, "seq", function ( fail, target, elems ) {
         function ( first, rest ) {
             return _.sentall( _.sent( target, first ), rest );
         },
-        _.constfn( target ) );
+        _.kfn( target ) );
 } );
 
 
-_.rulebook( _, "inside" );
+_.rulebook( _, "unbox" );
 
 
-_.rulebook( _, "plusChute" );
+_.rulebook( _, "toPlusAdder" );
 
 // TODO: In the Penknife draft, change this from a fun* to a rule*.
-_.rule( _.plus, "plusChute", function ( fail, first ) {
+_.rule( _.plus, "toPlusAdder", function ( fail, first ) {
     if ( arguments.length < 2 )
         fail( "There are no arguments." );
     var rest = _.arrCut( arguments, 2 );
-    return _.inside(
-        _.sentall( _.rely( fail, _.plusChute, first ), rest ) );
+    return _.unbox(
+        _.sentall( _.rely( fail, _.toPlusAdder, first ), rest ) );
 } );
 
 
-// TODO: See whether this should really call rely() twice. It could
-// take more than constant time this way.
+// TODO: In the Penknife Draft, stop using rely twice. That could make
+// this rule take more than constant time to fail.
 _.rule( _.binaryPlus, "toSeq", function ( fail, a, b ) {
     a = _.rely( fail, _.toSeq, a );
-    b = _.rely( fail, _.toSeq, b );
+    b = _.toSeq( b );
     return _.namedlet( a, function ( a, trampnext, next ) {
         return new _.Seq( function ( then, els ) {
             return _.iffirst( a,
@@ -1092,9 +1574,15 @@ _.rule( _.toArray, "each", function ( fail, x ) {
 
 
 _.mappend = function ( first, coll, func ) {
-    return _.classicApply(
+    return _.classicapply(
         null, _.plus, first, _.toArray( _.map( coll, func ) ) );
 };
+
+_.rulebook( _, "flatmap" );
+
+_.rule( _.flatmap, "map", function ( fail, first, coll, func ) {
+    return _.flat( _.rely( fail, _.map, coll, func ) );
+} );
 
 // TODO: According to <http://google-styleguide.googlecode.com/svn/
 // trunk/javascriptguide.xml>, it may be better to set this up in a
@@ -1132,9 +1620,21 @@ _.rule( _.ifanyRb, "array",
     var result = _.arrAny( coll, check );
     if ( result )
         return then( result );
-    return els();
+    else
+        return els();
 } );
 
+
+// ===== Disorganized utilities. =====================================
+
+// Example monad usage?
+//
+// return lathe.mappend( monadX, function ( x ) {
+//    ...
+// return lathe.mappend( monadY, function ( y ) {
+//    ...
+// return lathe.box( z );
+// } ); } );
 
 
 // ===== Demonstrations. =============================================
@@ -1150,6 +1650,25 @@ _.rule( _.fact, "zero", function ( fail, n ) {
     if ( n != 0 ) fail( "The number wasn't 0." );
     return 1;
 } );
+
+_.rule( _.fact, "wrong zero", function ( fail, n ) {
+    if ( n != 0 ) fail( "The number wasn't 0." );
+    return 166;
+} );
+
+// TODO: Figure out why this isn't working.
+_.preferNamesLast( "wrong zero is wrong", _.fact, "wrong zero" );
+
+
+// ===== Finishing up. ===============================================
+
+// Your applications will need to call this whenever they want
+// rulebooks to be sorted too. This is usually after all the rules
+// have been defined, but it could also make sense to do in between,
+// if certain rules are necessary for *defining* (not just calling)
+// later ones.
+//
+_.orderRulebooks();
 
 
 })();
