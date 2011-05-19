@@ -1,4 +1,4 @@
-o// lathe.js
+// lathe.js
 
 // Copyright (c) 2011 Ross Angle
 //
@@ -287,7 +287,7 @@ _.blah = _.definer( function ( obj, name, opt_body, opt_options ) {
         return _.blahlog( "|- " + name );
     if ( !(_.given( opt_options ) && opt_options.skipBeginning) )
         _.blahlog( "/- " + name );
-    try { var result = body(); }
+    try { var result = opt_body(); }
     catch ( e ) {
         _.blahlog( "\\* " + name + " " + e );
         throw e;
@@ -553,15 +553,19 @@ _.TransitiveDag = function ( elems ) {
         return { elem: elem, befores: [], afters: [] };
     } );
     this.getNode = function ( elem ) {
-        return _.find( this.nodes, function ( node ) {
-            return _.sameTwo( elem, node.elem );
-        } );
+		var self = this;
+		return _.point( function ( decide ) {
+			_.arrEach( self.nodes, function ( node ) {
+				if ( _.sameTwo( elem, node.elem ) )
+					decide( node );
+			} );
+			return null;
+		} );
     };
     this.hasEdge = function ( before, after ) {
-        return _.any(
-            this.findNode( before ).afters,
-            function ( it ) { return _.sameTwo( after, it ) }
-        );
+		var beforeNode = this.getNode( before );
+		return beforeNode !== null && _.arrAny( beforeNode.afters,
+			function ( it ) { return _.sameTwo( after, it ); } );
     };
     this.addEdge = function ( before, after, errorThunk ) {
         var self = this;
@@ -574,12 +578,12 @@ _.TransitiveDag = function ( elems ) {
                 // TODO: The Arc version conses. See if we need to
                 // clone these arrays or something to avoid concurrent
                 // modification.
-                var beforeNode = self.findNode( before );
-                var afterNode = self.findNode( after );
-                _.each( beforeNode.befores, function ( it ) {
+                var beforeNode = self.getNode( before );
+                var afterNode = self.getNode( after );
+                _.arrEach( beforeNode.befores, function ( it ) {
                     next( it, after );
                 } );
-                _.each( afterNode.afters, function ( it ) {
+                _.arrEach( afterNode.afters, function ( it ) {
                     next( before, it );
                 } );
                 afterNode.befores.push( before );
@@ -590,17 +594,17 @@ _.TransitiveDag = function ( elems ) {
         var nodes = this.nodes;
         var result = [];
         function commit( elems ) {
-            _.each( elems,
+            _.arrEach( elems,
                 function ( elem ) { result.unshift( elem ); } );
-            nodes = _.rem( nodes, function ( node ) {
-                return _.any( elems, function ( it ) {
+            nodes = _.arrRem( nodes, function ( node ) {
+                return _.arrAny( elems, function ( it ) {
                     return _.sameTwo( it, node.elem );
                 } );
             } );
         }
         while ( nodes.length != 0 ) {
-            commit( _.map(
-                _.keep( nodes, function ( node ) {
+            commit( _.arrMap(
+                _.arrKeep( nodes, function ( node ) {
                      return _.arrSubset(
                          _.sameTwo, node.afters, result );
                 } ),
@@ -623,7 +627,7 @@ _.circularlyOrder = function ( repToComp, comparatorReps ) {
                 } );
         } );
         // promoted recommendation graph, transitive closure
-        var prg = new TransitiveDag( comparatorReps );
+        var prg = new _.TransitiveDag( comparatorReps );
         function alreadyPromoted( before, after ) {
             return prg.hasEdge( before, after );
         }
@@ -674,8 +678,8 @@ _.circularlyOrder = function ( repToComp, comparatorReps ) {
                         return _.sameTwo( uc, r.rec.after );
                     } );
                 } );
-            if ( uncontroversialCs.length != 0 ) {
-                promoteCs( uncontroversialCs );
+            if ( uncontestedCs.length != 0 ) {
+                promoteCs( uncontestedCs );
             } else {
                 
                 // NOTE: We would say
@@ -705,7 +709,7 @@ _.circularlyOrder = function ( repToComp, comparatorReps ) {
 //
 _.normallyOrder = function ( comparators, elements ) {
     // promoted recommendation graph, transitive closure
-    var prg = new TransitiveDag( elements );
+    var prg = new _.TransitiveDag( elements );
     function alreadyPromoted( before, after ) {
         return prg.hasEdge( before, after );
     }
@@ -757,12 +761,11 @@ _.addNamedOrderRule = function ( name, func ) {
 
 _.orderRule = function ( opt_name, func ) {
     if ( !_.isName( opt_name ) )
-        _.addUnnamedOrderRule( _.failfn( "-rule-", opt_name ) );
+        _.addUnnamedOrderRule( opt_name );
     if ( _.sameTwo( _.noname, opt_name ) )
-        _.addUnnamedOrderRule( _.failfn( "-rule-", func ) );
+        _.addUnnamedOrderRule( func );
     else
-        _.addNamedOrderRule(
-            opt_name, _.failfn( "rule:" + opt_name, func ) );
+        _.addNamedOrderRule( opt_name, func );
 };
 
 _.orderedRulebooks = [];
@@ -780,15 +783,17 @@ _.orderRulebooks = function () {
 _.preferfn = function ( var_args ) {
     var tests = _.arrCut( arguments );
     return function ( rules ) {
-        var ranks = _.arrMap( tests, function ( test ) {
-            var rank = _.arrKeep( rules, test );
-            rules = _.setMinus( _.sameTwo, rules, rank );
-            return rank;
-        } );
+        var ranks = _.acc( function ( y ) {
+			_.arrEach( tests, function ( test ) {
+				var rank = _.arrKeep( rules, test );
+				y( rank );
+				rules = _.arrSetMinus( _.sameTwo, rules, rank );
+			} );
+		} );
         return _.acc( function ( y ) {
             while ( 1 < ranks.length ) {
-                _.each( ranks.unshift(), function ( before ) {
-                    _.each( ranks[ 0 ], function ( after ) {
+                _.arrEach( ranks.shift(), function ( before ) {
+                    _.arrEach( ranks[ 0 ], function ( after ) {
                         y( { before: before, after: after } );
                     } );
                 } );
@@ -796,6 +801,19 @@ _.preferfn = function ( var_args ) {
         } );
     };
 };
+
+function nonefn( tests ) {
+    return function ( it ) {
+        return !_.arrAny( tests, function ( test ) {
+            return test( it );
+        } );
+    };
+}
+
+// TODO: Port prefer(), preferFirst(), preferLast(), preferNames(),
+// preferNamesFirst(), and preferNamesLast() back to Arc. The Arc
+// 'prefer-names-first is actually our preferNames(); it doesn't
+// establish a preference over anything but the other names given.
 
 _.prefer = function ( opt_name, var_args ) {
     if ( _.isName( opt_name ) )
@@ -805,6 +823,28 @@ _.prefer = function ( opt_name, var_args ) {
         _.orderRule( _.preferfn.apply( null, arguments ) );
 };
 
+_.preferFirst = function ( opt_name, var_args ) {
+    
+    var tests = _.arrCut( arguments );
+    if ( _.isName( opt_name ) )
+        tests.shift();
+    else
+        opt_name = _.noname;
+    return _.classicapply( null, _.prefer, opt_name,
+        tests.concat( [ nonefn( tests ) ] ) );
+};
+
+_.preferLast = function ( opt_name, var_args ) {
+    
+    var tests = _.arrCut( arguments );
+    if ( _.isName( opt_name ) )
+        tests.shift();
+    else
+        opt_name = _.noname;
+    return _.classicapply( null, _.prefer, opt_name,
+        [ nonefn( tests ) ].concat( tests ) );
+};
+
 
 // These are utilities for making rules with certain names have high
 // or low preference.
@@ -812,51 +852,29 @@ _.prefer = function ( opt_name, var_args ) {
 // These were originally posted at
 // http://arclanguage.org/item?id=11784.
 
-function getPredicates( rbToken, names ) {
-    return _.map( names, function ( name ) {
-        return function ( rule ) {
-            return _.sameTwo( rule.rbToken, rbToken ) &&
-                _.sameTwo( rule.name, name );
-        };
-    } );
+function defPreferNames( prefer ) {
+    return function ( opt_orderRuleName, rbToken, var_args ) {
+        var ruleNames = _.arrCut( arguments, 1 );
+        if ( _.isName( opt_orderRuleName ) ) {
+            ruleNames.shift();
+        } else {
+            rbToken = opt_orderRuleName;
+            opt_orderRuleName = _.noname;
+        }
+        rbToken = toRbToken( rbToken );
+        return _.classicapply( null, prefer, opt_orderRuleName,
+            _.arrMap( ruleNames, function ( name ) {
+                return function ( rule ) {
+                    return _.sameTwo( rule.rbToken, rbToken ) &&
+                        rule.name == name;
+                };
+            } ) );
+    };
 }
 
-_.preferNamesFirst = function (
-    opt_orderRuleName, rbToken, var_args ) {
-    
-    var ruleNames = _.arrCut( arguments, 1 )
-    if ( _.isName( opt_orderRuleName ) ) {
-        ruleNames.shift();
-    } else {
-        rbToken = opt_orderRuleName;
-        opt_orderRuleName = _.noname;
-    }
-    var predicates =
-        getPredicates( _.toRbToken( rbToken ), ruleNames );
-    return _.classicapply( null, _.prefer, opt_orderRuleName,
-        predicates );
-};
-
-_.preferNamesLast = function (
-    opt_orderRuleName, rbToken, var_args ) {
-    
-    var ruleNames = _.arrCut( arguments, 1 )
-    if ( _.isName( opt_orderRuleName ) ) {
-        ruleNames.shift();
-    } else {
-        rbToken = opt_orderRuleName;
-        opt_orderRuleName = _.noname;
-    }
-    var predicates =
-        getPredicates( _.toRbToken( rbToken ), ruleNames );
-    return _.classicapply( null, _.prefer, opt_orderRuleName,
-        function ( rule ) {
-            return !any( predicates, function ( predicate ) {
-                return predicate( rule );
-            } );
-        },
-        predicates );
-};
+_.preferNames = defPreferNames( _.prefer );
+_.preferNamesFirst = defPreferNames( _.preferFirst );
+_.preferNamesLast = defPreferNames( _.preferLast );
 
 
 // ===== Failcall. ===================================================
@@ -1080,7 +1098,7 @@ _.addRule = function ( rb, rule ) {
     rb.lathe_.rules.unshift( rule );
 };
 
-_.addUnamedRule = function ( rb, func ) {
+_.addUnnamedRule = function ( rb, func ) {
     _.addRule( rb, { rbToken: rb.lathe_.rbToken, impl: func } );
 };
 
@@ -1299,7 +1317,7 @@ _.rulebook( _, "toKeyseq" );
 
 _.rule( _.toKeyseq, "asKeyseq", function ( fail, x ) {
     return _.point( function ( decide ) {
-        return _.asKeyseq( x, decide );
+        return _.rely( fail, _.asKeyseq, x, decide );
     } );
 } );
 
@@ -1656,8 +1674,25 @@ _.rule( _.fact, "wrong zero", function ( fail, n ) {
     return 166;
 } );
 
-// TODO: Figure out why this isn't working.
-_.preferNamesLast( "wrong zero is wrong", _.fact, "wrong zero" );
+// At the moment (although it's an unspecified behavior), the rule
+// sorts "zero" before "wrong zero" by default, so these will change
+// that.
+//
+//_.preferNamesFirst( "wrong zero is right", _.fact, "wrong zero" );
+//_.preferNamesLast( "right zero is wrong", _.fact, "zero" );
+_.preferNames( "wrong zero is more correct than right zero",
+    _.fact, "wrong zero", "zero" );
+
+// These would have an effect if the rule system sorted things
+// differently by default.
+//
+//_.preferNamesFirst( "right zero is right", _.fact, "zero" );
+//_.preferNamesLast( "wrong zero is wrong", _.fact, "wrong zero" );
+//_.preferNames( "right zero is more correct than wrong zero",
+//    _.fact, "zero", "wrong zero" );
+
+// TODO: See if normallyOrder() can be changed to make the order
+// last-defined-first-tried by default.
 
 
 // ===== Finishing up. ===============================================
@@ -1665,8 +1700,7 @@ _.preferNamesLast( "wrong zero is wrong", _.fact, "wrong zero" );
 // Your applications will need to call this whenever they want
 // rulebooks to be sorted too. This is usually after all the rules
 // have been defined, but it could also make sense to do in between,
-// if certain rules are necessary for *defining* (not just calling)
-// later ones.
+// if certain rules are used to *define* (not just call) later ones.
 //
 _.orderRulebooks();
 
