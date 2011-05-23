@@ -32,13 +32,24 @@ Perl Foundation's Artistic License 2.0. You may use either license, at
 your option.
 
 -->
+<meta name="viewport"
+    content="initial-scale = 1.0, maximum-scale = 1.0" />
 <script type="text/javascript" src="lathe.js"></script>
 <style type="text/css">
 p { background-color: #CCC; }
 p.blahlog { background-color: transparent; }
+
+#repl textarea { display: block; width: 95%; }
+#repl .scrollback { height: 100px; }
 </style>
+<script type="text/javascript">
+window.onload = function () {
+    lathe.initRepl( document.getElementById( "repl" ) );
+};
+</script>
 </head>
 <body>
+<div id="repl"></div>
 <script type="text/javascript">
 
 document.write( "<p>heya</p>" );

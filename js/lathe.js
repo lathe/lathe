@@ -142,7 +142,8 @@ _.arrKeep = function ( arr, check ) {
 
 _.arrMap = function ( arr, convert ) {
     return _.acc( function ( y ) {
-        _.arrEach( arr, function ( it ) { y( convert( it ) ); } );
+        _.arrEach(
+            arr, function ( it, i ) { y( convert( it, i ) ); } );
     } );
 };
 
@@ -1703,6 +1704,84 @@ _.preferNames( "wrong zero is more correct than right zero",
 // if certain rules are used to *define* (not just call) later ones.
 //
 _.orderRulebooks();
+
+
+})();
+
+
+(function () {
+
+var root = this;
+var _ = root.lathe;
+
+
+_.globeval = function ( code ) { return eval.call( null, code ); };
+
+_.funclet = function ( var_args ) {
+    var code = [];
+    var vals = [];
+    _.arrEach( arguments, function ( arg, i ) {
+        (i % 2 == 0 ? code : vals).push( arg );
+    } );
+    if ( code.length != vals.length + 1 )
+        throw new Error(
+            "Can't funclet an even number of arguments." );
+    return Function.apply( null, code ).apply( null, vals );
+};
+
+_.newapply = function ( Ctor, var_args ) {
+    var args = _.arrUnbend( arguments, 1 );
+    return _.funclet( "Ctor", Ctor, "args", args,
+       "return new Ctor( " +
+       _.arrMap( args,
+           function ( it, i ) { return "args[ " + i + " ]"; } ) +
+       " );" );
+};
+
+_.newcall = function ( Ctor, var_args ) {
+    return _.newapply( Ctor, _.arrCut( arguments, 1 ) );
+};
+
+
+var ENTER_KEY = 13;
+var NO_CAPTURE = false;
+
+// TODO: See if this leaks memory with its treatment of DOM nodes.
+_.initRepl = function ( elem ) {
+    
+    var scrollback = root.document.createElement( "textarea" );
+    scrollback.className = "scrollback";
+    scrollback.readOnly = true;
+    elem.appendChild( scrollback );
+    
+    var prompt = root.document.createElement( "textarea" );
+    prompt.className = "prompt";
+    elem.appendChild( prompt );
+    
+    prompt.addEventListener( "keyup", function ( event ) {
+        if ( event.which !== ENTER_KEY ) return;
+        
+        var command = prompt.value.replace( /^(.*\S)\s+$/, "$1" );
+        
+        scrollback.value += ">>> " + command + "\n";
+        scrollback.scrollTop = scrollback.scrollHeight;
+        
+        var success = false;
+        try { var result = _.globeval( command ); success = true; }
+        catch ( e ) {
+            var message = "(error rendering error)";
+            try { var message = "" + e; } catch ( e ) {}
+            scrollback.value += "Error: " + message + "\n\n";
+        }
+        if ( success )
+            scrollback.value += "--> " + result + "\n\n";
+        
+        scrollback.scrollTop = scrollback.scrollHeight;
+        
+        prompt.value = "";
+        
+    }, NO_CAPTURE );
+};
 
 
 })();
