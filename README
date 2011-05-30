@@ -56,11 +56,17 @@ Including stock Arc 3.1, Lathe supports six Arc setups altogether:
 
   - Arc 3.1, the official Racket implementation
       (http://ycombinator.com/arc/arc3.1.tar)
-  - Anarki, a community fork of Arc 3.1 (http://github.com/nex3/arc)
-  - Andrew Wilcox's ar, a fork of Arc 3.1 (http://github.com/awwx/ar)
+
+  - Anarki, a community fork of Arc 3.1 (https://github.com/nex3/arc)
+
+  - Andrew Wilcox's ar, a fork of Arc 3.1 (https://github.com/awwx/ar)
+
   - Pauan's ar, a fork of Andrew Wilcox's ar
-      (http://github.com/Pauan/ar)
-  - Rainbow, a JVM implementation (http://github.com/conanite/rainbow)
+      (https://github.com/Pauan/ar)
+
+  - Rainbow, a JVM implementation
+      (https://github.com/conanite/rainbow)
+
   - Jarc, a JVM implementation (http://jarc.sourceforge.net/)
 
 To load the core Lathe libraries, run the following code (here
