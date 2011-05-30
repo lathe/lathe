@@ -309,7 +309,8 @@
 ; overused.
 (=fn my.fn-onpoint (alternate body)
   (let (called result)
-         (catch:list nil (do.body:fn args (throw:list t args)))
+         ; NOTE: Ar parses a.b:c as (a b:c).
+         (catch:list nil (do.body (fn args (throw:list t args))))
     (if called
       (apply alternate result)
       result)))

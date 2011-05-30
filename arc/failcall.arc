@@ -122,7 +122,9 @@
 
 (=fn my.fn-ifsuccess (thunk then else)
   (my.failcall (my:failfn fail ()
-                 (do.then:my.failcall thunk fail))
+                 ; NOTE: Ar parses a.b:c.d as ((a b:c) d) rather than
+                 ; (compose a.b c.d).
+                 (do.then (my.failcall thunk fail)))
                else))
 
 (=mc my.ifsuccess (success failure thunk then . elses)
@@ -146,14 +148,19 @@
 (= my.fact-cases* nil)
 (= my.fact (my:failfn fail args
              (apply my.failcall-cases my.fact-cases*
+              
               ; We wrap the failures up in a value that should be easy
               ; to pretty-print and inspect.
-              [do.fail:annotate my!rulebook-failure
-                (list 'fact args rev._)]
+              ;
+              ; NOTE: Ar parses a.b:c as (a b:c).
+              ;
+              [do.fail (annotate my!rulebook-failure
+                         (list 'fact args rev._))]
               args)))
 
 (push (my:failfn fail (n)
-        (* n (my.fact:- n 1)))
+        ; NOTE: Ar parses a.b:c as (a b:c).
+        (* n (my:fact:- n 1)))
       my.fact-cases*)
 
 (push (my:failfn fail (n)

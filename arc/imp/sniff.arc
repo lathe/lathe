@@ -60,4 +60,8 @@
 (= my.anyjvmdrop* (or my.jarcdrop* my.rainbowdrop*))
 
 
+; TODO: Figure out a better way to sniff out ar.
+(= my.ardrop* bound!racket-call-with-current-continuation)
+
+
 )

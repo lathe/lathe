@@ -89,11 +89,15 @@
 (=mc my.patdsl (pat)
   (cadr my.patcompile.pat))
 
+; NOTE: Ar's 'map doesn't work with tables.
+(=fn my.mapt (func . args)
+  (apply map [do func._] args))
+
 (=mc my.some-match (pat subject . body)
   (let (locals patexpr) my.patcompile.pat
     (w/uniq g-pat
       `(,ir!iter-somelet ,g-pat ((do ,patexpr) ,subject)
-         (apply (fn ,locals ,@body) (map ,g-pat ',locals))))))
+         (apply (fn ,locals ,@body) (,my!mapt ,g-pat ',locals))))))
 
 (=mc my.all-match (pat subject . body)
   `(no (,my!some-match ,pat ,subject (~do ,@body))))
@@ -105,7 +109,7 @@
   (let (locals patexpr) my.patcompile.pat
     (w/uniq g-pat
       `(iflet (,g-pat) (call:call:call ,patexpr ,subject)
-         (apply (fn ,locals ,then) (map ,g-pat ',locals))
+         (apply (fn ,locals ,then) (,my!mapt ,g-pat ',locals))
          ,@elses))))
 
 (=mc my.when-match (pat subject . body)

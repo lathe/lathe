@@ -91,10 +91,11 @@
                            (intersperse "\n" rev.complaints))
                          (+ "No rule accepted the given arguments or "
                             "even had a specific complaint.")))))
-        (do.next:afn ((o complaint))
+        ; NOTE: Ar parses a.b:c as (a b:c).
+        (do.next (afn ((o complaint))
           (= complaints (cons complaint complaints)
              rulebook cdr.rulebook)
-          do.next.self))))
+          do.next.self)))))
   )
 
 (=mc my.ru (parms . body)

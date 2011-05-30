@@ -138,11 +138,13 @@
                   (catch:while (or atypes btypes)
                     (with (atype (if atypes pop.atypes my!any)
                            btype (if btypes pop.btypes my!any))
-                      (only.throw:if
-                        (my.inherits atype btype)  (do.acc:list a b)
-                        (my.inherits btype atype)  (do.acc:list b a)
+                      ; NOTE: Ar parses a.b:c as (a b:c).
+                      (only.throw (if
+                        ; NOTE: Ar parses a.b:c as (a b:c).
+                        (my.inherits atype btype)  (do.acc (list a b))
+                        (my.inherits btype atype)  (do.acc (list b a))
                         
-                        ))))))))))))
+                        )))))))))))))
 
 
 ; ===== An extensible equivalence predicate ==========================

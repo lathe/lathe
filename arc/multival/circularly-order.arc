@@ -7,14 +7,16 @@
   (ut:remlet elem a (mem [do.== elem _] b)))
 
 (=fn my.subset (== a b)
-  (~my.set-minus == a b))
+  ; NOTE: Ar parses ~a.b as (~a b) rather than (complement a.b).
+  (no (my.set-minus == a b)))
 
 (=fn my.make-transitive-dag (elems)
   (map [list _ nil nil] elems))
 
 (=fn my.transitive-dag-has-edge (transitive-dag before after)
   ; NOTE: In Jarc 21, !2 uses the symbol |2|.
-  (mem [is after _] (get.2:find [is before _.0] transitive-dag)))
+  ; NOTE: Ar parses a.b:c as (a b:c).
+  (mem [is after _] (get.2 (find [is before _.0] transitive-dag))))
 
 (=fn my.transitive-dag-add-edge
        (transitive-dag before after error-thunk)
@@ -41,8 +43,9 @@
                        transitive-dag))
       (while transitive-dag
         ; NOTE: In Jarc 21, !0 uses the symbol |0|.
-        (do.commit:map get.0
-          (keep [my.subset is _.2 result] transitive-dag))))))
+        ; NOTE: Ar parses a.b:c as (a b:c).
+        (do.commit (map get.0
+          (keep [my.subset is _.2 result] transitive-dag)))))))
 
 (=fn my.circularly-order (rep2comp comparator-reps)
   (accum acc
@@ -69,7 +72,8 @@
                 (zap [my.set-minus is _ recs] urs))
             promote-cs (fn (cs)
                          (each c cs
-                           (do.promote-recs:keep [is c _.0] urs)
+                           ; NOTE: Ar parses a.b:c as (a b:c).
+                           (do.promote-recs (keep [is c _.0] urs))
                            do.acc.c)
                          (zap [my.set-minus is _ cs] ucs)))
       (while ucs
@@ -80,13 +84,14 @@
                     (and (mem [is do.ur.0 _] considered-cs)
                          (mem [is do.ur.1 _] ucs)
                          (mem [is do.ur.2 _] considered-cs))))
-          (do.promote-cs:or (ut:remlet uc considered-cs
+          ; NOTE: Ar parses a.b:c as (a b:c).
+          (do.promote-cs (or (ut:remlet uc considered-cs
                               (some [is uc _.2] considered-rs))
                             ; NOTE: We would say
                             ; (map !0 considered-rs), except that that
                             ; could have duplicates.
                             (ut:keeplet uc considered-cs
-                              (some [is uc _.0] considered-rs))))))))
+                              (some [is uc _.0] considered-rs)))))))))
 
 ; NOTE: We implement this in a sorta spaghetti way just to draw
 ; parallels with 'circularly-order. This should actually be totally

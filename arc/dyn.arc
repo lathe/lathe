@@ -12,14 +12,11 @@
 ; perfectly to the quantification's dynamic extent on Jarc 17 (where
 ; reentrant continuations aren't supported), and on Racket-based
 ; setups (where we can use Racket's 'parameterize).
-(= my.reentrant-params* (~~or (no sn.cccraziness*) sn.plt))
+(= my.reentrant-params* (~~or (no sn.cccraziness*) sn.plt sn.ardrop*))
 
 ; On non-Racket setups, our implementation of my!param-let uses what
 ; amounts to a "finally" cleanup phase, so it isn't a tail call.
-;
-; NOTE: Jarc doesn't like ~~.
-;
-(= my.param-let-uses-a-tail-call* (~no sn.plt))
+(= my.param-let-uses-a-tail-call* (~~or sn.plt sn.ardrop*))
 
 (=fn my.aparam (x)
   (isa x my!param))
@@ -28,7 +25,7 @@
 ; TODO: Make sure the two implementations of my!param-let are
 ; equivalent with regard to threads and my!param-set.
 (if
-  ; Racket-based setups
+  ; Racket-based setups besides ar
   sn.plt
   (let make-parameter (sn:plt make-parameter)
     
@@ -67,6 +64,48 @@
           `(with (,@(apply join binds) body (fn () ,@body))
              (,sn!plt (parameterize ,(map [do `(,_.0 (,_.2))] binds)
                         (body)))))))
+    )
+  
+  ; Ar
+  sn.ardrop*
+  (do
+    
+    (=fn my.make-param ((o initial-value))
+      (annotate my!param racket-make-parameter.initial-value))
+    
+    (=fn my.param-get (param)
+      (unless my.aparam.param
+        (err "A non-parameter was given to 'param-get."))
+      (rep.param))
+    
+    (=fn my.param-set (param new-value)
+      (unless my.aparam.param
+        (err "A non-parameter was given to 'param-set."))
+      (rep.param thunk.new-value)
+      (rep.param))
+    
+    (=mc my.param-let body
+      (let binds (if (alist car.body)  pop.body
+                     cdr.body          (list pop.body pop.body))
+        (when (odd len.binds)
+          (err "A 'param-let form had an odd-length binding list."))
+        (zap [map [do `(,(uniq) (rep:check ,_.0 ,my!aparam
+                                  (err:+ "A 'param-let form was "
+                                         "given at least one "
+                                         "non-parameter to bind."))
+                        ,(uniq) (fn () ,_.1))]
+                  pair._]
+             binds)
+        ; NOTE: Instead of figuring out what hoops to jump through to
+        ; get (racket-parameterize () (body)) rather than
+        ; (racket-parameterize nil (body)), we just cut to the chase
+        ; and skip the 'racket-parameterize.
+        (case binds nil
+          `(do ,@body)
+          `(with (,@(apply join binds) body (fn () ,@body))
+             (racket:racket-parameterize
+                 ,(map [do `(,_.0 (,_.2))] binds)
+               (body))))))
     )
   
   
@@ -185,7 +224,8 @@
            ,@body)))))
 
 (= my.secretarg-aware-apply
-   (my.secretarg-aware:fn (func . args)
+   ; NOTE: Ar parses a.b:c as (a b:c).
+   (my:secretarg-aware:fn (func . args)
      (apply my.call-w/secrets func (my.secretargs) args)))
 
 

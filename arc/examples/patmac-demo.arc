@@ -26,12 +26,14 @@
 (my:test-iso '((nil d) (a nil))
              (accum acc
                (pm:each-match (or `(a ,b) `(,c d)) '(a d)
-                 (do.acc:list c b))))
+                 ; NOTE: Ar parses a.b:c as (a b:c).
+                 (do.acc (list c b)))))
 
 (my:test-iso '((nil d))
              (accum acc
                (pm:each-match (atomic (or `(a ,b) `(,c d))) '(a d)
-                 (do.acc:list c b))))
+                 ; NOTE: Ar parses a.b:c as (a b:c).
+                 (do.acc (list c b)))))
 
 
 (if my.tests-succeeded (prn "All tests succeeded!"))

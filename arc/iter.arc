@@ -135,7 +135,9 @@
               (wipe outside-iterator inside-iterator)))))))
 
 (=fn my.mappending (func iterable)
-  (my.joining:my.mapping func iterable))
+  ; NOTE: Ar parses a.b:c.d as ((a b:c) d) rather than
+  ; (compose a.b c.d).
+  (my:joining:my:mapping func iterable))
 
 (=mc my.mappendinglet (var iterable . body)
   `(,my!mappending (fn (,var) ,@body) ,iterable))
@@ -185,7 +187,8 @@
              (err:+ "A size of zero and a nonzero sum were given to "
                     "'nonneg-tuples-by-sum."))
            (my.iterify list.nil))
-    1  (my.iterify:list:list sum)
+       ; NOTE: Ar parses a.b:c:d as (a b:c:d).
+    1  (my:iterify:list:list sum)
        (my.mapping (if reversed-lexico-significance rev idfn)
          (my:mappendinglet choice (my.iter-range 0 sum)
            (my.mapping [cons choice _]
@@ -282,7 +285,8 @@
 
 (=fn my.repeating (iterable)
   (zap my.must-iterify iterable)
-  (my.joining (thunk:thunk list.iterable)))
+  ; NOTE: Ar parses a.b:c:d as (a b:c:d).
+  (my:joining:thunk:thunk list.iterable))
 
 (=fn my.zipping iterables
   (zap [map my.must-iterify _] iterables)
@@ -314,13 +318,16 @@
         list.values))))
 
 (=fn my.iter-some (func iterable)
-  (call:call:my.keeping idfn (my.mapping func iterable)))
+  ; NOTE: Ar parses a:b:c.d as (a:b:c d) rather than
+  ; (compose a b c.d).
+  (call:call (my.keeping idfn (my.mapping func iterable))))
 
 (=mc my.iter-somelet (var iterable . body)
   `(,my!iter-some (fn (,var) ,@body) ,iterable))
 
 (=fn my.iter-all (func iterable)
-  (~my.iter-some ~func iterable))
+  ; NOTE: Ar parses ~a.b as (~a b) rather than (complement a.b).
+  (no (my.iter-some ~func iterable)))
 
 (=mc my.iter-all-let (var iterable . body)
   `(,my!iter-all (fn (,var) ,@body) ,iterable))
@@ -362,13 +369,14 @@
 (=fn my.iter-with-yield (func)
   (thunk:let next nil
     (= next (fn (succeed-from-iter)
-              (do.func:fn (yielded-value)
+              ; NOTE: Ar parses a.b:c as (a b:c).
+              (do.func (fn (yielded-value)
                 (point return-from-yield
                   (= next (fn (succeed-from-this-iter)
                             (= succeed-from-iter
                                succeed-from-this-iter)
                             do.return-from-yield.nil))
-                  do.succeed-from-iter.yielded-value))))
+                  do.succeed-from-iter.yielded-value)))))
     (thunk:when next
       (point return-from-iter
         (do.next return-from-iter:list)

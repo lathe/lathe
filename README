@@ -52,10 +52,11 @@ is a good resource. If you're just getting started with Arc,
 http://awwx.ws/ and http://sites.google.com/site/arclanguagewiki/ list
 some other helpful links.
 
-Besides the official Arc 3.1 implementation, three other Arc setups
-are supported: The Anarki fork (http://github.com/nex3/arc) and the
-Java-based interpreters Rainbow (http://github.com/conanite/rainbow)
-and Jarc (http://jarc.sourceforge.net/).
+Besides the official Arc 3.1 implementation, four other Arc setups are
+supported: The Anarki fork (http://github.com/nex3/arc), Andrew
+Wilcox's ar fork (http://github.com/awwx/ar), and the Java-based
+implementations Rainbow (http://github.com/conanite/rainbow) and Jarc
+(http://jarc.sourceforge.net/).
 
 To load the core Lathe libraries, run the following code (here
 assuming you put the contents of the Lathe arc/ folder into lib/lathe/
@@ -129,6 +130,18 @@ any frameworks to set me apart from the crowd. In fact, what I do have
 largely disregards or works against frameworks that are already built
 into Racket! Use it at your own peril, or figure out some way to use
 Arc in your Racket program instead.
+
+
+== Setup in JavaScript ==
+
+Take a peek inside the js/ directory. That's right, Lathe's JavaScript
+utilities are all in one file, lathe.js. Minify it as you wish, just
+as long as you stay true to the license.
+
+The utilities in lathe.js represent the ones I've found most
+interesting from the Arc utilities. The JavaScript version of Lathe is
+probably the best selection of Lathe utilities altogether--if you can
+stand JavaScript's lack of macros! ^_^
 
 
 == Afterword ==

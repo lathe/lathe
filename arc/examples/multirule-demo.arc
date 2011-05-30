@@ -12,7 +12,8 @@ wipe.fail
 
 (mr:rule my.factorial (n)
   (unless (< 0 n) (fail "The parameter isn't positive."))
-  (* n (my.factorial:- n 1)))
+  ; NOTE: Ar parses a.b:c as (a b:c).
+  (* n (my:factorial:- n 1)))
 
 (mr:rule my.factorial (n)
   (unless (is n 0) (fail "The parameter isn't zero."))
@@ -43,8 +44,9 @@ wipe.fail
   (err:+ "Somehow the 'diabolical contribution to 'expbysquare was "
          "used."))
 
-(oc.prefer [iso (map _ '(name label)) (list my!expbysquare my!one)]
-           [~iso (map _ '(name label))
+; NOTE: Ar's 'map doesn't work with tables.
+(oc.prefer [iso (map (fn (x) _.x) '(name label)) (list my!expbysquare my!one)]
+           [~iso (map (fn (x) _.x) '(name label))
                  (list my!expbysquare my!diabolical)])
 
 

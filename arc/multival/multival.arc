@@ -41,8 +41,9 @@
 (= my.multival-cache* (table))
 
 (=fn my.get-multival (name)
-  (!val:car:or= my.multival-cache*.name
-    (list ((car my.reducers*.name) my.contribs*.name))))
+  ; NOTE: Ar parses !a:b:c as (get 'a:b:c).
+  (!val (car:or= my.multival-cache*.name
+    (list ((car my.reducers*.name) my.contribs*.name)))))
 
 (=fn my.invalidate-multival names
   (while names

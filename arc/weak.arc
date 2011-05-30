@@ -8,10 +8,22 @@
 
 
 (if
-  ; Racket-based setups
+  ; Racket-based setups besides ar
   sn.plt
   (do (=fn my.weqtable ()
         (annotate my!weqtable (sn:plt:make-weak-hasheq)))
+      
+      (=fn my.weqtable-get (set elem)
+        rep.set.elem)
+      
+      (=fn my.weqtable-set (set elem val)
+        (= rep.set.elem val))
+      )
+  
+  ; Ar
+  sn.ardrop*
+  (do (=fn my.weqtable ()
+        (annotate my!weqtable (racket-make-weak-hasheq)))
       
       (=fn my.weqtable-get (set elem)
         rep.set.elem)

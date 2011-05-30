@@ -22,6 +22,10 @@
   `(fn () ,@body))
 
 
+; NOTE: Ar has 'ac-ssyntax instead of 'ssyntax.
+(unless bound!ssyntax (if bound!ac-ssyntax (= ssyntax ac-ssyntax)))
+
+
 ; Expand both ssyntax and macros until neither is left.
 (def expand (expr)
   (let nextexpr macex.expr
@@ -73,7 +77,8 @@
                         (while (and cdr.arglist
                                     ((orf no anormalsym) car.arglist))
                           (withs (name pop.arglist val pop.arglist)
-                            (do.acc:list name val))))
+                            ; NOTE: Ar parses a.b:c as (a b:c).
+                            (do.acc (list name val)))))
           (cons withlist arglist))))))
 
 
@@ -94,16 +99,19 @@
   (if anormalsym.var
     var
     
+    ; NOTE: Ar doesn't recognize zero-length destructuring forms.
+    ; TODO: Replace the below uses of _ with nil.
+    
     ; else recognize anything of the form (global 'the-var)
-    (catch:withs (nil         (unless (caris var 'global) throw.nil)
+    (catch:withs (_           (unless (caris var 'global) throw.nil)
                   cdr-var     cdr.var
-                  nil         (unless single.cdr-var throw.nil)
+                  _           (unless single.cdr-var throw.nil)
                   cadr-var    car.cdr-var
-                  nil         (unless (caris cadr-var 'quote) throw.nil)
+                  _           (unless (caris cadr-var 'quote) throw.nil)
                   cdadr-var   cdr.cadr-var
-                  nil         (unless single.cdadr-var throw.nil)
+                  _           (unless single.cdadr-var throw.nil)
                   cadadr-var  car.cdadr-var
-                  nil         (unless anormalsym.cadadr-var throw.nil))
+                  _           (unless anormalsym.cadadr-var throw.nil))
       cadadr-var)
     ))
 

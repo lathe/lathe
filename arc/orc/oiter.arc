@@ -55,7 +55,8 @@
     (ut:xloop i 0
       (annotate my!lazylist
         (when (< i len)
-          (list self.i (thunk:do.next:+ i 1)))))))
+          ; NOTE: Ar parses a:b.c:d as (a:b c:d).
+          (list self.i (thunk (do.next (+ i 1)))))))))
 
 
 (rc:ontype my.olazyentries () rc.list my.list
@@ -63,7 +64,8 @@
     (annotate my!lazylist
       (whenlet (head . nexttail) (check tail acons)
         (list (list i head)
-              (thunk:do.next (+ i 1) nexttail))))))
+              ; NOTE: Ar parses a:b.c as (a:b c).
+              (thunk (do.next (+ i 1) nexttail)))))))
 
 (rc:ontype my.olazyentries () table my.table
   (my.olazylistify tablist.self))
@@ -73,14 +75,16 @@
     (ut:xloop i 0
       (annotate my!lazylist
         (when (< i len)
-          (list (list i self.i) (thunk:do.next:+ i 1)))))))
+          ; NOTE: Ar parses a:b.c:d as (a:b c:d).
+          (list (list i self.i) (thunk (do.next (+ i 1)))))))))
 
 (rc:ontype my.olazyentries () my.lazylist my.lazylist
   (ut:xloop i 0 tail self
     (annotate my!lazylist
       (whenlet (head nexttail) rep.tail
         (list (list i head)
-              (thunk:do.next (+ i 1) call.nexttail))))))
+              ; NOTE: Ar parses a:b.c as (a:b c).
+              (thunk (do.next (+ i 1) call.nexttail)))))))
 
 
 (rc:ontype my.olazykeys () rc.list my.list
@@ -110,7 +114,8 @@
     (ut:xloop i 0
       (annotate my!lazylist
         (when (< i len)
-          (list self.i (thunk:do.next:+ i 1)))))))
+          ; NOTE: Ar parses a:b.c:d as (a:b c:d).
+          (list self.i (thunk (do.next (+ i 1)))))))))
 
 (rc:ontype my.olazyvalues () my.lazylist my.lazylist
   self)
@@ -130,13 +135,15 @@
 
 
 (=fn my.oallvalues (self test)
-  (~my.opos self (complement rc.otestify.test) t))
+  ; NOTE: Ar parses ~a.b as (~a b) rather than (complement a.b).
+  (no (my.opos self (complement rc.otestify.test) t)))
 
 (=fn my.oallvaluelet (var self . body)
   `(,my!osomevalue ,self (fn (,var) ,@body)))
 
 (=fn my.osomevalue (self test)
-  (~~my.opos self rc.otestify.test t))
+  ; NOTE: Ar parses ~~a.b as (~~a b) rather than (complement ~a.b).
+  (~no (my.opos self rc.otestify.test t)))
 
 (=fn my.osomevaluelet (var self . body)
   `(,my!osomevalue ,self (fn (,var) ,@body)))
@@ -238,10 +245,12 @@
 
 
 (=fn my.olen> (self number)
-  (~my.olen< self (+ number 1)))
+  ; NOTE: Ar parses ~a.b as (~a b) rather than (complement a.b).
+  (no (my.olen< self (+ number 1))))
 
 (=fn my.oempty (seq)
-  (~my.olen> seq 0))
+  ; NOTE: Ar parses ~a.b as (~a b) rather than (complement a.b).
+  (no (my.olen> seq 0)))
 
 
 (rc:ontype my.omap (transform) table my.table
@@ -264,7 +273,8 @@
   (ut:xloop self self
     (annotate my!lazylist
       (whenlet (head nexttail) rep.self
-        (list do.transform.head (thunk:do.next call.nexttail))))))
+        ; NOTE: Ar parses a:b.c as (a:b c).
+        (list do.transform.head (thunk (do.next call.nexttail)))))))
 
 
 ; Types used in Arc 3.1, for reference:
