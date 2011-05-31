@@ -16,10 +16,24 @@
 ; exists on Anarki too.
 
 (=mc my.plt (plt-expr)
-  (list 'cdr (list 'quasiquote (list nil 'unquote plt-expr))))
+  `(cdr `(nil . ,,plt-expr)))
 
-(unless (errsafe:is ((my:plt vector-ref) my.plt 0) 'tagged)
-  (wipe my.plt))
+(if (errsafe:is ((eval '(my:plt vector-ref)) my.plt 0) 'tagged)
+  (= my.plt* t)
+  (=mc my.plt (plt-expr)
+    '(err:+ "Dropping to Racket the Arc 3.1 way isn't supported on "
+            "this platform.")))
+
+
+(iflet form (find [unless bound._ (errsafe:eval `(,_ t))]
+                    '(ail-code racket))
+  (do (= my.ar-plt* t)
+      (=mc my.ar-plt (plt-expr)
+        `(,form ,plt-expr)))
+  (do (= my.ar-plt* nil)
+      (=mc my.ar-plt (plt-expr)
+        '(err:+ "Dropping to Racket the ar way isn't supported on "
+                "this platform."))))
 
 
 ; Jarc and Rainbow each provide their own ways of accessing JVM
@@ -57,7 +71,7 @@
     (and (isa classclass 'java-object)
          (classclass 'isInstance classclass))))
 
-(= my.anyjvmdrop* (or my.jarcdrop* my.rainbowdrop*))
+(= my.jvm* (or my.jarcdrop* my.rainbowdrop*))
 
 
 ; TODO: Figure out a better way to sniff out ar.

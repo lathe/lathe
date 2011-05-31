@@ -9,7 +9,7 @@
 
 (if
   ; Racket-based setups besides ar
-  sn.plt
+  sn.plt*
   (do (=fn my.weqtable ()
         (annotate my!weqtable (sn:plt:make-weak-hasheq)))
       
@@ -21,7 +21,7 @@
       )
   
   ; Ar
-  sn.ardrop*
+  sn.ar-plt*
   (do (=fn my.weqtable ()
         (annotate my!weqtable (racket-make-weak-hasheq)))
       
@@ -33,7 +33,7 @@
       )
   
   ; JVM-based setups
-  jv.jvm
+  jv.jvm*
   (with (jnew jv.jvm!java-util-WeakHashMap-new
          (jget jset) (map (if jv.jclass!jarc-table
                             jv.jvm!jarc-Table

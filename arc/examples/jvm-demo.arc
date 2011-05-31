@@ -27,7 +27,7 @@
   `(,my!test-similar ,jv!jiso ,simple ,complicated))
 
 
-(iflet jvm jv.jvm
+(iflet jvm (and jv.jvm* jv.jvm)
 ; ...
 
 
@@ -61,7 +61,7 @@
   )
 
 
-; else if no jv.jvm
+; else if no jv.jvm*
 
 (do
   
@@ -72,7 +72,7 @@
   )
 
 
-)  ; end else clause of (iflet jvm jv.jvm ...)
+)  ; end else clause of (iflet jvm (and jv.jvm* jv.jvm) ...)
 
 
 (if my.tests-succeeded (prn "All tests succeeded!"))

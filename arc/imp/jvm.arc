@@ -4,7 +4,7 @@
 (packed:using-rels-as sn "sniff.arc"
 
 
-; This library should work if either my.jarcdrop* or sn.rainbowdrop*
+; This library should work if either my.jarcdrop* or my.rainbowdrop*
 ; is true. However, it should also load without complaint if neither
 ; of those features is provided. That way, a library can provide a
 ; few pieces of extra functionality on the JVM without breaking its
@@ -25,7 +25,7 @@
 ;
 ; Instead, we allow for differences depending on whether Jarc or
 ; Rainbow is in use. Many applications may be lucky enough not to have
-; to worry, but in some cases the jarcdrop* and rainbowdrop* flags
+; to worry, but in some cases the 'jarcdrop* and 'rainbowdrop* flags
 ; will still need to be checked individually.
 ;
 ; In fact, return value coercion brings with it another problem: We
@@ -35,22 +35,22 @@
 ; because it's been coerced to a java.lang.Long.
 ;
 ;
-; To see if this library works, check whether my.jvm is set. That
-; function, just like sniff.arc's 'plt macro, is set to nil when on an
-; unsupportive platform.
+; To see if this library works, check whether my.jvm* is set. It's set
+; to nil when on an unsupported platform.
 ;
-; It's also the main entry point of this library. The 'jvm function
-; provides a way to navigate among wrapper functions for packages,
-; classes, methods, fields, and so forth. For instance, the class
-; wrapper function for java.lang.Object can be obtained by saying
-; jvm!java!lang!Object.
+; The main entrypoint of this library is my.jvm. It provides a way to
+; navigate among wrapper functions for packages, classes, methods,
+; fields, and so forth. For instance, the class wrapper function for
+; java.lang.Object can be obtained by saying jvm!java!lang!Object.
 ;
 ; To be easier on the fingers, a call of jvm!java-lang-Object parses
-; its argument and calls ((jvm "java") "lang-Object"), which has the
-; same ultimate result as jvm!java!lang!Object. Note that the syntax
-; jvm!java.lang.Object would never work, since it ssexpands to
-; (((jvm 'java) lang) Object). Nevertheless, the dot is supported so
-; that (jvm 'java.lang.Object) and (jvm "java.lang.Object") can work.
+; its argument and calls ((jvm "java") "lang-Object"). This in turn
+; will parse "lang-Object" into "lang" and "Object", and it'll have
+; the same ultimate result as jvm!java!lang!Object. Note that the
+; syntax jvm!java.lang.Object would never work, since it ssexpands to
+; (((jvm 'java) lang) Object). Nevertheless, the dot is supported, so
+; (jvm 'java.lang.Object) and (jvm "java.lang.Object") will work if
+; you want to use them.
 ;
 ; For the purposes of 'jvm, the package/class hierarchy is extended
 ; with a few more nodes. Beneath each class node are the nodes
@@ -197,11 +197,12 @@
 ;     (err "A non-map was passed to 'jweak.")))
 
 
-; We'll make local copies of the jarcdrop* and rainbowdrop* flags just
-; so that people who use this package don't also need to import
-; sniff.arc.
-(= my.jarcdrop*     sn.jarcdrop*
-   my.rainbowdrop*  sn.rainbowdrop*)
+; We'll make local copies of the 'jvm*, 'jarcdrop*, and 'rainbowdrop*
+; flags just so that people who use this package don't also need to
+; import sniff.arc.
+(= my.jvm* sn.jvm*)
+(= my.jarcdrop* sn.jarcdrop*)
+(= my.rainbowdrop* sn.rainbowdrop*)
 
 
 ; This is way more of a general-purpose utility than a JVM one, but
@@ -210,7 +211,7 @@
   (sym:string (uniq) '- name))
 
 
-(if sn.anyjvmdrop*
+(if my.jvm*
   (=mc my.=jfn (name parms . body)
     `(=fn ,name ,parms ,@body))
   (=mc my.=jfn (name parms . body)
@@ -220,7 +221,7 @@
 (w/uniq missing
   (if
     
-    sn.jarcdrop*
+    my.jarcdrop*
     (=fn my.ajava (x (o type missing))
       (unless (is type missing)
         (zap my.jclass type)
@@ -229,7 +230,7 @@
                ('isInstance jarc.AllowMethodCalls.class x))
            (or (is type missing) ('isInstance type x))))
     
-    sn.rainbowdrop*
+    my.rainbowdrop*
     (=fn my.ajava (x (o type missing))
       (unless (is type missing)
         (zap my.jclass type)
@@ -247,7 +248,7 @@
 
 (if
   
-  sn.jarcdrop*
+  my.jarcdrop*
   (=fn my.jclass (name)
     (when (isa name 'sym) (zap string name))
     (if (isa name 'string)
@@ -257,7 +258,7 @@
       name
       (err "The class name must be a symbol, a string, or a Class.")))
   
-  sn.rainbowdrop*
+  my.rainbowdrop*
   (=fn my.jclass (name)
     (when (isa name 'sym) (zap string name))
     (if (isa name 'string)
@@ -299,14 +300,14 @@
 
 (if
   
-  sn.jarcdrop*
+  my.jarcdrop*
   (=fn my.jnew (class . args)
     (zap my.jclass class)
     (aif ('jarc.JavaConstructor.find ('getName class))
       (apply it args)
       (err "A constructor wasn't found.")))
   
-  sn.rainbowdrop*
+  my.rainbowdrop*
   (=fn my.jnew (class . args)
     (zap my.jclass class)
     (apply java-new class!getName args))
@@ -317,7 +318,7 @@
 
 (if
   
-  sn.jarcdrop*
+  my.jarcdrop*
   (=fn my.jinvoke (object method . args)
     (unless (in type.method 'sym 'string)
       (err "The method name must be a symbol or a string."))
@@ -325,7 +326,7 @@
       (apply it object args)
       (err "An instance method wasn't found.")))
   
-  sn.rainbowdrop*
+  my.rainbowdrop*
   (=fn my.jinvoke (object method . args)
     (unless (in type.method 'sym 'string)
       (err "The method name must be a symbol or a string."))
@@ -337,7 +338,7 @@
 
 (if
   
-  sn.jarcdrop*
+  my.jarcdrop*
   (=fn my.jstaticinvoke (class method . args)
     (zap my.jclass class)
     (unless (in type.method 'sym 'string)
@@ -349,7 +350,7 @@
       (apply it args)
       (err "A static method wasn't found.")))
   
-  sn.rainbowdrop*
+  my.rainbowdrop*
   (=fn my.jstaticinvoke (class method . args)
     (zap my.jclass class)
     (unless (in type.method 'sym 'string)
@@ -362,7 +363,7 @@
 
 (if
   
-  sn.jarcdrop*
+  my.jarcdrop*
   (=fn my.jarray->list (jarray)
     (let iter ('iterator ('java.util.Arrays.asList jarray))
       (accum acc
@@ -370,7 +371,7 @@
           (do.acc ('next iter))))))
   
   ; Rainbow does this for us.
-  sn.rainbowdrop*
+  my.rainbowdrop*
   (=fn my.jarray->list (jarray)
     jarray)
   
@@ -445,7 +446,7 @@
         '>instance path first rest)
       (err "Unrecognized arguments to a path wrapper."))))
 
-(= my.jvm (when sn.anyjvmdrop*
+(= my.jvm (when my.jvm*
             (my.jpathwrapper "" my.jnew my.jinvoke my.jstaticinvoke)))
 
 (with (is-static [my.jstaticinvoke
@@ -632,7 +633,7 @@
 ; NOTE: Rainbow's profiler doesn't like function calls in optional
 ; arguments.
 (with (missing (uniq)
-       al (when sn.anyjvmdrop*
+       al (when my.jvm*
             (map [list (my.jinvoke
                          (my.jinvoke
                            ; NOTE: Ar parses a.b:c as (a b:c).
@@ -645,7 +646,7 @@
               '(Boolean Byte Char Double Float Int Long Short)))
        fieldclass my.jclass!java-lang-reflect-Field
        classclass my.jclass!java-lang-Class
-       equals (awhen my.jvm it!java-lang-Object-equals))
+       equals (when my.jvm* my.jvm!java-lang-Object-equals))
   (my:=jfn my.jgetset (object field)
     (unless (my.ajava field fieldclass)
       (when (isa field 'sym) (zap string field))
@@ -710,7 +711,7 @@
       [,g-set _ ,g-invoker])))
 
 
-(let jiso2 (awhen my.jvm it!java-lang-Object-equals)
+(let jiso2 (when my.jvm* my.jvm!java-lang-Object-equals)
   (=fn my.jiso args
     (iflet judge (find my.ajava args)
       (all [or (is _ judge) (do.jiso2 judge _)] args)

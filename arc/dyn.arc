@@ -12,11 +12,11 @@
 ; perfectly to the quantification's dynamic extent on Jarc 17 (where
 ; reentrant continuations aren't supported), and on Racket-based
 ; setups (where we can use Racket's 'parameterize).
-(= my.reentrant-params* (~~or (no sn.cccraziness*) sn.plt sn.ardrop*))
+(= my.reentrant-params* (or (no sn.cccraziness*) sn.plt* sn.ar-plt*))
 
 ; On non-Racket setups, our implementation of my!param-let uses what
 ; amounts to a "finally" cleanup phase, so it isn't a tail call.
-(= my.param-let-uses-a-tail-call* (~~or sn.plt sn.ardrop*))
+(= my.param-let-uses-a-tail-call* (or sn.plt* sn.ardrop*))
 
 (=fn my.aparam (x)
   (isa x my!param))
@@ -26,7 +26,7 @@
 ; equivalent with regard to threads and my!param-set.
 (if
   ; Racket-based setups besides ar
-  sn.plt
+  sn.plt*
   (let make-parameter (sn:plt make-parameter)
     
     (=fn my.make-param ((o initial-value))
@@ -67,7 +67,7 @@
     )
   
   ; Ar
-  sn.ardrop*
+  sn.ar-plt*
   (do
     
     (=fn my.make-param ((o initial-value))
@@ -103,9 +103,10 @@
         (case binds nil
           `(do ,@body)
           `(with (,@(apply join binds) body (fn () ,@body))
-             (racket:racket-parameterize
-                 ,(map [do `(,_.0 (,_.2))] binds)
-               (body))))))
+             (,sn!ar-plt
+               (racket-parameterize
+                   ,(map [do `(,_.0 (,_.2))] binds)
+                 (body)))))))
     )
   
   
