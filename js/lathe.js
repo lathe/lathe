@@ -99,7 +99,7 @@ _.acc = function ( body ) {
 
 _.isArray = function ( x ) { return x instanceof root.Array; };
 
-_.given = function ( a ) { return a !== void 0; }
+_.given = function ( a ) { return a !== void 0; };
 
 _.arrCut = function ( self, opt_start, opt_end ) {
     // NOTE: In IE 8, passing slice a third argument of undefined is
@@ -109,7 +109,7 @@ _.arrCut = function ( self, opt_start, opt_end ) {
             self, opt_start, opt_end );
     else
         return root.Array.prototype.slice.call( self, opt_start );
-}
+};
 
 _.arrAny = function ( arr, check ) {
     var len = arr.length;
@@ -751,7 +751,7 @@ _.addUnnamedOrderRule = function ( func ) {
 };
 
 _.addNamedOrderRule = function ( name, func ) {
-    if ( _.sameTwo( _.noname, name ) )
+    if ( name === _.noname )
         return _.addUnnamedOrderRule( func );
     _.delOrderRules( function ( it ) {
         return _.ruleIsNamed( it, name );
@@ -763,7 +763,7 @@ _.addNamedOrderRule = function ( name, func ) {
 _.orderRule = function ( opt_name, func ) {
     if ( !_.isName( opt_name ) )
         _.addUnnamedOrderRule( opt_name );
-    if ( _.sameTwo( _.noname, opt_name ) )
+    else if ( opt_name === _.noname )
         _.addUnnamedOrderRule( func );
     else
         _.addNamedOrderRule( opt_name, func );
@@ -1104,6 +1104,8 @@ _.addUnnamedRule = function ( rb, func ) {
 };
 
 _.addNamedRule = function ( rb, name, func ) {
+    if ( name === _.noname )
+        return _.addUnnamedRule( rb, func );
     _.delRules( rb, function ( it ) {
         return _.ruleIsNamed( it, name );
     } );
@@ -1111,13 +1113,37 @@ _.addNamedRule = function ( rb, name, func ) {
         rb, { rbToken: rb.lathe_.rbToken, name: name, impl: func } );
 };
 
-_.rule = function ( rb, opt_name, func ) {
-    if ( _.isName( opt_name ) )
-        _.addNamedRule(
-            rb, opt_name, _.failfn( "rule:" + opt_name, func ) );
-    else
-        _.addUnnamedRule( rb, _.failfn( "-rule-", opt_name ) );
-};
+_.ruleDefiner = _.definer( function ( obj, name, func ) {
+    return function ( rb, opt_name, var_args ) {
+        var args;
+        if ( _.isName( opt_name ) ) {
+            args = _.arrCut( arguments, 2 );
+        } else {
+            args = _.arrCut( arguments, 1 );
+            opt_name = _.noname;
+        }
+        var result = _.classicapply( this, func, rb, opt_name, args );
+        _.addNamedRule( rb, opt_name, result );
+        return result;
+    };
+} );
+
+_.rule = _.ruleDefiner( function ( rb, name, func ) {
+    return _.failfn( "rule:" + name, func );
+} );
+
+_.instanceofRule = _.ruleDefiner( function ( rb, name, Type, func ) {
+    return _.failfn( "instanceofRule:" + name, function (
+        fail, var_args ) {
+        
+        var arg = arguments[ 1 ];
+        if ( arguments.length < 2
+            || !(typeof arg === "object" && arg instanceof Type) )
+            fail(
+                "The first argument wasn't a(n) " + Type.name + "." );
+        return _.tsapply( this, func, _.sargs(), arguments );
+    } );
+} );
 
 
 _.pprintMessage = function ( message ) {
@@ -1135,11 +1161,10 @@ _.rule( _.pprintMessageRb, "string", function ( fail, failure ) {
     return failure;
 } );
 
-_.rule( _.pprintMessageRb, "FunctionFailure",
+_.instanceofRule(
+    _.pprintMessageRb, "FunctionFailure", _.FunctionFailure,
     function ( fail, failure ) {
     
-    if ( !(failure instanceof _.FunctionFailure) )
-        fail( "The failure isn't a FunctionFailure." );
     return ( ""
         + "/\n"
         + "Calling function " + failure.func + " on " + failure.self +
@@ -1150,11 +1175,10 @@ _.rule( _.pprintMessageRb, "FunctionFailure",
 } );
 
 // TODO: Fix this case in Arc.
-_.rule( _.pprintMessageRb, "RulebookFailure",
+_.instanceofRule(
+    _.pprintMessageRb, "RulebookFailure", _.RulebookFailure,
     function ( fail, failure ) {
     
-    if ( !(failure instanceof _.RulebookFailure) )
-        fail( "The failure isn't a RulebookFailure." );
     return ( ""
         + "/\n"
         + "Calling rulebook " + failure.name + " on " + failure.self +
@@ -1172,22 +1196,19 @@ _.rule( _.pprintMessageRb, "RulebookFailure",
 
 _.deftype = _.definer( function ( obj, name, var_args ) {
     var args = _.arrCut( arguments, 2 );
-    var nameGiven = _.given( name );
-    var ruleName = "deftype:" + name;
+    var ruleName = name === _.noname ? _.noname : "deftype:" + name;
     function Result() { this.impl = _.arrCut( arguments ); }
     _.arrEach( args, function ( rb, i ) {
         if ( _.isString( rb ) )
             rb = _.rulebook( obj, rb );
-        var rule = function ( fail, x ) {
-            if ( !(x instanceof Result) )
-                fail( "It isn't a(n) " + name + "." );
+        // TODO: This will complain "The first argument wasn't a(n)
+        // Result." Make that more informative.
+        _.instanceofRule( rb, ruleName, Result, function (
+            fail, x, var_args ) {
+            
             return _.tsapply( this, x.impl[ i ], _.sargs(),
                 _.arrCut( arguments, 2 ) );
-        };
-        if ( nameGiven )
-            _.rule( rb, ruleName, rule );
-        else
-            _.rule( rb, rule );
+        } );
     } );
     Result.prototype.toString = function () {
         return "[deftype " + name + "]";
@@ -1216,8 +1237,8 @@ _.is = function ( var_args ) {
 _.rulebook( _, "toCheckRb" );
 
 _.rule( _.toCheckRb, "function", function ( fail, x ) {
-    if ( !(typeof x == "function"
-        || (typeof x == "object" && x instanceof root.Function)) )
+    if ( !(typeof x === "function"
+        || (typeof x === "object" && x instanceof root.Function)) )
         fail( "It isn't a function." );
     return x;
 } );
@@ -1397,9 +1418,10 @@ _.rule( _.keycons, "Keyseq", function ( fail, k, v, rest ) {
     } );
 } );
 
-_.rule( _.asKeyseq, "Keyseq", function ( fail, x, body ) {
-    if ( !(x instanceof _.Keyseq) ) fail( "It isn't a Keyseq." );
-    return body( x );
+_.instanceofRule( _.asKeyseq, "Keyseq", _.Keyseq, function (
+    fail, x, body ) {
+    
+    return _.tcall( body, x );
 } );
 
 
@@ -1419,15 +1441,14 @@ _.lazycons = function ( firstGetter, restGetter ) {
 };
 
 _.rule( _.cons, "Seq", function ( fail, first, rest ) {
-    if ( !(x instanceof _.Seq) ) fail( "It isn't a Seq." );
+    if ( !(rest instanceof _.Seq) ) fail( "It isn't a Seq." );
     return new _.Seq( function ( then, els ) {
         return then( first, rest );
     } );
 } );
 
-_.rule( _.asSeq, "Seq", function ( fail, x, body ) {
-    if ( !(x instanceof _.Seq) ) fail( "It isn't a Seq." );
-    return body( x );
+_.instanceofRule( _.asSeq, "Seq", _.Seq, function ( fail, x, body ) {
+    return _.tcall( body, x );
 } );
 
 
@@ -1480,8 +1501,9 @@ _.rule( _.eager, "seq", function ( fail, coll ) {
 
 
 // TODO: Port this to the Penknife draft.
-_.rule( _.iffirstkeyRb, "Seq", function ( fail, coll, then, els ) {
-    if ( !(coll instanceof _.Seq) ) fail( "It's not a Seq." );
+_.instanceofRule( _.iffirstkeyRb, "Seq", _.Seq, function (
+    fail, coll, then, els ) {
+    
     return _.iffirstkey(
         _.namedlet( coll, 0, function ( coll, i, trampnext, next ) {
             return new Keyseq( function ( then, els ) {
@@ -1507,6 +1529,11 @@ _.rule( _.foldl, "each", function ( fail, init, coll, func ) {
     return result;
 } );
 
+
+// TODO: Redesign asSeq() so that it destructures something into a
+// coerced form and a back-coercer function that can be used
+// *multiple* times. Use this new kind of asSeq() as a basis for
+// defining tuple( size, seq ) and pair( seq ).
 
 
 // ===== Extensible accumulation utilities. ==========================
@@ -1568,18 +1595,23 @@ _.rule( _.plus, "toPlusAdder", function ( fail, first ) {
 
 // TODO: In the Penknife Draft, stop using rely twice. That could make
 // this rule take more than constant time to fail.
-_.rule( _.binaryPlus, "toSeq", function ( fail, a, b ) {
-    a = _.rely( fail, _.toSeq, a );
-    b = _.toSeq( b );
-    return _.namedlet( a, function ( a, trampnext, next ) {
-        return new _.Seq( function ( then, els ) {
-            return _.iffirst( a,
-                function ( first, rest ) {
-                    return then( first, next( rest ) );
-                },
-                // TODO: Fix this in the Penknife draft. It just
-                // returns b, rather than destructuring it.
-                function () { return _.iffirst( b, then, els ); } );
+// TODO: In the Penknife draft, use asSeq instead of toSeq.
+_.rule( _.binaryPlus, "asSeq", function ( fail, a, b ) {
+    return _.rely( fail, _.asSeq, a, function ( a ) {
+        b = _.toSeq( b );
+        return _.namedlet( a, function ( a, trampnext, next ) {
+            return new _.Seq( function ( then, els ) {
+                return _.iffirst( a,
+                    function ( first, rest ) {
+                        return then( first, next( rest ) );
+                    },
+                    // TODO: Fix this in the Penknife draft. It just
+                    // returns b, rather than destructuring it.
+                    function () {
+                        return _.iffirst( b, then, els );
+                    }
+                );
+            } );
         } );
     } );
 } );
