@@ -554,19 +554,19 @@ _.TransitiveDag = function ( elems ) {
         return { elem: elem, befores: [], afters: [] };
     } );
     this.getNode = function ( elem ) {
-		var self = this;
-		return _.point( function ( decide ) {
-			_.arrEach( self.nodes, function ( node ) {
-				if ( _.sameTwo( elem, node.elem ) )
-					decide( node );
-			} );
-			return null;
-		} );
+        var self = this;
+        return _.point( function ( decide ) {
+            _.arrEach( self.nodes, function ( node ) {
+                if ( _.sameTwo( elem, node.elem ) )
+                    decide( node );
+            } );
+            return null;
+        } );
     };
     this.hasEdge = function ( before, after ) {
-		var beforeNode = this.getNode( before );
-		return beforeNode !== null && _.arrAny( beforeNode.afters,
-			function ( it ) { return _.sameTwo( after, it ); } );
+        var beforeNode = this.getNode( before );
+        return beforeNode !== null && _.arrAny( beforeNode.afters,
+            function ( it ) { return _.sameTwo( after, it ); } );
     };
     this.addEdge = function ( before, after, errorThunk ) {
         var self = this;
@@ -785,12 +785,12 @@ _.preferfn = function ( var_args ) {
     var tests = _.arrCut( arguments );
     return function ( rules ) {
         var ranks = _.acc( function ( y ) {
-			_.arrEach( tests, function ( test ) {
-				var rank = _.arrKeep( rules, test );
-				y( rank );
-				rules = _.arrSetMinus( _.sameTwo, rules, rank );
-			} );
-		} );
+            _.arrEach( tests, function ( test ) {
+                var rank = _.arrKeep( rules, test );
+                y( rank );
+                rules = _.arrSetMinus( _.sameTwo, rules, rank );
+            } );
+        } );
         return _.acc( function ( y ) {
             while ( 1 < ranks.length ) {
                 _.arrEach( ranks.shift(), function ( before ) {
