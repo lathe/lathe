@@ -1775,14 +1775,48 @@ _.rule( _.ifanyRb, "likeArray",
 // <http://javascript.crockford.com/prototypal.html>.
 //
 _.shadow = function ( parent, opt_entries ) {
-    if ( !_.given( opt_entries ) ) opt_entries = {};
     function Shadower() {}
     Shadower.prototype = parent;
+    
     var result = new Shadower();
-    for ( var key in opt_entries )
-        result[ key ] = opt_entries[ key ];
+    if ( _.given( opt_entries ) )
+        for ( var key in opt_entries )
+            result[ key ] = opt_entries[ key ];
     return result;
 };
+
+
+// TODO: Add more rules to this.
+_.rulebook( _, "blahpp" );
+_.rule( _.blahpp, "string", function ( fail, x ) {
+    if ( !_.isString( x ) )
+        fail( "It isn't a string." );
+    return "\"" + _.map( x.split( /\\/ ), function ( part ) {
+        return part.replace( /\"/g, "\\\"" ).replace( /\n/g, "\\n" ).
+            replace( /\r/g, "\\r" ).replace( /\t/g, "\\t" ).
+            replace( /\x08/g, "\\b" ).replace( /\f/g, "\\f" ).
+            replace( /\0/g, "\\0" ).replace( /\v/g, "\\v" ).
+            replace( /[^\u0020-\u008F]/g, function ( char ) {
+                var code =
+                    char.charCodeAt( 0 ).toString( 16 ).toUpperCase();
+                return "\\u" +
+                    ("0000" + code).substring( 4 - code.length );
+            } );
+    } ).join( "\\\\" ) + "\"";
+} );
+_.rule( _.blahpp, "likeArray", function ( fail, x ) {
+    if ( !_.likeArray( x ) )
+        fail( "It isn't likeArray." );
+    if ( x.length == 0 )
+        return "[]";
+    return "[ " +
+        _.map( _.arrCut( x ), _.blahpp ).join( ", " ) + " ]";
+} );
+_.rule( _.blahpp, "undefined", function ( fail, x ) {
+    if ( x !== void 0 )
+        fail( "It isn't undefined." );
+    return "void 0";
+} );
 
 
 // ===== Demonstrations. =============================================
