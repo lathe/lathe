@@ -62,11 +62,7 @@
 //     code establishes and uses.
 
 
-(function () {
-
-var root = this;
-var _ = {};
-root.lathe = _;
+(function () { var root = this, _ = root.lathe = {};
 
 
 // ===== Miscellaneous utilities. ====================================
@@ -1819,46 +1815,6 @@ _.rule( _.blahpp, "undefined", function ( fail, x ) {
 } );
 
 
-// ===== Demonstrations. =============================================
-
-_.rulebook( _, "fact" );
-
-_.rule( _.fact, "positive", function ( fail, n ) {
-    if ( n <= 0 ) fail( "The number wasn't positive." );
-    return n * _.fact( n - 1 );
-} );
-
-_.rule( _.fact, "zero", function ( fail, n ) {
-    if ( n != 0 ) fail( "The number wasn't 0." );
-    return 1;
-} );
-
-_.rule( _.fact, "wrong zero", function ( fail, n ) {
-    if ( n != 0 ) fail( "The number wasn't 0." );
-    return 166;
-} );
-
-// At the moment (although it's an unspecified behavior), the rule
-// sorts "zero" before "wrong zero" by default, so these will change
-// that.
-//
-//_.preferNamesFirst( "wrong zero is right", _.fact, "wrong zero" );
-//_.preferNamesLast( "right zero is wrong", _.fact, "zero" );
-_.preferNames( "wrong zero is more correct than right zero",
-    _.fact, "wrong zero", "zero" );
-
-// These would have an effect if the rule system sorted things
-// differently by default.
-//
-//_.preferNamesFirst( "right zero is right", _.fact, "zero" );
-//_.preferNamesLast( "wrong zero is wrong", _.fact, "wrong zero" );
-//_.preferNames( "right zero is more correct than wrong zero",
-//    _.fact, "zero", "wrong zero" );
-
-// TODO: See if normallyOrder() can be changed to make the order
-// last-defined-first-tried by default.
-
-
 // ===== Finishing up. ===============================================
 
 // Your applications will need to call this whenever they want
@@ -1872,10 +1828,12 @@ _.orderRulebooks();
 })();
 
 
-(function () {
+(function () { var root = this, _ = root.lathe;
 
-var root = this;
-var _ = root.lathe;
+// ===== Eval-related utilities. =====================================
+//
+// We're putting these in a separate (function () { ... })(); block
+// just in case.
 
 
 _.globeval = function ( code ) { return eval.call( null, code ); };
