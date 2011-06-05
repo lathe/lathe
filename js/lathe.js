@@ -71,17 +71,26 @@ root.lathe = _;
 
 // ===== Miscellaneous utilities. ====================================
 
-_.idfn = function ( x ) { return x; };
+// This takes any number of arguments and returns the first one (or
+// undefined, if there are no arguments).
+_.idfn = function ( result, var_args ) { return result; };
 
 _.hasOwn = function ( self, property ) {
     return root.Object.prototype.hasOwnProperty.call(
         self, property );
 };
 
-_.isString = function ( x ) {
-    return typeof x == "string" ||
-        (typeof x == "object" && x instanceof root.String);
+var objectToString = root.Object.prototype.toString;
+
+function classTester( clazz ) {
+    var expected = "[object " + clazz + "]";
+    return function ( x ) {
+        return objectToString.call( x ) === expected;
+    };
 };
+
+// NOTE: This works even on things which have a typeof of "string".
+_.isString = classTester( "String" );
 
 _.kfn = function ( result ) {
     return function ( var_args ) { return result; };
@@ -97,7 +106,13 @@ _.acc = function ( body ) {
     return result;
 };
 
-_.isArray = function ( x ) { return x instanceof root.Array; };
+_.isReallyArray = classTester( "Array" );
+
+_.likeArguments = function ( x ) { return _.hasOwn( x, "callee" ); };
+
+_.likeArray = function ( x ) {
+    return _.isReallyArray( x ) || _.likeArguments( x );
+};
 
 _.given = function ( a ) { return a !== void 0; };
 
@@ -111,13 +126,24 @@ _.arrCut = function ( self, opt_start, opt_end ) {
         return root.Array.prototype.slice.call( self, opt_start );
 };
 
-_.arrAny = function ( arr, check ) {
-    var len = arr.length;
+_.anyRepeat = function ( n, body ) {
     var result;
-    for ( var i = 0; i < len; i++ )
-        if ( result = check( arr[ i ], i ) )
+    for ( var i = 0; i < n; i++ )
+        if ( result = body( i ) )
             return result;
     return false;
+};
+/*
+_.repeat = function ( n, body ) {
+    for ( var i = 0; i < n; i++ )
+        body( n );
+    return false;
+};
+*/
+_.arrAny = function ( arr, check ) {
+    return _.anyRepeat( arr.length, function ( i ) {
+        return check( arr[ i ], i );
+    } );
 };
 
 _.arrAll = function ( arr, check ) {
@@ -224,8 +250,7 @@ _.sameTwo = function ( a, b ) {
 
 _.alGet = function ( al, k, opt_onfound, opt_onmissed ) {
     if ( !_.given( opt_onfound ) ) opt_onfound = _.idfn;
-    var len = al.length;
-    for ( var i = 0; i < len; i++ ) {
+    for ( var i = 0, n = al.length; i < n; i++ ) {
         var it = al[ i ];
         if ( _.sameTwo( it[ 0 ], k ) )
             return opt_onfound( it[ 1 ] );
@@ -548,6 +573,13 @@ _.namedlet = function () {
 
 
 // ===== Self-organizing precedence system. ==========================
+
+// TODO: Tag every rule with a timestamp and a lexical unit (e.g., a
+// filename), and provide a batteries-included precedence rule that
+// sorts based on those things.
+//
+// TODO: Implement lathe.defaultRule( ... ) or something, and provide
+// a batteries-included precedence rule that sorts defaultRules last.
 
 _.TransitiveDag = function ( elems ) {
     this.nodes = _.map( elems, function ( elem ) {
@@ -940,6 +972,12 @@ _.preferNamesLast = defPreferNames( _.preferLast );
 // framework lets the control flow be implicit whether or not the
 // program's complete.
 
+// TODO: Implement extension spaces, probably by having some kind of
+// mutable variable like lathe.currentExtensionSpace. Actually,
+// *design* extension spaces first: What happens if someone uses
+// lathe.delRules() in the scope of one extension space and then tries
+// merging that space with another?
+
 // TODO: See if this should inherit from Error.
 _.FailureError = function ( failure ) { this.failure = failure; };
 
@@ -1128,20 +1166,36 @@ _.ruleDefiner = _.definer( function ( obj, name, func ) {
     };
 } );
 
+// TODO: Switch over to namespaced names, and figure out what to do
+// about this.
+function prefixName( prefix, name ) {
+    return name === _.noname ? name : "" + prefix + ":" + name;
+};
+
 _.rule = _.ruleDefiner( function ( rb, name, func ) {
-    return _.failfn( "rule:" + name, func );
+    return _.failfn( prefixName( "rule", name ), func );
 } );
 
 _.instanceofRule = _.ruleDefiner( function ( rb, name, Type, func ) {
-    return _.failfn( "instanceofRule:" + name, function (
+    return _.failfn( prefixName( "instanceofRule", name ), function (
         fail, var_args ) {
         
-        var arg = arguments[ 1 ];
+        var first = arguments[ 1 ];
         if ( arguments.length < 2
-            || !(typeof arg === "object" && arg instanceof Type) )
+            || !(typeof first === "object" && first instanceof Type) )
             fail(
                 "The first argument wasn't a(n) " + Type.name + "." );
         return _.tsapply( this, func, _.sargs(), arguments );
+    } );
+} );
+
+_.zapRule = _.ruleDefiner( function ( rb, name, zapper, func ) {
+    return _.failfn( prefixName( "zapRule", name ), function (
+        fail, var_args ) {
+        
+        return _.tsapply( this, func, _.sargs(), fail,
+            _.rely( fail, zapper, arguments[ 1 ] ),
+            _.arrCut( arguments, 2 ) );
     } );
 } );
 
@@ -1194,10 +1248,33 @@ _.instanceofRule(
 
 // ===== Rulebook-based types. =======================================
 
+// This defines a constructor which accepts a lathe.likeArray() of
+// implementations for a particular list of rulebooks, which may be
+// defined at the same time. For instance,
+// lathe.deftype( my, "Foo", "bar", my.baz ) defines the rulebook
+// my.bar, and it defines the constructor my.Foo, which can be called
+// as "new my.Foo( [ implOfBar, implOfBaz ] )". The implementations
+// will be passed all the arguments except for the first one, which
+// will always be the object they're on anyway.
+//
+// The constructor has a by() method so as to cut down on parentheses:
+// "my.Foo.by( implOfBar, implOfBaz )". We could have had the
+// constructor accept a plain argument list, but that would only make
+// it difficult to apply the constructor to a dynamic list of
+// arguments. (Any attempt would need to involve something like
+// lathe.newapply(), which relies on the Function constructor.)
+//
+// For even more convenience, the constructor has an of() method so
+// that it's easy to define types whose "innate" rulebooks are
+// actually unwrappers. For example, "my.Foo.of( 1, 2 )" makes a value
+// "foo" such that "my.bar( foo )" is 1 and "my.baz( foo )" is 2. In
+// fact, it's equivalent to
+// "my.Foo.by( lathe.kfn( 1 ), lathe.kfn( 2 ) )".
+//
 _.deftype = _.definer( function ( obj, name, var_args ) {
     var args = _.arrCut( arguments, 2 );
-    var ruleName = name === _.noname ? _.noname : "deftype:" + name;
-    function Result() { this.impl = _.arrCut( arguments ); }
+    var ruleName = prefixName( "deftype", name );
+    function Result( impl ) { this.impl = impl; }
     _.arrEach( args, function ( rb, i ) {
         if ( _.isString( rb ) )
             rb = _.rulebook( obj, rb );
@@ -1212,6 +1289,12 @@ _.deftype = _.definer( function ( obj, name, var_args ) {
     } );
     Result.prototype.toString = function () {
         return "[deftype " + name + "]";
+    };
+    Result.by = function ( var_args ) {
+        return new Result( _.arrCut( arguments ) );
+    };
+    Result.of = function ( var_args ) {
+        return new Result( _.arrMap( arguments, _.kfn ) );
     };
     return Result;
 } );
@@ -1350,21 +1433,20 @@ _.failfn( _, "iffirstkey", function ( fail, coll, then, opt_els ) {
     return _.rely( fail, _.iffirstkeyRb, coll, then, opt_els );
 } );
 
-_.rule( _.ifanykeyRb, "toKeyseq",
+_.zapRule( _.ifanykeyRb, "toKeyseq", _.toKeyseq,
     function ( fail, coll, check, then, els ) {
     
-    return _.namedlet( _.rely( fail, _.toKeyseq, coll ),
-        function ( coll, next ) {
-            return _.iffirstkey( coll,
-                function ( k, v, rest ) {
-                    var it;
-                    if ( it = check( k, v ) )
-                        return then( k, v, it );
-                    else
-                        return next( rest );
-                },
-                els );
-        } );
+    return _.namedlet( coll, function ( coll, next ) {
+        return _.iffirstkey( coll,
+            function ( k, v, rest ) {
+                var it;
+                if ( it = check( k, v ) )
+                    return then( k, v, it );
+                else
+                    return next( rest );
+            },
+            els );
+    } );
 } );
 
 _.rulebook( _, "asSeq" );
@@ -1377,23 +1459,22 @@ _.rule( _.toSeq, "asSeq", function ( fail, x ) {
     } );
 } );
 
-_.rule( _.ifanyRb, "toSeq",
-    function ( fail, coll, check, then, els ) {
+_.zapRule( _.ifanyRb, "toSeq", _.toSeq, function (
+    fail, coll, check, then, els ) {
     
-    return _.namedlet( _.rely( fail, _.toSeq, coll ),
-        function ( coll, next ) {
-            // TODO: See if iffirst(), defined below, can be moved up
-            // before its usage here.
-            return _.iffirst( coll,
-                function ( first, rest ) {
-                    var it;
-                    if ( it = check( first ) )
-                        return then( first, it );
-                    else
-                        return next( rest );
-                },
-                els );
-        } );
+    return _.namedlet( coll, function ( coll, next ) {
+        // TODO: See if iffirst(), defined below, can be moved up
+        // before its usage here.
+        return _.iffirst( coll,
+            function ( first, rest ) {
+                var it;
+                if ( it = check( first ) )
+                    return then( first, it );
+                else
+                    return next( rest );
+            },
+            els );
+    } );
 } );
 
 
@@ -1404,7 +1485,7 @@ _.rule( _.ifanyRb, "toSeq",
 _.rulebook( _, "keycons" );
 
 _.lazykeycons = function ( keyGetter, valGetter, restGetter ) {
-    return new Keyseq( function ( then, els ) {
+    return _.Keyseq.by( function ( then, els ) {
         return then( keyGetter(), valGetter(), restGetter() );
     } );
 };
@@ -1413,7 +1494,7 @@ _.lazykeycons = function ( keyGetter, valGetter, restGetter ) {
 // should say "rest".
 _.rule( _.keycons, "Keyseq", function ( fail, k, v, rest ) {
     if ( !(rest instanceof _.Keyseq) ) fail( "It isn't a Keyseq." );
-    return new Keyseq( function ( then, els ) {
+    return _.Keyseq.by( function ( then, els ) {
         return then( k, v, rest );
     } );
 } );
@@ -1435,14 +1516,14 @@ _.failfn( _, "iffirst", function ( fail, coll, then, opt_els ) {
 _.rulebook( _, "cons" );
 
 _.lazycons = function ( firstGetter, restGetter ) {
-    return new _.Seq( function ( then, els ) {
+    return _.Seq.by( function ( then, els ) {
         return then( firstGetter(), restGetter() );
     } );
 };
 
 _.rule( _.cons, "Seq", function ( fail, first, rest ) {
     if ( !(rest instanceof _.Seq) ) fail( "It isn't a Seq." );
-    return new _.Seq( function ( then, els ) {
+    return _.Seq.by( function ( then, els ) {
         return then( first, rest );
     } );
 } );
@@ -1452,7 +1533,7 @@ _.instanceofRule( _.asSeq, "Seq", _.Seq, function ( fail, x, body ) {
 } );
 
 
-_.nilseq = new _.Seq( function ( then, els ) { return els(); } );
+_.nilseq = _.Seq.by( function ( then, els ) { return els(); } );
 
 
 _.rulebook( _, "map" );
@@ -1506,7 +1587,7 @@ _.instanceofRule( _.iffirstkeyRb, "Seq", _.Seq, function (
     
     return _.iffirstkey(
         _.namedlet( coll, 0, function ( coll, i, trampnext, next ) {
-            return new Keyseq( function ( then, els ) {
+            return _.Keyseq.by( function ( then, els ) {
                 return _.iffirst( coll,
                     function ( first, rest ) {
                         return then( i, first, next( rest, i + 1 ) );
@@ -1584,6 +1665,7 @@ _.rulebook( _, "unbox" );
 _.rulebook( _, "toPlusAdder" );
 
 // TODO: In the Penknife draft, change this from a fun* to a rule*.
+// NOTE: This can't be a zapRule since it has two failure conditions.
 _.rule( _.plus, "toPlusAdder", function ( fail, first ) {
     if ( arguments.length < 2 )
         fail( "There are no arguments." );
@@ -1600,7 +1682,7 @@ _.rule( _.binaryPlus, "asSeq", function ( fail, a, b ) {
     return _.rely( fail, _.asSeq, a, function ( a ) {
         b = _.toSeq( b );
         return _.namedlet( a, function ( a, trampnext, next ) {
-            return new _.Seq( function ( then, els ) {
+            return _.Seq.by( function ( then, els ) {
                 return _.iffirst( a,
                     function ( first, rest ) {
                         return then( first, next( rest ) );
@@ -1642,11 +1724,11 @@ _.rule( _.flatmap, "map", function ( fail, first, coll, func ) {
 // TODO: Figure out what to do about concurrent modification to the
 // underlying array (in any of these utilities!).
 //
-_.rule( _.asSeq, "array", function ( fail, x, body ) {
-    if ( !_.isArray( x ) ) fail( "It isn't an array." );
+_.rule( _.asSeq, "likeArray", function ( fail, x, body ) {
+    if ( !_.likeArray( x ) ) fail( "It isn't likeArray." );
     return _.toArray( body(
         _.namedlet( 0, function ( i, trampnext, next ) {
-            return new _.Seq( function ( then, els ) {
+            return _.Seq.by( function ( then, els ) {
                 if ( i < x.length )
                     return then( x[ i ], next( i + 1 ) );
                 return els();
@@ -1655,28 +1737,27 @@ _.rule( _.asSeq, "array", function ( fail, x, body ) {
 } );
 
 // TODO: See if array concatenation should use send() instead.
-_.rule( _.binaryPlus, "array", function ( fail, a, b ) {
-    if ( !_.isArray( a ) )
-        fail( "The first argument isn't an array." );
-    if ( !_.isArray( b ) )
-        fail( "The second argument isn't an array." );
+_.rule( _.binaryPlus, "likeArray", function ( fail, a, b ) {
+    if ( !_.likeArray( a ) )
+        fail( "The first argument isn't likeArray." );
+    if ( !_.likeArray( b ) )
+        fail( "The second argument isn't likeArray." );
     return a.concat( b );
 } );
 
 // TODO: See if this is necessary.
-_.rule( _.ifanyRb, "array",
+_.rule( _.ifanyRb, "likeArray",
     function ( fail, coll, check, then, els ) {
     
-    if ( !_.isArray( coll ) ) fail( "It isn't an array." );
+    if ( !_.likeArray( coll ) ) fail( "It isn't likeArray." );
     var result = _.arrAny( coll, check );
-    if ( result )
-        return then( result );
-    else
-        return els();
+    return result ? then( result ) : els();
 } );
 
 
 // ===== Disorganized utilities. =====================================
+//
+// TODO: Continuously prune this section down.
 
 // Example monad usage?
 //
@@ -1686,6 +1767,22 @@ _.rule( _.ifanyRb, "array",
 //    ...
 // return lathe.box( z );
 // } ); } );
+
+// This is inspired by Pauan's Object.create() at
+// <http://kaescripts.blogspot.com/2009/04/
+// essential-javascript-functions.html>, which is in turn copied and
+// pasted from Douglas Crockford's Object.create() at
+// <http://javascript.crockford.com/prototypal.html>.
+//
+_.shadow = function ( parent, opt_entries ) {
+    if ( !_.given( opt_entries ) ) opt_entries = {};
+    function Shadower() {}
+    Shadower.prototype = parent;
+    var result = new Shadower();
+    for ( var key in opt_entries )
+        result[ key ] = opt_entries[ key ];
+    return result;
+};
 
 
 // ===== Demonstrations. =============================================
