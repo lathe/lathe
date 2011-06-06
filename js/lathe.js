@@ -61,11 +61,18 @@
 //     sense or compile most of the time thanks to the frameworks this
 //     code establishes and uses.
 
+"use strict";
 
-(function () { var root = this, _ = root.lathe = {};
+(function ( root, body ) { body( root ); })( this, function ( root ) {
+// TODO: This root.exports business is just blind guessing. Figure out
+// what to *actually* do about Node.js.
+var _ = root.exports ||
+    ((root.rocketnia || (root.rocketnia = {})).lathe = {});
 
 
 // ===== Miscellaneous utilities. ====================================
+
+_.usingStrict = (function () { return this === void 0; })();
 
 // This takes any number of arguments and returns the first one (or
 // undefined, if there are no arguments).
@@ -1815,6 +1822,11 @@ _.rule( _.blahpp, "undefined", function ( fail, x ) {
 } );
 
 
+_.el = function ( domElementId ) {
+    return root.document.getElementById( domElementId );
+};
+
+
 // ===== Finishing up. ===============================================
 
 // Your applications will need to call this whenever they want
@@ -1825,10 +1837,11 @@ _.rule( _.blahpp, "undefined", function ( fail, x ) {
 _.orderRulebooks();
 
 
-})();
+} );
 
 
-(function () { var root = this, _ = root.lathe;
+(function ( root, body ) { body( root ); })( this, function ( root ) {
+var _ = root.exports || root.rocketnia.lathe;
 
 // ===== Eval-related utilities. =====================================
 //
@@ -1868,7 +1881,7 @@ var ENTER_KEY = 13;
 var NO_CAPTURE = false;
 
 // TODO: See if this leaks memory with its treatment of DOM nodes.
-_.initRepl = function ( elem ) {
+_.blahrepl = function ( elem ) {
     
     var scrollback = root.document.createElement( "textarea" );
     scrollback.className = "scrollback";
@@ -1905,4 +1918,4 @@ _.initRepl = function ( elem ) {
 };
 
 
-})();
+} );

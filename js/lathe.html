@@ -43,17 +43,18 @@ p.blahlog { background-color: transparent; }
 #repl textarea { display: block; width: 95%; }
 #repl .scrollback { height: 100px; }
 </style>
-<script type="text/javascript">
+<script type="text/javascript">"use strict";
+
+var _ = rocketnia.lathe;
+
 window.onload = function () {
-    lathe.initRepl( document.getElementById( "repl" ) );
+    _.blahrepl( _.el( "repl" ) );
 };
 </script>
 </head>
 <body>
 <div id="repl"></div>
-<script type="text/javascript">
-
-var _ = lathe;
+<script type="text/javascript">"use strict";
 
 
 // ===== Demonstrations. =============================================
