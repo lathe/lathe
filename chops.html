@@ -325,7 +325,9 @@ _.gensymSuffix = 0;
 _.gensym = function () { return _.gensymPrefix + _.gensymSuffix++; };
 
 
-var choppaScript = $.ChopsEnvObj.of( {
+// We're putting this on the window object so that it's easy to try
+// out at the REPL.
+window.choppaScript = $.ChopsEnvObj.of( {
     " block": function ( chops ) {
         return unsplice( chops ).join( "" );
     },
