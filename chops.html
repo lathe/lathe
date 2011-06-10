@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8" />
+<title>It's Chops!</title>
+<!-- chops.html -->
+<!--
+
+Copyright (c) 2011 Ross Angle
+
+  Permission is hereby granted, free of charge, to any person
+  obtaining a copy of this software and associated documentation files
+  (the "Software"), to deal in the Software without restriction,
+  including without limitation the rights to use, copy, modify, merge,
+  publish, distribute, sublicense, and/or sell copies of the Software,
+  and to permit persons to whom the Software is furnished to do so,
+  subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be
+  included in all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+  BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+Permission to use this software is also granted under the
+Perl Foundation's Artistic License 2.0. You may use either license, at
+your option.
+
+-->
+<meta name="viewport" content=
+   "initial-scale = 1.0, maximum-scale = 1.0, width = device-width" />
+<script type="text/javascript" src="lathe.js"></script>
+<script type="text/javascript" src="chops.js"></script>
+<style type="text/css">
+p.test { background-color: #CCC; }
+
+#repl textarea { display: block; width: 95%; }
+#repl .scrollback { height: 100px; }
+</style>
+<script type="text/javascript">//"use strict";
+
+var _ = rocketnia.lathe, $ = rocketnia.chops;
+
+window.onload = function () {
+    _.blahrepl( _.el( "repl" ) );
+};
+</script>
+</head>
+<body>
+<p><a id="top" href="#bottom">Go to bottom</a></p>
+<div id="repl"></div>
+
+
+<script type="text/x-rocketnia-chops" id="comment-test">
+
+something [with a%heeeere
+comment in\
+]
+
+
+it
+
+</script>
+
+<script type="text/x-rocketnia-chops" id="monad-test">
+
+[> [just thisWill( [next] ); ]
+   [just function ( err, a ) { return becomeSome( [next] ); } ]
+   [just function ( err, b ) { return horriblyNested( [next] ); } ]
+   [just function ( err ) { return code( a, b ); } ]]
+
+</script>
+
+<script type="text/x-rocketnia-chops" id="monad-fn-test">
+
+[> [just again( [next] ); ]
+   [fn err a = thisIs( [next] ) ]
+   [fn err b = horriblyNested( [next] ) ]
+   [fn err: onceWereDoneWithIt( a, b ); ]]
+
+</script>
+
+<script type="text/x-rocketnia-chops" id="monad-bind-test">
+
+[>-> g1  bar
+     g2  baz
+         [just foo( g1, g2 ) ]]
+
+</script>
+
+<script type="text/x-rocketnia-chops" id="monad-side-channel-test">
+
+[>- foo( [<- bar ], [<- baz ] ) ]
+
+</script>
+
+<script type="text/javascript">//"use strict";
+
+/*
+
+NOTE: Some of the syntaxes defined here have *vaguely* the
+progression:
+
+[>- foo( [<- bar ], [<- baz ] ) ]
+==>
+[>-> g1  bar
+     g2  baz
+         [just foo( g1, g2 ) ]]
+==>
+[> [just monadBind( bar, [fn g1 = [next] ] ) ]
+   [just monadBind( baz, [fn g2 = [next] ] ) ]
+   [just foo( g1, g2 ) ]]
+
+Among other slight differences, ">-" and ">->" don't bind "next".
+
+*/
+
+
+
+/*
+// TODO: Add this to Lathe proper, maybe. But first, see if it's
+// necessary. (It didn't seem to help without map's optimization too.)
+_.rule( _.anyRb, "likeArray", function ( fail, coll, check ) {
+    if ( !_.likeArray( coll ) ) fail( "It isn't likeArray." );
+    return _.arrAny( coll, check );
+} );
+
+_.preferNamesFirst( "anyRb/likeArray is an optimization",
+    _.anyRb, "likeArray" );
+*/
+
+_.rule( _.map, "likeArray", function ( fail, coll, convert ) {
+    if ( !_.likeArray( coll ) ) fail( "It isn't likeArray." );
+    return _.arrMap( coll, convert );
+} );
+
+_.preferNamesFirst( "map/likeArray is an optimization",
+    _.map, "likeArray" );
+
+
+// ===== Demonstrations. =============================================
+
+_.rulebook( _, "fact" );
+
+_.rule( _.fact, "positive", function ( fail, n ) {
+    if ( n <= 0 ) fail( "The number wasn't positive." );
+    return n * _.fact( n - 1 );
+} );
+
+_.rule( _.fact, "zero", function ( fail, n ) {
+    if ( n != 0 ) fail( "The number wasn't 0." );
+    return 1;
+} );
+
+_.rule( _.fact, "wrong zero", function ( fail, n ) {
+    if ( n != 0 ) fail( "The number wasn't 0." );
+    return 166;
+} );
+
+// At the moment (although it's an unspecified behavior), the rule
+// sorts "zero" before "wrong zero" by default, so these will change
+// that.
+//
+//_.preferNamesFirst( "wrong zero is right", _.fact, "wrong zero" );
+//_.preferNamesLast( "right zero is wrong", _.fact, "zero" );
+_.preferNames( "wrong zero is more correct than right zero",
+    _.fact, "wrong zero", "zero" );
+
+// These would have an effect if the rule system sorted things
+// differently by default.
+//
+//_.preferNamesFirst( "right zero is right", _.fact, "zero" );
+//_.preferNamesLast( "wrong zero is wrong", _.fact, "wrong zero" );
+//_.preferNames( "right zero is more correct than wrong zero",
+//    _.fact, "zero", "wrong zero" );
+
+// TODO: See if normallyOrder() can be changed to make the order
+// last-defined-first-tried by default.
+
+_.orderRulebooks();
+
+
+function writeTest( text ) {
+    document.write( '<p class="test">' + text + '</p>' );
+};
+
+writeTest( "heya" );
+//var p = new _.Param( 1 );
+//var q = new _.Param( 2 );
+
+//document.write( "hmm " + _.letParams( p, 3, q, 4, function () { return p.getValue() + " " + q.getValue(); } ) );
+//document.write( "hmm " + _.isSecretargAware( _.secretargAware( function () { return 2; } ) ) );
+//document.write( "hmm " + _.isSecretargAware( function () { return 2; } ) );
+document.write( "<br />" );
+//document.write( "hmm " + _.failfn( function ( fail, a, b ) { return a + b; } ).call( null, 1, 2 ) );
+//try {
+//document.write( "hmm " + _.secretargAware( function () { return 2; } ).call() );
+//} catch ( e ) { alert( e ); }
+
+var doOrDoNot = false;
+
+function kindatry( body, onCatch ) {
+    if ( doOrDoNot )
+        return body();
+    try { return body(); }
+    catch ( e ) { return onCatch( e ); }
+}
+
+kindatry( function () {
+
+writeTest( "heya " + _.fact( 0 ) );
+writeTest( "beya " + _.fact( 4 ) );
+
+// TODO: Figure out why this isn't working.
+writeTest( "beya " + _.toArray( [ [ 1, 2, 3 ], [ 4, 5, 6 ] ] ) );
+writeTest( "beya " + _.asSeq( [ [ 1, 2, 3 ], [ 4, 5, 6 ] ], _.idfn ) );
+writeTest( "beya " + _.mappend( [], [ [ 1, 2, 3 ], [ 4, 5, 6 ] ], _.idfn ).length );
+
+writeTest( "seya" );
+writeTest( "seya " + _.blahpp( "   woo  hoo   ".split( /\s+/ ) ) );
+
+document.write( "<h1>chops</h1>" );
+
+function testChops( code ) {
+    function write( it ) { writeTest( "try " + _.blahpp( code ) + ": " + it ); }
+    kindatry( function () {
+        write( _.blahpp( $.chopup( code ) ) );
+    }, function ( e ) {
+        write( "ERROR: " + e );
+    } );
+}
+
+function testChopWords( code, num ) {
+    function write( it ) { writeTest( "try words " + _.blahpp( code ) + " " + num + ": " + it ); }
+    kindatry( function () {
+        $.letChopWords( $.chopup( code )[ 0 ], num, function () {
+            write( _.blahpp( arguments ) );
+        } );
+    }, function ( e ) {
+        write( "ERROR: " + e );
+    } );
+}
+
+testChops( "" );
+testChops( "woo[moo]foo[bar]" );
+//testChops( "woo[moo]foo[bar" );
+testChops( "woo[moo [woo] ]foo[bar]" );
+testChops( _.el( "comment-test" ).innerHTML );
+testChopWords( "a b[] c d", 2 );
+
+writeTest( "blah " + _.blahpp( $.condenseStrings( [ "", " ", [ "foo" ], "", [], " you ", "know" ] ) ) );
+
+function Splice( what ) { this.what = what; }
+
+function splice( var_args ) {
+    return new Splice( _.mappend( [], arguments, function ( it ) {
+        return _.isString( it ) ? [ it ] : it;
+    } ) );
+}
+
+function unsplice( elems ) {
+    if ( elems instanceof Splice )
+        return unsplice( [ elems ] );
+    return _.mappend( [], elems, function ( it ) {
+        return it instanceof Splice ? it.what : [ it ];
+    } );
+}
+
+function resplice( elems ) {
+    return splice.apply( null, unsplice( elems ) );
+};
+
+
+// TODO: Uncomment these in lathe.js.
+
+_.arrAnyDown = function ( arr, check ) {
+    for ( var i = arr.length - 1; 0 <= i; i-- ) {
+        var result = check( arr[ i ] );
+        if ( result )
+            return result;
+    }
+    return false;
+};
+
+_.arrDown = function ( arr, check ) {
+    _.arrAnyDown(
+        arr, function ( it ) { check( it ); return false; } );
+};
+
+_.arrFoldr = function ( arr, init, func ) {
+    var result = init;
+    _.arrDown(
+        arr, function ( it ) { result = func( it, result ); } );
+    return result;
+};
+
+
+// TODO: Put these in lathe.js.
+
+_.arrTuple = function ( n, arr ) {
+    var tuples = [];
+    var tuple = [];
+    _.arrEach( arr, function ( it ) {
+        tuple.push( it );
+        if ( tuple.length == n ) {
+            tuples.push( tuple );
+            tuple = [];
+        }
+    } );
+    if ( tuple.length != 0 )
+        throw new TypeError( "Can't arrTuples into uneven tuples." );
+    return tuples;
+};
+
+_.arrPair = function ( arr ) { return _.arrTuple( 2, arr ); };
+
+_.gensymPrefix = "gs" + Math.floor( Math.random() * 1e10 ) + "_";
+_.gensymSuffix = 0;
+_.gensym = function () { return _.gensymPrefix + _.gensymSuffix++; };
+
+
+var choppaScript = $.ChopsEnvObj.of( {
+    " block": function ( chops ) {
+        return unsplice( chops ).join( "" );
+    },
+    "": function ( chops, env ) {
+        return splice(
+            "[", unsplice( $.parseInlineChops( env, chops ) ), "]" );
+    },
+    ">-": function ( chops, env ) {
+        var bindings = [];
+        var locals = $.ChopsEnvObj.of(
+            _.shadow( $.unwrapChopsEnvObj( env ), {
+            "<-": function ( chops2, env2 ) {
+                var param = _.gensym();
+                bindings.push( { param: param, val: chops2 } );
+                return param;
+            }
+        } ) );
+        return _.arrFoldr(
+            bindings, $.parseInlineChops( locals, chops ),
+            function ( binding, body ) {
+                var val = $.parseInlineChops( env, binding.val );
+                return splice(
+                    "(monadBind( (", unsplice( val ), "), ",
+                        "function ( ", binding.param, " ) { ",
+                            "return (", unsplice( body ), "); ",
+                        "} ))" );
+            } );
+    },
+    ">->": function ( chops, env ) {
+        var words = $.chopTrimTokens( chops, /\s+/g );
+        var body = $.parseInlineChops( env, words.pop() );
+        return _.arrFoldr( _.arrPair( words ), body,
+            function ( binding, body ) {
+                var param = binding[ 0 ];
+                var val = $.parseInlineChops( env, binding[ 1 ] );
+                return splice(
+                    "(monadBind( (", unsplice( val ), "), ",
+                        "function ( ", param, " ) { ",
+                            "return (", unsplice( body ), "); ",
+                        "} ))" );
+            } );
+    },
+    ">": function ( chops, env ) {
+        var words = $.chopTrimTokens( chops, /\s+/g );
+        return _.arrFoldr( words,
+            $.parseInlineChops( env, words.pop() ),
+            function ( template, next ) {
+                var locals = $.ChopsEnvObj.of(
+                    _.shadow( $.unwrapChopsEnvObj( env ), {
+                    "next": function () { return resplice( next ); }
+                } ) );
+                return resplice(
+                    $.parseInlineChops( locals, template ) );
+            } );
+    },
+    "fn": function ( chops, env ) {
+        return $.letChopLtrimRegex( chops, /^([\s_$a-z01-9]*)(:|=)/,
+            function ( match, rest ) {
+                var parms = _.arrKeep( match[ 1 ].split( /\s+/g ),
+                    function ( it ) { return it !== ""; } ).
+                    join( ", " );
+                if ( parms !== "" )
+                    parms = " " + parms + " ";
+                var body = $.parseInlineChops( env, rest );
+                if ( match[ 2 ] === "=" )
+                    body =
+                        splice( "return (", unsplice( body ), ");" );
+                return splice( "(function (", parms, ") { ",
+                    unsplice( body ), " })" );
+            },
+            function () { throw new SyntaxError(
+                "Chops can't parse this fn form." ); } );
+    },
+    "just": function ( chops, env ) {
+        return resplice( $.parseInlineChops( env, chops ) );
+    },
+    "a": function ( chops, env ) {
+        return $.letChopWords( chops, 1,
+            function () {
+                return splice( "(lathe.arrCut( arguments, (",
+                    unsplice( $.parseInlineChops( env, chops ) ),
+                ") ))" );
+            },
+            function () {
+                return "(lathe.arrCut( arguments ))";
+            }
+        );
+    },
+    "foo": _.idfn
+} );
+
+writeTest( "blah " + _.blahpp( $.parseChopcode( choppaScript, "woo[foo]moo" ) ) );
+
+writeTest( "blah " + _.blahpp( $.parseChopcode( choppaScript, "woo[a 2][ 1 [a] ][][just m]oo" ) ) );
+
+writeTest( "blah " + _.blahpp( $.unchop( $.chopcode( "woo[moo [woo] ]foo[bar]" ) ) ) );
+
+writeTest( "blah " + _.blahpp( $.parseChopcode( choppaScript, _.el( "monad-test" ).innerHTML ) ) );
+
+writeTest( "blah " + _.blahpp( $.parseChopcode( choppaScript, "woo( [fn :], [fn it: it(); ], [fn a b = a + b ] )" ) ) );
+
+writeTest( "blah " + _.blahpp( $.parseChopcode( choppaScript, _.el( "monad-fn-test" ).innerHTML ) ) );
+
+writeTest( "blah " + _.blahpp( $.parseChopcode( choppaScript, _.el( "monad-bind-test" ).innerHTML ) ) );
+
+writeTest( "blah " + _.blahpp( $.parseChopcode( choppaScript, _.el( "monad-side-channel-test" ).innerHTML ) ) );
+
+
+}, function ( e ) {
+    _.blahlog( "Error: " + e );
+} );
+
+</script>
+<p><a href="lathe.html">lathe.html</a></p>
+<p><a id="bottom" href="#top">Go to top</a></p>
+</body>
+</html>
