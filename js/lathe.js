@@ -1349,6 +1349,23 @@ _.failfn( _, "any", function ( fail, coll, check ) {
         function ( elem, checkResult ) { return checkResult; } );
 } );
 
+// TODO: This is a more open-faced implementation of lathe.any(),
+// which might allow for extensions which don't rely so much on the
+// continuation-passing-style lathe.ifany() and therefore put less
+// pressure on the call stack. See if it will be useful.
+/*
+_.rulebook( _, "anyRb" );
+
+_.failfn( _, "any", function ( fail, coll, check ) {
+    return _.rely( fail, _.ifany, coll, _.toCheck( check ) );
+} );
+
+_.rule( _.anyRb, "ifany", function ( fail, coll, check ) {
+    return _.rely( fail, _.ifany, coll, check,
+        function ( elem, checkResult ) { return checkResult; } );
+} );
+*/
+
 
 _.rulebook( _, "ifanykeyRb" );
 
