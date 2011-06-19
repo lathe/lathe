@@ -63,11 +63,20 @@
 
 "use strict";
 
-(function ( root, body ) { body( root ); })( this, function ( root ) {
-// TODO: This root.exports business is just blind guessing. Figure out
-// what to *actually* do about Node.js.
-var _ = root.exports ||
-    ((root.rocketnia || (root.rocketnia = {})).lathe = {});
+(function ( topThis, topArgs, body ) { body( topThis, topArgs ); })(
+    this, typeof arguments === "undefined" ? void 0 : arguments,
+    function ( topThis, topArgs ) {
+
+// In Node.js, this whole file is semantically in a local context, and
+// certain plain variables exist that aren't on the global object.
+// Here, we get the global object in Node.js by taking advantage of
+// the fact that it doesn't implement ECMAScript 5's strict mode.
+var root = (function () { return this; })() || topThis;
+
+// And here, we get the Node.js exports if they exist, and we splat
+// our exports on the global object if they don't.
+var _ = topArgs !== void 0 && typeof exports !== "undefined" ?
+    exports : ((root.rocketnia || (root.rocketnia = {})).lathe = {});
 
 
 // ===== Miscellaneous utilities. ====================================
@@ -1857,8 +1866,15 @@ _.orderRulebooks();
 } );
 
 
-(function ( root, body ) { body( root ); })( this, function ( root ) {
-var _ = root.exports || root.rocketnia.lathe;
+(function ( topThis, topArgs, body ) { body( topThis, topArgs ); })(
+    this, typeof arguments === "undefined" ? void 0 : arguments,
+    function ( topThis, topArgs ) {
+
+var root = (function () { return this; })() || topThis;
+
+var _ = topArgs !== void 0 && typeof exports !== "undefined" ?
+    exports : root.rocketnia.lathe;
+
 
 // ===== Eval-related utilities. =====================================
 //

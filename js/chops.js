@@ -31,11 +31,21 @@
 
 //"use strict";
 
-(function ( root, body ) { body( root ); })( this, function ( root ) {
-// TODO: This root.exports and root.require business is just blind
-// guessing. Figure out what to *actually* do about Node.js.
-var _ = root.require ? root.require( "lathe" ) : root.rocketnia.lathe;
-var $ = root.exports || (root.rocketnia.chops = {});
+(function ( topThis, topArgs, body ) { body( topThis, topArgs ); })(
+    this, typeof arguments === "undefined" ? void 0 : arguments,
+    function ( topThis, topArgs ) {
+
+// In Node.js, this whole file is semantically in a local context, and
+// certain plain variables exist that aren't on the global object.
+// Here, we get the global object in Node.js by taking advantage of
+// the fact that it doesn't implement ECMAScript 5's strict mode.
+var root = (function () { return this; })() || topThis;
+
+var _, $;
+if ( topArgs === void 0 )
+    _ = root.rocketnia.lathe, $ = root.rocketnia.chops = {};
+else  // We assume Node.js and a flat directory.
+    _ = require( "./lathe" ), $ = exports;
 
 
 $.normalizeNewlines = function ( markup ) {
