@@ -29,6 +29,27 @@
 
 // TODO: Document the purpose of choppascript.js.
 
+
+/*
+
+NOTE: Some of the syntaxes defined here have *vaguely* the
+progression:
+
+[>- foo( [<- bar ], [<- baz ] ) ]
+==>
+[>-> g1  bar
+     g2  baz
+         [just foo( g1, g2 ) ]]
+==>
+[> [just monadBind( bar, [fn g1 = [next] ] ) ]
+   [just monadBind( baz, [fn g2 = [next] ] ) ]
+   [just foo( g1, g2 ) ]]
+
+Among other slight differences, ">-" and ">->" don't bind "next".
+
+*/
+
+
 //"use strict";
 
 (function ( topThis, topArgs, body ) { body( topThis, topArgs ); })(
