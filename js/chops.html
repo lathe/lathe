@@ -135,6 +135,7 @@ _.preferNamesFirst( "anyRb/likeArray is an optimization",
     _.anyRb, "likeArray" );
 */
 
+// TODO: Add this to Lathe proper, maybe.
 _.rule( _.map, "likeArray", function ( fail, coll, convert ) {
     if ( !_.likeArray( coll ) ) fail( "It isn't likeArray." );
     return _.arrMap( coll, convert );
@@ -277,54 +278,6 @@ function resplice( elems ) {
 };
 
 
-// TODO: Uncomment these in lathe.js.
-
-_.arrAnyDown = function ( arr, check ) {
-    for ( var i = arr.length - 1; 0 <= i; i-- ) {
-        var result = check( arr[ i ] );
-        if ( result )
-            return result;
-    }
-    return false;
-};
-
-_.arrDown = function ( arr, check ) {
-    _.arrAnyDown(
-        arr, function ( it ) { check( it ); return false; } );
-};
-
-_.arrFoldr = function ( arr, init, func ) {
-    var result = init;
-    _.arrDown(
-        arr, function ( it ) { result = func( it, result ); } );
-    return result;
-};
-
-
-// TODO: Put these in lathe.js.
-
-_.arrTuple = function ( n, arr ) {
-    var tuples = [];
-    var tuple = [];
-    _.arrEach( arr, function ( it ) {
-        tuple.push( it );
-        if ( tuple.length == n ) {
-            tuples.push( tuple );
-            tuple = [];
-        }
-    } );
-    if ( tuple.length != 0 )
-        throw new TypeError( "Can't arrTuples into uneven tuples." );
-    return tuples;
-};
-
-_.arrPair = function ( arr ) { return _.arrTuple( 2, arr ); };
-
-_.gensymPrefix = "gs" + Math.floor( Math.random() * 1e10 ) + "_";
-_.gensymSuffix = 0;
-_.gensym = function () { return _.gensymPrefix + _.gensymSuffix++; };
-
-
 // We're putting this on the window object so that it's easy to try
 // out at the REPL.
 window.choppaScript = $.ChopsEnvObj.of( {
@@ -345,8 +298,7 @@ window.choppaScript = $.ChopsEnvObj.of( {
                 return param;
             }
         } ) );
-        return _.arrFoldr(
-            bindings, $.parseInlineChops( locals, chops ),
+        return _.foldr( bindings, $.parseInlineChops( locals, chops ),
             function ( binding, body ) {
                 var val = $.parseInlineChops( env, binding.val );
                 return splice(
@@ -359,7 +311,7 @@ window.choppaScript = $.ChopsEnvObj.of( {
     ">->": function ( chops, env ) {
         var words = $.chopTrimTokens( chops, /\s+/g );
         var body = $.parseInlineChops( env, words.pop() );
-        return _.arrFoldr( _.arrPair( words ), body,
+        return _.foldr( _.pair( words ), body,
             function ( binding, body ) {
                 var param = binding[ 0 ];
                 var val = $.parseInlineChops( env, binding[ 1 ] );
@@ -372,8 +324,7 @@ window.choppaScript = $.ChopsEnvObj.of( {
     },
     ">": function ( chops, env ) {
         var words = $.chopTrimTokens( chops, /\s+/g );
-        return _.arrFoldr( words,
-            $.parseInlineChops( env, words.pop() ),
+        return _.foldr( words, $.parseInlineChops( env, words.pop() ),
             function ( template, next ) {
                 var locals = $.ChopsEnvObj.of(
                     _.shadow( $.unwrapChopsEnvObj( env ), {

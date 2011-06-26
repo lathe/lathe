@@ -126,6 +126,12 @@ _.likeArray = function ( x ) {
     return _.isReallyArray( x ) || _.likeArguments( x );
 };
 
+var isFunctionObject = classTester( "Function" );
+
+_.isFunction = function ( x ) {
+    return typeof x === "function" || isFunctionObject( x );
+};
+
 _.given = function ( a ) { return a !== void 0; };
 
 _.arrCut = function ( self, opt_start, opt_end ) {
@@ -145,13 +151,19 @@ _.anyRepeat = function ( n, body ) {
             return result;
     return false;
 };
-/*
+
 _.repeat = function ( n, body ) {
     for ( var i = 0; i < n; i++ )
-        body( n );
+        body( i );
     return false;
 };
-*/
+
+_.numMap = function ( num, func ) {
+    return _.acc( function ( y ) {
+        _.repeat( num, function ( i ) { y( func( i ) ); } );
+    } );
+};
+
 _.arrAny = function ( arr, check ) {
     return _.anyRepeat( arr.length, function ( i ) {
         return check( arr[ i ], i );
@@ -203,11 +215,8 @@ _.classiccall = function ( func, var_args ) {
     return _.classicapply( null, func, _.arrCut( arguments, 1 ) );
 };
 
-// TODO: Write compose() with sargs in mind.
-/*
-
 _.arrAnyDown = function ( arr, check ) {
-    for ( var i = arr.length; 0 <= i; i-- ) {
+    for ( var i = arr.length - 1; 0 <= i; i-- ) {
         var result = check( arr[ i ] );
         if ( result )
             return result;
@@ -215,30 +224,11 @@ _.arrAnyDown = function ( arr, check ) {
     return false;
 };
 
-_.arrDown = function ( arr, check ) {
+_.arrDown = function ( arr, body ) {
     _.arrAnyDown(
-        arr, function ( it ) { check( it ); return false; } );
+        arr, function ( it ) { body( it ); return false; } );
 };
 
-_.arrFoldr = function ( arr, func, init ) {
-    var result = init;
-    _.arrDown(
-        arr, function ( it ) { result = func( it, result ); } );
-    return result;
-};
-
-_.compose = function ( var_args ) {
-    var args = arguments;
-    return function ( var_args ) {
-        return _.arrFoldr( args, function ( a, b ) { return a( b ); },
-            b.apply( this, arguments ) );
-    };
-};
-
-_.nofn = function ( func ) {
-    return _.compose( function ( it ) { return !it; }, func );
-};
-*/
 _.arrRem = function ( arr, check ) {
     return _.arrKeep( arr, function ( it ) { return !check( it ); } );
 };
@@ -256,8 +246,9 @@ _.arrSubset = function ( eq, as, bs ) {
 };
 
 _.sameTwo = function ( a, b ) {
-    // NOTE: The second option covers NaN.
-    return a === b || (a !== a && b !== b);
+    return (a === b &&
+        (a !== 0 || 1 / a === 1 / b)) ||  // -0 === 0, but 1/-0 !== 1/0
+        (a !== a && b !== b);             // NaN !== NaN
 }
 
 _.alGet = function ( al, k, opt_onfound, opt_onmissed ) {
@@ -307,15 +298,109 @@ _.definer = function ( opt_obj, opt_name, func ) {
     return result;
 };
 
+var gensymPrefix =
+    "gs" + (root.Math.floor( root.Math.random() * 1e10 ) + 1e10 + "").
+       substring( 1 ) + "n";
+var gensymSuffix = 0;
+_.gensym = function () { return gensymPrefix + gensymSuffix++; };
+
+
+// ===== Utilities for dealing in object literals. ===================
+
+
+// This is inspired by Pauan's Object.create() at
+// <http://kaescripts.blogspot.com/2009/04/
+// essential-javascript-functions.html>, which is in turn copied and
+// pasted from Douglas Crockford's Object.create() at
+// <http://javascript.crockford.com/prototypal.html>.
+//
+_.shadow = function ( parent, opt_entries ) {
+    function Shadower() {}
+    Shadower.prototype = parent;
+    
+    var result = new Shadower();
+    if ( _.given( opt_entries ) )
+        for ( var key in opt_entries )
+            result[ key ] = opt_entries[ key ];
+    return result;
+};
+
+
+_.objOwnAny = function ( obj, func ) {
+    var result;
+    for ( var key in obj )
+        if ( _.hasOwn( obj, key ) ) {
+            var result = func( key, obj[ key ] );
+            if ( result )
+                return result;
+        }
+    return false;
+};
+
+_.objOwnEach = function ( obj, func ) {
+    return _.objOwnAny( obj, function ( k, v ) {
+        func( k, v );
+        return false;
+    } );
+};
+
+_.objOwnKeys = function ( obj ) {
+    return _.acc( function ( y ) {
+        _.objOwnEach( obj, function ( k, v ) { y( k ); } );
+    } );
+};
+
+_.objAcc = function ( body ) {
+    var result = {};
+    body( function ( k, v ) { result[ k ] = v; } );
+    return result;
+};
+
+_.objCopy = function ( obj ) {
+    return _.objAcc( function ( y ) {
+        _.objOwnEach( obj, function ( k, v ) { y( k, v ); } );
+    } );
+};
+
+_.Opt = function ( bam ) { this.bam = bam; };
+
+_.opt = function ( result ) { return new _.Opt( _.kfn( result ) ); };
+
+_.Opt.prototype.or = function ( var_args ) {
+    var bam = this.bam;
+    var args = _.arrCut( arguments );
+    while ( args.length != 0 ) {
+        var arg = args.shift();
+        if ( _.isString( arg ) && args.length != 0 ) {
+            var obj = {};
+            obj[ arg ] = args.shift();
+            bam = _.opt( bam ).or( obj ).bam;
+        } else {
+            var oldBam = bam;
+            bam = function () {
+                var result = _.objCopy( oldBam() );
+                _.objOwnEach( arg, function ( k, v ) {
+                    if ( !_.hasOwn( result, k ) )
+                        result[ k ] = v;
+                } );
+                return result;
+            };
+        }
+    }
+    return new _.Opt( bam );
+};
+
 
 // ===== Debugging. ==================================================
 
 _.blahlogs = {};
 
-_.blahlogs.docPara = function ( text ) {
-    root.document.write( "<p class='blahlog'>" +
-        ("" + text).replace( /\n/g, "<br />" ) + "</p>" );
-    return text;
+_.blahlogs.docPara = function ( opt_text ) {
+    if ( !_.given( opt_text ) ) opt_text = "";
+    opt_text = ("" + opt_text).replace( /\n/g, "<br />" );
+    if ( opt_text.length == 0 ) opt_text = "&nbsp;";
+    root.document.write( "<p class='blahlog'>" + opt_text + "</p>" );
+    return opt_text;
 }
 
 _.blahlog = _.blahlogs.docPara;
@@ -1319,7 +1404,7 @@ _.deftype = _.definer( function ( obj, name, var_args ) {
 _.rulebook( _, "isRb" );
 
 _.is = function ( var_args ) {
-    var args = _.cut( arguments );
+    var args = _.arrCut( arguments );
     if ( args.length == 0 ) return true;
     var first = args.shift();
     return _.arrAll( args, function ( arg ) {
@@ -1462,7 +1547,8 @@ _.failfn( _, "iffirstkey", function ( fail, coll, then, opt_els ) {
     return _.rely( fail, _.iffirstkeyRb, coll, then, opt_els );
 } );
 
-_.zapRule( _.ifanykeyRb, "toKeyseq", _.toKeyseq,
+_.zapRule( _.ifanykeyRb, "toKeyseq",
+    _.latefn( function () { return _.toKeyseq; } ),
     function ( fail, coll, check, then, els ) {
     
     return _.namedlet( coll, function ( coll, next ) {
@@ -1478,18 +1564,22 @@ _.zapRule( _.ifanykeyRb, "toKeyseq", _.toKeyseq,
     } );
 } );
 
-_.rulebook( _, "asSeq" );
+_.rulebook( _, "toSeqAndBack" );
+
+_.failfn( _, "asSeq", function ( fail, x, body ) {
+    var andBack = _.rely( fail, _.toSeqAndBack, x );
+    return andBack.back( body( andBack.val ) );
+} );
 
 _.rulebook( _, "toSeq" );
 
-_.rule( _.toSeq, "asSeq", function ( fail, x ) {
-    return _.point( function ( decide ) {
-        return _.rely( fail, _.asSeq, x, decide );
-    } );
+_.rule( _.toSeq, "toSeqAndBack", function ( fail, x ) {
+    return _.rely( fail, _.toSeqAndBack, x ).val;
 } );
 
-_.zapRule( _.ifanyRb, "toSeq", _.toSeq, function (
-    fail, coll, check, then, els ) {
+_.zapRule( _.ifanyRb, "toSeq",
+    _.latefn( function () { return _.toSeq; } ),
+    function ( fail, coll, check, then, els ) {
     
     return _.namedlet( coll, function ( coll, next ) {
         // TODO: See if iffirst(), defined below, can be moved up
@@ -1557,8 +1647,10 @@ _.rule( _.cons, "Seq", function ( fail, first, rest ) {
     } );
 } );
 
-_.instanceofRule( _.asSeq, "Seq", _.Seq, function ( fail, x, body ) {
-    return _.tcall( body, x );
+_.instanceofRule( _.toSeqAndBack, "Seq", _.Seq, function (
+    fail, x, body ) {
+    
+    return { val: x, back: _.idfn };
 } );
 
 
@@ -1628,6 +1720,13 @@ _.instanceofRule( _.iffirstkeyRb, "Seq", _.Seq, function (
 } );
 
 
+_.rulebook( _, "toArray" );
+
+_.rule( _.toArray, "each", function ( fail, x ) {
+    return _.acc( function ( y ) { _.rely( fail, _.each, x, y ); } );
+} );
+
+
 // TODO: Port this to the Penknife draft.
 
 _.rulebook( _, "foldl" );
@@ -1639,11 +1738,91 @@ _.rule( _.foldl, "each", function ( fail, init, coll, func ) {
     return result;
 } );
 
+_.rulebook( _, "foldr" );
 
-// TODO: Redesign asSeq() so that it destructures something into a
-// coerced form and a back-coercer function that can be used
-// *multiple* times. Use this new kind of asSeq() as a basis for
-// defining tuple( size, seq ) and pair( seq ).
+_.zapRule( _.foldr, "toArray",
+    _.latefn( function () { return _.toArray; } ),
+    function ( fail, coll, init, func ) {
+    
+    var result = init;
+    _.arrDown(
+        coll, function ( it ) { result = func( it, result ); } );
+    return result;
+} );
+
+
+_.failfn( _, "rev", function ( fail, seq ) {
+    return _.rely( fail, _.asSeq, seq, function ( seq ) {
+        return _.toSeq( _.arrCut( _.toArray( seq ) ).reverse() );
+    } );
+} );
+
+// TODO: See if there's a better default for opt_by. It would be nice
+// to have a generic, extensible comparator, like is() and isRb() for
+// equality.
+_.failfn( _, "sort", function ( fail, seq, opt_by ) {
+    if ( !_.given( opt_by ) )
+        opt_by = function ( a, b ) { return a - b; };
+    return _.rely( fail, _.asSeq, seq, function ( seq ) {
+        return _.toSeq( _.arrCut( _.toArray( seq ) ).sort( opt_by ) );
+    } );
+} );
+
+_.failfn( _, "tuple", function ( fail, size, seq ) {
+    var andBack = _.rely( fail, _.toSeqAndBack, seq );
+    return andBack.back( _.namedlet( andBack.val,
+        function ( seq, trampnext, nextTuples ) {
+            return _.Seq.by( function ( then, els ) {
+                return _.namedlet( _.nilseq, 0, seq,
+                    function ( tuple, n, seq, nextTuple ) {
+                        if ( n == size )
+                            return then(
+                                andBack.back( _.rev( tuple ) ),
+                                nextTuples( seq ) );
+                        return _.iffirst( seq,
+                            function ( first, rest ) {
+                                return nextTuple(
+                                    _.cons( first, tuple ),
+                                    n + 1, rest );
+                            },
+                            function () {
+                                if ( n != 0 )
+                                    throw new TypeError(
+                                        "Can't tuple into uneven " +
+                                        "tuples." );
+                                return els();
+                            } );
+                    } );
+            } );
+        } ) );
+} );
+
+_.failfn( _, "pair", function ( fail, seq ) {
+    return _.rely( fail, _.tuple, 2, seq );
+} );
+
+// Returns a sequence with consecutive duplicates removed. This is
+// effective for removing all duplicates from a sorted sequence.
+_.failfn( _, "dedupGrouped", function ( fail, seq, opt_eq ) {
+    if ( !_.given( opt_eq ) ) opt_eq = _.is;
+    return _.rely( fail, _.asSeq, seq, function ( seq ) {
+        return _.namedlet( seq, false, void 0, function (
+            seq, hasPrev, prev, trampnext, nextDedup ) {
+            
+            return _.Seq.by( function ( then, els ) {
+                return _.namedlet( seq, function ( seq, nextRest ) {
+                    return _.iffirst( seq, function ( first, rest ) {
+                        if ( hasPrev && opt_eq( prev, first ) )
+                            return nextRest( rest );
+                        else
+                            return then( first,
+                                nextDedup( rest, true, first ) );
+                    }, els );
+                } );
+            } );
+        } );
+    } );
+} );
 
 
 // ===== Extensible accumulation utilities. ==========================
@@ -1728,13 +1907,6 @@ _.rule( _.binaryPlus, "asSeq", function ( fail, a, b ) {
 } );
 
 
-_.rulebook( _, "toArray" );
-
-_.rule( _.toArray, "each", function ( fail, x ) {
-    return _.acc( function ( y ) { _.rely( fail, _.each, x, y ); } );
-} );
-
-
 _.mappend = function ( first, coll, func ) {
     return _.classicapply(
         null, _.plus, first, _.toArray( _.map( coll, func ) ) );
@@ -1753,16 +1925,18 @@ _.rule( _.flatmap, "map", function ( fail, first, coll, func ) {
 // TODO: Figure out what to do about concurrent modification to the
 // underlying array (in any of these utilities!).
 //
-_.rule( _.asSeq, "likeArray", function ( fail, x, body ) {
+_.rule( _.toSeqAndBack, "likeArray", function ( fail, x ) {
     if ( !_.likeArray( x ) ) fail( "It isn't likeArray." );
-    return _.toArray( body(
-        _.namedlet( 0, function ( i, trampnext, next ) {
+    return {
+        val: _.namedlet( 0, function ( i, trampnext, next ) {
             return _.Seq.by( function ( then, els ) {
                 if ( i < x.length )
                     return then( x[ i ], next( i + 1 ) );
                 return els();
             } );
-        } ) ) );
+        } ),
+        back: function ( x ) { return _.toArray( x ); }
+    };
 } );
 
 // TODO: See if array concatenation should use send() instead.
@@ -1796,23 +1970,6 @@ _.rule( _.ifanyRb, "likeArray",
 //    ...
 // return lathe.box( z );
 // } ); } );
-
-// This is inspired by Pauan's Object.create() at
-// <http://kaescripts.blogspot.com/2009/04/
-// essential-javascript-functions.html>, which is in turn copied and
-// pasted from Douglas Crockford's Object.create() at
-// <http://javascript.crockford.com/prototypal.html>.
-//
-_.shadow = function ( parent, opt_entries ) {
-    function Shadower() {}
-    Shadower.prototype = parent;
-    
-    var result = new Shadower();
-    if ( _.given( opt_entries ) )
-        for ( var key in opt_entries )
-            result[ key ] = opt_entries[ key ];
-    return result;
-};
 
 
 // TODO: Add more rules to this.
