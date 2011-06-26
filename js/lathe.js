@@ -401,7 +401,26 @@ _.blahlogs.docPara = function ( opt_text ) {
     if ( opt_text.length == 0 ) opt_text = "&nbsp;";
     root.document.write( "<p class='blahlog'>" + opt_text + "</p>" );
     return opt_text;
-}
+};
+
+_.blahlogs.elAppend = function ( id ) {
+    return function ( opt_text ) {
+        if ( !_.given( opt_text ) ) opt_text = "";
+        var nodes = opt_text === "" ?
+            [ root.document.createTextNode( "|" ) ] :
+            _.arrCut( _.arrMappend( ("" + opt_text).split( /\n/g ),
+                function ( line ) {
+                    return [ root.document.createElement( "br" ),
+                        root.document.createTextNode( line ) ];
+                } ), 1 );
+        var para = root.document.createElement( "p" );
+        para.className = "blahlog";
+        _.each(
+            nodes, function ( node ) { para.appendChild( node ); } );
+        _.el( id ).appendChild( para );
+        return opt_text;
+    };
+};
 
 _.blahlog = _.blahlogs.docPara;
 
