@@ -105,29 +105,6 @@ it
 <script type="text/javascript">//"use strict";
 
 
-
-/*
-// TODO: Add this to Lathe proper, maybe. But first, see if it's
-// necessary. (It didn't seem to help without map's optimization too.)
-_.rule( _.anyRb, "likeArray", function ( fail, coll, check ) {
-    if ( !_.likeArray( coll ) ) fail( "It isn't likeArray." );
-    return _.arrAny( coll, check );
-} );
-
-_.preferNamesFirst( "anyRb/likeArray is an optimization",
-    _.anyRb, "likeArray" );
-*/
-
-// TODO: Add this to Lathe proper, maybe.
-_.rule( _.map, "likeArray", function ( fail, coll, convert ) {
-    if ( !_.likeArray( coll ) ) fail( "It isn't likeArray." );
-    return _.arrMap( coll, convert );
-} );
-
-_.preferNamesFirst( "map/likeArray is an optimization",
-    _.map, "likeArray" );
-
-
 // ===== Demonstrations. =============================================
 
 _.rulebook( _, "fact" );

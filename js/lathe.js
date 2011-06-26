@@ -2029,6 +2029,34 @@ _.el = function ( domElementId ) {
 };
 
 
+// ===== Optimization rules. =========================================
+//
+// TODO: Remove these, if possible. Possibly redesign utilities like
+// iffirst() and ifAny() so that they're not reliant on tail calls,
+// which we don't get for free. (Alternately, we could uncomment the
+// trampolining code and fix it up.)
+
+/*
+// TODO: See if this is necessary. (It didn't seem to help without
+// map's optimization too.)
+_.rule( _.anyRb, "likeArray", function ( fail, coll, check ) {
+    if ( !_.likeArray( coll ) ) fail( "It isn't likeArray." );
+    return _.arrAny( coll, check );
+} );
+
+_.preferNamesFirst( "anyRb/likeArray is an optimization",
+    _.anyRb, "likeArray" );
+*/
+
+_.rule( _.map, "likeArray", function ( fail, coll, convert ) {
+    if ( !_.likeArray( coll ) ) fail( "It isn't likeArray." );
+    return _.arrMap( coll, convert );
+} );
+
+_.preferNamesFirst( "map/likeArray is an optimization",
+    _.map, "likeArray" );
+
+
 // ===== Finishing up. ===============================================
 
 // Your applications will need to call this whenever they want
