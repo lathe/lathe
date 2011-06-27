@@ -2127,12 +2127,26 @@ _.blahrepl = function ( elem ) {
     
     var prompt = root.document.createElement( "textarea" );
     prompt.className = "prompt";
+    prompt.addEventListener( "keydown", function ( event ) {
+        if ( event.which === ENTER_KEY )
+            event.preventDefault();
+    }, !"capture" );
+    prompt.addEventListener( "keyup", function ( event ) {
+        if ( event.which === ENTER_KEY )
+            doEval();
+    }, !"capture" );
     elem.appendChild( prompt );
     
-    prompt.addEventListener( "keyup", function ( event ) {
-        if ( event.which !== ENTER_KEY ) return;
-        
-        var command = prompt.value.replace( /^(.*\S)\s+$/, "$1" );
+    var evalButton = root.document.createElement( "button" );
+    evalButton.className = "eval";
+    evalButton.appendChild( root.document.createTextNode( "Eval" ) );
+    evalButton.addEventListener( "click", function ( event ) {
+        doEval();
+    }, !"capture" );
+    elem.appendChild( evalButton );
+    
+    function doEval() {
+        var command = prompt.value;
         
         scrollback.value += ">>> " + command + "\n";
         scrollback.scrollTop = scrollback.scrollHeight;
@@ -2141,7 +2155,7 @@ _.blahrepl = function ( elem ) {
         try { var result = _.globeval( command ); success = true; }
         catch ( e ) {
             var message = "(error rendering error)";
-            try { var message = "" + e; } catch ( e ) {}
+            try { message = "" + e; } catch ( e ) {}
             scrollback.value += "Error: " + message + "\n\n";
         }
         if ( success )
@@ -2150,8 +2164,7 @@ _.blahrepl = function ( elem ) {
         scrollback.scrollTop = scrollback.scrollHeight;
         
         prompt.value = "";
-        
-    }, NO_CAPTURE );
+    }
 };
 
 
