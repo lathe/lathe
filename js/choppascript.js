@@ -153,37 +153,31 @@ my.env = $c.ChopsEnvObj.of( {
             } );
     },
     "fn": function ( chops, env ) {
-        return $c.letChopLtrimRegex( chops, /^([\s_$a-z01-9]*)(:|=)/,
-            function ( match, rest ) {
-                var parms = _.arrKeep( match[ 1 ].split( /\s+/g ),
-                    function ( it ) { return it !== ""; } ).
-                    join( ", " );
-                if ( parms !== "" )
-                    parms = " " + parms + " ";
-                var body = $c.parseInlineChops( env, rest );
-                if ( match[ 2 ] === "=" )
-                    body =
-                        splice( "return (", unsplice( body ), ");" );
-                return splice( "(function (", parms, ") { ",
-                    unsplice( body ), " })" );
-            },
-            function () { throw new SyntaxError(
-                "Chops can't parse this fn form." ); } );
+        var apart =
+            $c.letChopLtrimRegex( chops, /^([\s_$a-z01-9]*)(:|=)/ );
+        if ( !apart )
+            throw new SyntaxError(
+                "Chops can't parse this fn form." );
+        var parms = _.arrKeep( apart.match[ 1 ].split( /\s+/g ),
+            function ( it ) { return it !== ""; } ).join( ", " );
+        if ( parms !== "" )
+            parms = " " + parms + " ";
+        var body = $c.parseInlineChops( env, apart.rest );
+        if ( apart.match[ 2 ] === "=" )
+            body = splice( "return (", unsplice( body ), ");" );
+        return splice( "(function (", parms, ") { ", unsplice( body ),
+            " })" );
     },
     "just": function ( chops, env ) {
         return resplice( $c.parseInlineChops( env, chops ) );
     },
     "a": function ( chops, env ) {
-        return $c.letChopWords( chops, 1,
-            function () {
-                return splice( "(lathe.arrCut( arguments, (",
-                    unsplice( $c.parseInlineChops( env, chops ) ),
-                ") ))" );
-            },
-            function () {
-                return "(lathe.arrCut( arguments ))";
-            }
-        );
+        if ( $c.letChopWords( chops, 1 ) )
+            return splice( "(lathe.arrCut( arguments, (",
+                unsplice( $c.parseInlineChops( env, chops ) ),
+            ") ))" );
+        else
+            return "(lathe.arrCut( arguments ))";
     },
     "foo": _.idfn
 } );

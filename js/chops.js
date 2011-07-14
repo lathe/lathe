@@ -216,22 +216,32 @@ $.chopParas = function ( chops ) {
     return $.chopTrimTokens( chops, /\n\n+/g );
 };
 
-$.letChopWords = function ( chops, num, then, opt_els ) {
+$.letChopWords = function ( chops, num, opt_then, opt_els ) {
+    if ( !_.given( opt_then ) )
+        opt_then =
+            function ( var_args ) { return _.arrCut( arguments ); };
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
     var words = $.chopTokens( chops, /\s+/g, num );
     if ( words.length <= num )
-        return _.given( opt_els ) ? opt_els() : void 0;
-    return _.classicapply( null, then, words );
+        return opt_els();
+    else
+        return _.classicapply( null, opt_then, words );
 };
 
-$.letChopLtrimRegex = function ( chops, regex, then, opt_els ) {
+$.letChopLtrimRegex = function ( chops, regex, opt_then, opt_els ) {
+    if ( !_.given( opt_then ) )
+        opt_then = function ( match, rest ) {
+            return { match: match, rest: rest };
+        };
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
     var first = chops[ 0 ];
     if ( !_.isString( first ) )
         first = "";
     var match = new RegExp( regex ).exec( first );
     if ( match === null || match.index != 0 )
-        return _.given( opt_els ) ? opt_els() : void 0;
+        return opt_els();
     var newFirst = first.substring( match[ 0 ].length );
-    return then( match,
+    return opt_then( match,
         (newFirst === "" ? [] : [ newFirst ]).
             concat( _.arrCut( chops, 1 ) ) );
 };
@@ -257,11 +267,9 @@ _.rulebook( $, "normalizeChoppedDocument" );
 $.parseInlineChop = function ( env, chop ) {
     if ( _.isString( chop ) )
         return $.parseTextChop( env, chop );
-    return $.letChopLtrimRegex( chop, /^\S*/, function (
-        opMatch, body ) {
-        
-        return $.parseOpChop( env, opMatch[ 0 ], body );
-    } );
+    var apart = $.letChopLtrimRegex( chop, /^\S*/ );
+    return apart ?
+        $.parseOpChop( env, apart.match[ 0 ], apart.rest ) : void 0;
 };
 
 $.parseInlineChops = function ( env, chops ) {
@@ -282,11 +290,14 @@ $.parseDocumentOfChops = function ( env, document ) {
         } ) );
 };
 /*
-$.letChopLtrimWords = function ( chops, num, then, opt_els ) {
+$.letChopLtrimWords = function ( chops, num, opt_then, opt_els ) {
+    if ( !_.given( opt_then ) )
+        opt_then =
+            function ( var_args ) { return _.arrCut( arguments ); };
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
     var words = $.chopLtrimTokens( chops, /\s+/g, num );
-    if ( words.length <= num )
-        return _.given( opt_els ) ? opt_els() : void 0;
-    return _.classicapply( null, then, words );
+    return words.length <= num ?
+        opt_els() : _.classicapply( null, opt_then, words );
 };
 */
 $.chopcode = function ( code ) {

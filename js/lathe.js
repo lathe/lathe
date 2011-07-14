@@ -251,6 +251,7 @@ _.sameTwo = function ( a, b ) {
         (a !== a && b !== b);             // NaN !== NaN
 }
 
+// TODO: Redesign this in a non-CPS way.
 _.alGet = function ( al, k, opt_onfound, opt_onmissed ) {
     if ( !_.given( opt_onfound ) ) opt_onfound = _.idfn;
     for ( var i = 0, n = al.length; i < n; i++ ) {
@@ -326,8 +327,13 @@ _.shadow = function ( parent, opt_entries ) {
 };
 
 
+_.likeObjectLiteral = function ( x ) {
+    if ( typeof x !== "object" ) return false;
+    var Ctor = x.constructor;
+    return Ctor === Ctor.prototype.constructor;
+};
+
 _.objOwnAny = function ( obj, func ) {
-    var result;
     for ( var key in obj )
         if ( _.hasOwn( obj, key ) ) {
             var result = func( key, obj[ key ] );
@@ -425,9 +431,11 @@ _.blahlogs.elAppend = function ( id ) {
 _.blahlog = _.blahlogs.docPara;
 
 _.blah = _.definer( function ( obj, name, opt_body, opt_options ) {
+    opt_options =
+        _.opt( opt_options ).or( { skipBeginning: false } ).bam();
     if ( !_.given( opt_body ) )
         return _.blahlog( "|- " + name );
-    if ( !(_.given( opt_options ) && opt_options.skipBeginning) )
+    if ( !opt_options.skipBeginning )
         _.blahlog( "/- " + name );
     try { var result = opt_body(); }
     catch ( e ) {
@@ -621,6 +629,7 @@ _.latefn = _.definer( function ( obj, name, getFunc ) {
 
 // ===== Escape continuations. =======================================
 
+// TODO: See if this can be redesigned in a non-CPS way.
 _.point = function ( body, opt_onraise, opt_onreturn, opt_onthrow ) {
     if ( !_.given( opt_onraise ) ) opt_onraise = _.idfn;
     if ( !_.given( opt_onreturn ) ) opt_onreturn = _.idfn;
@@ -1179,6 +1188,7 @@ _.RulebookFailure = function ( name, self, args, complaints ) {
 
 
 // TODO: See if point() is strictly better than this.
+// TODO: See if this can be redesigned in a non-CPS way.
 _.ifsuccess = function ( thunk, consequence, alternative ) {
     return _.rely( alternative,
         _.failfn( "-ifsuccess-", function ( fail ) {
@@ -1451,15 +1461,21 @@ _.toCheck = function ( x ) {
 
 _.rulebook( _, "ifanyRb" );
 
-_.failfn( _, "ifany", function ( fail, coll, check, then, opt_els ) {
-    if ( !_.given( opt_els ) ) opt_els = _.kfn( false );
+_.failfn( _, "ifany", function (
+    fail, coll, check, opt_then, opt_els ) {
+    
+    if ( !_.given( opt_then ) )
+        opt_then = function ( elem, checkResult ) {
+            return { elem: elem, checkResult: checkResult };
+        };
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
     return _.rely( fail,
-        _.ifanyRb, coll, _.toCheck( check ), then, opt_els );
+        _.ifanyRb, coll, _.toCheck( check ), opt_then, opt_els );
 } );
 
 _.failfn( _, "any", function ( fail, coll, check ) {
-    return _.rely( fail, _.ifany, coll, _.toCheck( check ),
-        function ( elem, checkResult ) { return checkResult; } );
+    var apart = _.rely( fail, _.ifany, coll, _.toCheck( check ) );
+    return apart ? apart.checkResult : false;
 } );
 
 // TODO: This is a more open-faced implementation of lathe.any(),
@@ -1470,40 +1486,42 @@ _.failfn( _, "any", function ( fail, coll, check ) {
 _.rulebook( _, "anyRb" );
 
 _.failfn( _, "any", function ( fail, coll, check ) {
-    return _.rely( fail, _.ifany, coll, _.toCheck( check ) );
+    return _.rely( fail, _.anyRb, coll, _.toCheck( check ) );
 } );
 
 _.rule( _.anyRb, "ifany", function ( fail, coll, check ) {
-    return _.rely( fail, _.ifany, coll, check,
-        function ( elem, checkResult ) { return checkResult; } );
+    var apart = _.rely( fail, _.ifany, coll, check );
+    return apart ? apart.checkResult : false;
 } );
 */
 
 
 _.rulebook( _, "ifanykeyRb" );
 
-_.failfn( _, "ifanykey",
-    function ( fail, coll, check, then, opt_els ) {
+_.failfn( _, "ifanykey", function (
+    fail, coll, check, opt_then, opt_els ) {
     
-    if ( !_.given( opt_els ) ) opt_els = _.kfn( false );
-    return _.rely( fail, _.ifanykeyRb, coll, check, then, opt_els );
+    if ( !_.given( opt_then ) )
+        opt_then = function ( k, v, checkResult ) {
+            return { k: k, v: v, checkResult: checkResult };
+        };
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
+    return _.rely( fail,
+        _.ifanykeyRb, coll, check, opt_then, opt_els );
 } );
 
 _.failfn( _, "anykey", function ( fail, coll, check ) {
-    return _.rely( fail, _.ifanykey, coll, check,
-        function ( k, v, checkResult ) { return checkResult; } );
+    var apart = _.rely( fail, _.ifanykey, coll, check );
+    return apart ? apart.checkResult : false;
 } );
 
 
 _.rule( _.ifanyRb, "ifanykey",
     function ( fail, coll, check, then, els ) {
     
-    return _.rely( fail, _.ifanykey, coll,
-        function ( k, v ) { return check( v ); },
-        function ( k, v, checkResult ) {
-            return then( v, checkResult );
-        },
-        els );
+    var apart = _.rely( fail, _.ifanykey, coll,
+        function ( k, v ) { return check( v ); } );
+    return apart ? then( apart.v, apart.checkResult ) : els();
 } );
 
 
@@ -1521,24 +1539,24 @@ _.failfn( _, "all", function ( fail, coll, check ) {
 } );
 
 _.failfn( _, "poskey", function ( fail, coll, check ) {
-    return _.rely( fail, _.ifanykey,
-        coll, check, function ( k, v, checkResult ) { return k; } );
+    var apart = _.rely( fail, _.ifanykey, coll, _.toCheck( check ) );
+    return apart ? apart.k : void 0;
 } );
 
 _.failfn( _, "pos", function ( fail, coll, check ) {
     check = _.toCheck( check );
     return _.rely( fail, _.poskey, coll,
-        function ( k, v ) { return check( val ); } );
+        function ( k, v ) { return check( v ); } );
 } );
 
 _.failfn( _, "findkey", function ( fail, coll, check ) {
-    return _.rely( fail, _.ifanykey, coll, check,
-        function ( k, v, checkResult ) { return v; } );
+    var apart = _.rely( fail, _.ifanykey, coll, _.toCheck( check ) );
+    return apart ? apart.v : void 0;
 } );
 
 _.failfn( _, "find", function ( fail, coll, check ) {
-    return _.rely( fail, _.ifany, coll, _.toCheck( check ),
-        function ( elem, checkResult ) { return elem; } );
+    var apart = _.rely( fail, _.ifany, coll, _.toCheck( check ) );
+    return apart ? apart.elem : void 0;
 } );
 
 _.failfn( _, "each", function ( fail, coll, body ) {
@@ -1561,9 +1579,15 @@ _.rule( _.toKeyseq, "asKeyseq", function ( fail, x ) {
 
 _.deftype( _, "Keyseq", "iffirstkeyRb" );
 
-_.failfn( _, "iffirstkey", function ( fail, coll, then, opt_els ) {
-    if ( !_.given( opt_els ) ) opt_els = _.kfn( void 0 );
-    return _.rely( fail, _.iffirstkeyRb, coll, then, opt_els );
+_.failfn( _, "iffirstkey", function (
+    fail, coll, opt_then, opt_els ) {
+    
+    if ( !_.given( opt_then ) )
+        opt_then = function ( k, v, rest ) {
+            return { k: k, v: v, rest: rest };
+        };
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
+    return _.rely( fail, _.iffirstkeyRb, coll, opt_then, opt_els );
 } );
 
 _.zapRule( _.ifanykeyRb, "toKeyseq",
@@ -1571,15 +1595,13 @@ _.zapRule( _.ifanykeyRb, "toKeyseq",
     function ( fail, coll, check, then, els ) {
     
     return _.namedlet( coll, function ( coll, next ) {
-        return _.iffirstkey( coll,
-            function ( k, v, rest ) {
-                var it;
-                if ( it = check( k, v ) )
-                    return then( k, v, it );
-                else
-                    return next( rest );
-            },
-            els );
+        var apart = _.iffirstkey( coll );
+        if ( !apart )
+            return els();
+        
+        var k = apart.k, v = apart.v;
+        var it = check( k, v );
+        return it ? then( k, v, it ) : next( apart.rest );
     } );
 } );
 
@@ -1603,15 +1625,13 @@ _.zapRule( _.ifanyRb, "toSeq",
     return _.namedlet( coll, function ( coll, next ) {
         // TODO: See if iffirst(), defined below, can be moved up
         // before its usage here.
-        return _.iffirst( coll,
-            function ( first, rest ) {
-                var it;
-                if ( it = check( first ) )
-                    return then( first, it );
-                else
-                    return next( rest );
-            },
-            els );
+        var apart = _.iffirst( coll );
+        if ( !apart )
+            return els();
+        
+        var first = apart.first;
+        var it = check( first );
+        return it ? then( first, it ) : next( apart.rest );
     } );
 } );
 
@@ -1646,9 +1666,13 @@ _.instanceofRule( _.asKeyseq, "Keyseq", _.Keyseq, function (
 
 _.deftype( _, "Seq", "iffirstRb" );
 
-_.failfn( _, "iffirst", function ( fail, coll, then, opt_els ) {
-    if ( !_.given( opt_els ) ) opt_els = _.kfn( void 0 );
-    return _.rely( fail, _.iffirstRb, coll, then, opt_els );
+_.failfn( _, "iffirst", function ( fail, coll, opt_then, opt_els ) {
+    if ( !_.given( opt_then ) )
+        opt_then = function ( first, rest ) {
+            return { first: first, rest: rest };
+        };
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
+    return _.rely( fail, _.iffirstRb, coll, opt_then, opt_els );
 } );
 
 _.rulebook( _, "cons" );
@@ -1681,17 +1705,18 @@ _.rulebook( _, "map" );
 _.rule( _.map, "asSeq", function ( fail, coll, convert ) {
     return _.rely( fail, _.asSeq, coll, function ( coll ) {
         return _.namedlet( coll, function ( coll, trampnext, next ) {
-            return _.iffirst( coll,
-                function ( first, rest ) {
-                    return _.lazycons(
-                        function () { return convert( first ); },
-                        function () { return next( rest ); }
-                    );
-                },
+            var apart = _.iffirst( coll );
+            if ( apart ) {
+                var first = apart.first, rest = apart.rest;
+                return _.lazycons(
+                    function () { return convert( first ); },
+                    function () { return next( rest ); }
+                );
+            } else {
                 // TODO: Fix the Penknife draft, which returns f
                 // rather than nil here.
-                _.kfn( _.nilseq )
-            );
+                return _.nilseq;
+            }
         } );
     } );
 } );
@@ -1703,21 +1728,17 @@ _.rule( _.map, "asSeq", function ( fail, coll, convert ) {
 _.rulebook( _, "eager" );
 
 _.rule( _.eager, "keyseq", function ( fail, coll ) {
-    return _.rely( fail, _.iffirstkey, coll,
-        function ( k, v, rest ) {
-            return _.keycons( k, v, _.eager( rest ) );
-        },
-        _.kfn( _.nilseq )
-    );
+    var apart = _.rely( fail, _.iffirstkey, coll );
+    if ( apart )
+        return _.keycons( apart.k, apart.v, _.eager( apart.rest ) );
+    else
+        return _.nilseq;
 } );
 
 _.rule( _.eager, "seq", function ( fail, coll ) {
-    return _.rely( fail, _.iffirst, coll,
-        function ( first, rest ) {
-            return _.cons( first, _.eager( rest ) );
-        },
-        _.kfn( _.nilseq )
-    );
+    var apart = _.rely( fail, _.iffirst, coll );
+    return apart ?
+        _.cons( apart.first, _.eager( apart.rest ) ) : _.nilseq;
 } );
 
 
@@ -1725,17 +1746,18 @@ _.rule( _.eager, "seq", function ( fail, coll ) {
 _.instanceofRule( _.iffirstkeyRb, "Seq", _.Seq, function (
     fail, coll, then, els ) {
     
-    return _.iffirstkey(
+    var apart = _.iffirstkey(
         _.namedlet( coll, 0, function ( coll, i, trampnext, next ) {
             return _.Keyseq.by( function ( then, els ) {
-                return _.iffirst( coll,
-                    function ( first, rest ) {
-                        return then( i, first, next( rest, i + 1 ) );
-                    },
-                    els );
+                var apart = _.iffirst( coll );
+                if ( apart )
+                    return then(
+                        i, apart.first, next( apart.rest, i + 1 ) );
+                else
+                    return els();
             } );
-        } ),
-        then, els );
+        } ) );
+    return apart ? then( apart.k, apart.v, apart.rest ) : els();
 } );
 
 
@@ -1798,19 +1820,16 @@ _.failfn( _, "tuple", function ( fail, size, seq ) {
                             return then(
                                 andBack.back( _.rev( tuple ) ),
                                 nextTuples( seq ) );
-                        return _.iffirst( seq,
-                            function ( first, rest ) {
-                                return nextTuple(
-                                    _.cons( first, tuple ),
-                                    n + 1, rest );
-                            },
-                            function () {
-                                if ( n != 0 )
-                                    throw new TypeError(
-                                        "Can't tuple into uneven " +
-                                        "tuples." );
-                                return els();
-                            } );
+                        var apart = _.iffirst( seq );
+                        if ( apart )
+                            return nextTuple(
+                                _.cons( apart.first, tuple ),
+                                n + 1, apart.rest );
+                        else if ( n != 0 )
+                            throw new TypeError(
+                                "Can't tuple into uneven tuples." );
+                        else
+                            return els();
                     } );
             } );
         } ) );
@@ -1830,13 +1849,16 @@ _.failfn( _, "dedupGrouped", function ( fail, seq, opt_eq ) {
             
             return _.Seq.by( function ( then, els ) {
                 return _.namedlet( seq, function ( seq, nextRest ) {
-                    return _.iffirst( seq, function ( first, rest ) {
-                        if ( hasPrev && opt_eq( prev, first ) )
-                            return nextRest( rest );
-                        else
-                            return then( first,
-                                nextDedup( rest, true, first ) );
-                    }, els );
+                    var apart = _.iffirst( seq );
+                    if ( !apart )
+                        return els();
+                    else if ( hasPrev && opt_eq( prev, apart.first ) )
+                        return nextRest( apart.rest );
+                    else {
+                        var first = apart.first;
+                        return then( first,
+                            nextDedup( apart.rest, true, first ) );
+                    }
                 } );
             } );
         } );
@@ -1878,11 +1900,11 @@ _.rule( _.sentall, "foldl", function ( fail, target, elems ) {
 } );
 
 _.rule( _.sentall, "seq", function ( fail, target, elems ) {
-    return _.rely( fail, _.iffirst,
-        function ( first, rest ) {
-            return _.sentall( _.sent( target, first ), rest );
-        },
-        _.kfn( target ) );
+    var apart = _.rely( fail, _.iffirst, elems );
+    if ( apart )
+        return _.sentall( _.sent( target, apart.first ), apart.rest );
+    else
+        return target;
 } );
 
 
@@ -1910,16 +1932,18 @@ _.rule( _.binaryPlus, "asSeq", function ( fail, a, b ) {
         b = _.toSeq( b );
         return _.namedlet( a, function ( a, trampnext, next ) {
             return _.Seq.by( function ( then, els ) {
-                return _.iffirst( a,
-                    function ( first, rest ) {
-                        return then( first, next( rest ) );
-                    },
-                    // TODO: Fix this in the Penknife draft. It just
-                    // returns b, rather than destructuring it.
-                    function () {
-                        return _.iffirst( b, then, els );
-                    }
-                );
+                
+                var apartA = _.iffirst( a );
+                if ( apartA )
+                    return then( apartA.first, next( apartA.rest ) );
+                
+                // TODO: Fix this in the Penknife draft. It just
+                // returns b, rather than destructuring it.
+                var apartB = _.iffirst( b );
+                if ( apartB )
+                    return then( apartB.first, apartB.rest );
+                
+                return els();
             } );
         } );
     } );
@@ -2032,7 +2056,7 @@ _.el = function ( domElementId ) {
 // ===== Optimization rules. =========================================
 //
 // TODO: Remove these, if possible. Possibly redesign utilities like
-// iffirst() and ifAny() so that they're not reliant on tail calls,
+// iffirst() and ifany() so that they're not reliant on tail calls,
 // which we don't get for free. (Alternately, we could uncomment the
 // trampolining code and fix it up.)
 
