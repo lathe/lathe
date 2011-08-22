@@ -78,7 +78,7 @@ if ( topArgs === void 0 ) {
 function Splice( what ) { this.what = what; }
 
 function splice( var_args ) {
-    return new Splice( _.mappend( [], arguments, function ( it ) {
+    return new Splice( _.arrMappend( arguments, function ( it ) {
         return _.isString( it ) ? [ it ] : it;
     } ) );
 }
@@ -86,7 +86,7 @@ function splice( var_args ) {
 function unsplice( elems ) {
     if ( elems instanceof Splice )
         return unsplice( [ elems ] );
-    return _.mappend( [], elems, function ( it ) {
+    return _.arrMappend( elems, function ( it ) {
         return it instanceof Splice ? it.what : [ it ];
     } );
 }

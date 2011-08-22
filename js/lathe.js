@@ -199,7 +199,7 @@ _.arrMap = function ( arr, convert ) {
 
 _.arrMappend = function ( arr, convert ) {
     return root.Array.prototype.concat.apply(
-        [], _.map( arr, convert ) );
+        [], _.arrMap( arr, convert ) );
 };
 
 _.arrUnbend = function ( args, opt_start ) {
@@ -251,16 +251,12 @@ _.sameTwo = function ( a, b ) {
         (a !== a && b !== b);             // NaN !== NaN
 }
 
-// TODO: Redesign this in a non-CPS way.
-_.alGet = function ( al, k, opt_onfound, opt_onmissed ) {
-    if ( !_.given( opt_onfound ) ) opt_onfound = _.idfn;
+_.alGet = function ( al, k ) {
     for ( var i = 0, n = al.length; i < n; i++ ) {
         var it = al[ i ];
         if ( _.sameTwo( it[ 0 ], k ) )
-            return opt_onfound( it[ 1 ] );
+            return { val: it[ 1 ] };
     }
-    if ( _.given( opt_onmissed ) )
-        return opt_onmissed();
     return void 0;
 };
 
@@ -487,8 +483,8 @@ _.sargs = function () { return currentSargs; };
 _.Sarg = function ( opt_fallback ) {
     var self = this;
     this.getValue = function () {
-        return _.alGet(
-            _.sargs(), self, _.idfn, _.kfn( opt_fallback ) );
+        var box = _.alGet( _.sargs(), self );
+        return box ? box.val : opt_fallback;
     };
 };
 
@@ -629,12 +625,7 @@ _.latefn = _.definer( function ( obj, name, getFunc ) {
 
 // ===== Escape continuations. =======================================
 
-// TODO: See if this can be redesigned in a non-CPS way.
-_.point = function ( body, opt_onraise, opt_onreturn, opt_onthrow ) {
-    if ( !_.given( opt_onraise ) ) opt_onraise = _.idfn;
-    if ( !_.given( opt_onreturn ) ) opt_onreturn = _.idfn;
-    if ( !_.given( opt_onthrow ) )
-        opt_onthrow = function ( e ) { throw e; };
+_.point = function ( body ) {
     function EscapeContinuation( value ) { this.value = value; }
     var stillValid = true;
     var result;
@@ -647,39 +638,37 @@ _.point = function ( body, opt_onraise, opt_onreturn, opt_onthrow ) {
         stillValid = false;
     } catch ( e ) {
         stillValid = false;
-        if ( typeof e == "object"
-            && e.constructor === EscapeContinuation )
-            return opt_onraise( e.value );
-        return opt_onthrow( e );
+        if ( e instanceof EscapeContinuation )
+            return { raised: true, val: e.value };
+        throw e;
     }
-    return opt_onreturn( result );
+    return { returned: true, val: result };
 };
 
 _.tramp = function ( body ) {
-    return _.point(
-        function ( raise ) {
-            function trampapply( self, func, var_args ) {
-                return raise(
-                    [ self, func, _.arrUnbend( arguments, 2 ) ] );
-            }
-            return body( function ( self, func, var_args ) {
-                return trampapply(
-                    self, func, _.arrCut( arguments, 2 ) );
-            }, trampapply );
-        },
-        function ( raised ) {
-            return raised[ 1 ].apply( raised[ 0 ], raised[ 2 ] );
+    var result = _.point( function ( raise ) {
+        function trampapply( self, func, var_args ) {
+            return raise(
+                [ self, func, _.arrUnbend( arguments, 2 ) ] );
         }
-    );
+        return body( function ( self, func, var_args ) {
+            return trampapply(
+                self, func, _.arrCut( arguments, 2 ) );
+        }, trampapply );
+    } );
+    if ( result.returned )
+        return result.val;
+    var raised = result.val;
+    return raised[ 1 ].apply( raised[ 0 ], raised[ 2 ] );
 };
 
 
 // Example usage:
 //
-// lathe.namedlet( 0, [],
+// lathe.tramplet( 0, [],
 //    function ( len, acc, trampnext, next ) { ... } )
 //
-_.namedlet = function () {
+_.tramplet = function () {
     var init = _.arrCut( arguments );
     var body = init.pop();
     function loop( var_args ) {
@@ -692,6 +681,20 @@ _.namedlet = function () {
                 loop
             ] ) );
         } );
+    }
+    return loop.apply( null, init );
+};
+
+// Example usage:
+//
+// lathe.namedlet( 0, [], function ( len, acc, next ) { ... } )
+//
+_.namedlet = function () {
+    var init = _.arrCut( arguments );
+    var body = init.pop();
+    function loop( var_args ) {
+        var vals = _.arrCut( arguments );
+        return body.apply( null, vals.concat( [ loop ] ) );
     }
     return loop.apply( null, init );
 };
@@ -712,13 +715,10 @@ _.TransitiveDag = function ( elems ) {
     } );
     this.getNode = function ( elem ) {
         var self = this;
-        return _.point( function ( decide ) {
-            _.arrEach( self.nodes, function ( node ) {
-                if ( _.sameTwo( elem, node.elem ) )
-                    decide( node );
-            } );
-            return null;
-        } );
+        return _.arrAny( self.nodes, function ( node ) {
+            if ( _.sameTwo( elem, node.elem ) )
+                return node;
+        } ) || null;
     };
     this.hasEdge = function ( before, after ) {
         var beforeNode = this.getNode( before );
@@ -728,7 +728,7 @@ _.TransitiveDag = function ( elems ) {
     this.addEdge = function ( before, after, errorThunk ) {
         var self = this;
         return _.namedlet( before, after,
-            function ( before, after, trampnext, next ) {
+            function ( before, after, next ) {
                 if ( self.hasEdge( before, after ) )
                     return;
                 if ( self.hasEdge( after, before ) )
@@ -1164,15 +1164,13 @@ _.failfn = _.definer( function ( obj, name, func ) {
     var result = _.tfn( function ( var_args ) {
         var self = this, args = _.arrCut( arguments )
         var sargs = _.sargs(), fail = _.failSarg.getValue();
-        return _.point(
-            function ( fail ) {
-                return _.sapply( self, func, sargs, fail, args );
-            },
-            function ( complaint ) {
-                return fail( new _.FunctionFailure(
-                    result, self, args, complaint ) );
-            }
-        );
+        var result = _.point( function ( fail ) {
+            return _.sapply( self, func, sargs, fail, args );
+        } );
+        if ( result.returned )
+            return result.val;
+        return fail(
+            new _.FunctionFailure( result, self, args, result.val ) );
     } );
     result.toString = function () { return "[failfn " + name + "]"; };
     return result;
@@ -1203,22 +1201,23 @@ _.casefn = _.definer( function ( obj, name, getCases, opt_getImpl ) {
     return _.sargfn( name, function () {
         var self = this, args = _.arrCut( arguments );
         var sargs = _.sargs(), fail = _.failSarg.getValue();
-        return _.point( function ( decide ) {
-            return fail( new _.RulebookFailure( name, self, args,
-                _.acc( function ( complain ) {
-                    _.arrEach( getCases(), function ( thisCase ) {
-                        _.point(
-                            function ( fail ) {
-                                return _.sapply( self,
-                                    opt_getImpl( thisCase ),
-                                    _.alCons(
-                                        _.failSarg, fail, sargs ),
-                                    args );
-                            },
-                            complain, decide );
-                    } );
-                } ) ) );
-        } );
+        // NOTE: We're saving stack frames by inlining
+        // _.point( ... ).val and _.arrEach( getCases(), ... ).
+        // NOTE: We're saving stack frames by inlining acc.
+        var complaints = [];
+        var cases = getCases();
+        for ( var i = 0, len = cases.length; i < len; i++ ) {
+            var thisCase = cases[ i ];
+            var result = _.point( function ( fail ) {
+                return _.sapply( self, opt_getImpl( thisCase ),
+                    _.alCons( _.failSarg, fail, sargs ), args );
+            } );
+            if ( result.returned )
+                return result.val;
+            complaints.push( result.val );
+        }
+        return fail( new _.RulebookFailure(
+            name, self, args, complaints ) );
     } );
 } );
 
@@ -1574,7 +1573,7 @@ _.rulebook( _, "toKeyseq" );
 _.rule( _.toKeyseq, "asKeyseq", function ( fail, x ) {
     return _.point( function ( decide ) {
         return _.rely( fail, _.asKeyseq, x, decide );
-    } );
+    } ).val;
 } );
 
 _.deftype( _, "Keyseq", "iffirstkeyRb" );
@@ -1594,15 +1593,18 @@ _.zapRule( _.ifanykeyRb, "toKeyseq",
     _.latefn( function () { return _.toKeyseq; } ),
     function ( fail, coll, check, then, els ) {
     
-    return _.namedlet( coll, function ( coll, next ) {
+    // NOTE: We're saving stack frames by inlining tramplet.
+    while ( true ) {
         var apart = _.iffirstkey( coll );
         if ( !apart )
             return els();
         
         var k = apart.k, v = apart.v;
         var it = check( k, v );
-        return it ? then( k, v, it ) : next( apart.rest );
-    } );
+        if ( it )
+            return then( k, v, it );
+        coll = apart.rest;
+    }
 } );
 
 _.rulebook( _, "toSeqAndBack" );
@@ -1622,7 +1624,8 @@ _.zapRule( _.ifanyRb, "toSeq",
     _.latefn( function () { return _.toSeq; } ),
     function ( fail, coll, check, then, els ) {
     
-    return _.namedlet( coll, function ( coll, next ) {
+    // NOTE: We're saving stack frames by inlining tramplet.
+    while ( true ) {
         // TODO: See if iffirst(), defined below, can be moved up
         // before its usage here.
         var apart = _.iffirst( coll );
@@ -1631,8 +1634,10 @@ _.zapRule( _.ifanyRb, "toSeq",
         
         var first = apart.first;
         var it = check( first );
-        return it ? then( first, it ) : next( apart.rest );
-    } );
+        if ( it )
+            return then( first, it );
+        coll = apart.rest;
+    }
 } );
 
 
@@ -1704,7 +1709,7 @@ _.rulebook( _, "map" );
 
 _.rule( _.map, "asSeq", function ( fail, coll, convert ) {
     return _.rely( fail, _.asSeq, coll, function ( coll ) {
-        return _.namedlet( coll, function ( coll, trampnext, next ) {
+        return _.namedlet( coll, function ( coll, next ) {
             var apart = _.iffirst( coll );
             if ( apart ) {
                 var first = apart.first, rest = apart.rest;
@@ -1747,7 +1752,7 @@ _.instanceofRule( _.iffirstkeyRb, "Seq", _.Seq, function (
     fail, coll, then, els ) {
     
     var apart = _.iffirstkey(
-        _.namedlet( coll, 0, function ( coll, i, trampnext, next ) {
+        _.namedlet( coll, 0, function ( coll, i, next ) {
             return _.Keyseq.by( function ( then, els ) {
                 var apart = _.iffirst( coll );
                 if ( apart )
@@ -1812,25 +1817,30 @@ _.failfn( _, "sort", function ( fail, seq, opt_by ) {
 _.failfn( _, "tuple", function ( fail, size, seq ) {
     var andBack = _.rely( fail, _.toSeqAndBack, seq );
     return andBack.back( _.namedlet( andBack.val,
-        function ( seq, trampnext, nextTuples ) {
+        function ( seq, nextTuples ) {
             return _.Seq.by( function ( then, els ) {
-                return _.namedlet( _.nilseq, 0, seq,
-                    function ( tuple, n, seq, nextTuple ) {
-                        if ( n == size )
-                            return then(
-                                andBack.back( _.rev( tuple ) ),
-                                nextTuples( seq ) );
-                        var apart = _.iffirst( seq );
-                        if ( apart )
-                            return nextTuple(
-                                _.cons( apart.first, tuple ),
-                                n + 1, apart.rest );
-                        else if ( n != 0 )
-                            throw new TypeError(
-                                "Can't tuple into uneven tuples." );
-                        else
-                            return els();
-                    } );
+                // NOTE: We're saving stack frames by inlining
+                // tramplet.
+                var tuple = _.nilseq;
+                var n = 0;
+                var rest = seq;
+                while ( true ) {
+                    if ( n == size )
+                        return then(
+                            andBack.back( _.rev( tuple ) ),
+                            nextTuples( rest ) );
+                    var apart = _.iffirst( rest );
+                    if ( apart ) {
+                        tuple = _.cons( apart.first, tuple );
+                        n++;
+                        rest = apart.rest;
+                    } else if ( n != 0 ) {
+                        throw new TypeError(
+                            "Can't tuple into uneven tuples." );
+                    } else {
+                        return els();
+                    }
+                }
             } );
         } ) );
 } );
@@ -1845,21 +1855,25 @@ _.failfn( _, "dedupGrouped", function ( fail, seq, opt_eq ) {
     if ( !_.given( opt_eq ) ) opt_eq = _.is;
     return _.rely( fail, _.asSeq, seq, function ( seq ) {
         return _.namedlet( seq, false, void 0, function (
-            seq, hasPrev, prev, trampnext, nextDedup ) {
+            seq, hasPrev, prev, nextDedup ) {
             
             return _.Seq.by( function ( then, els ) {
-                return _.namedlet( seq, function ( seq, nextRest ) {
-                    var apart = _.iffirst( seq );
-                    if ( !apart )
+                // NOTE: We're saving stack frames by inlining
+                // tramplet.
+                var rest = seq;
+                while ( true ) {
+                    var apart = _.iffirst( rest );
+                    if ( !apart ) {
                         return els();
-                    else if ( hasPrev && opt_eq( prev, apart.first ) )
-                        return nextRest( apart.rest );
-                    else {
+                    } else if (
+                        hasPrev && opt_eq( prev, apart.first ) ) {
+                        rest = apart.rest;
+                    } else {
                         var first = apart.first;
                         return then( first,
                             nextDedup( apart.rest, true, first ) );
                     }
-                } );
+                }
             } );
         } );
     } );
@@ -1930,7 +1944,7 @@ _.rule( _.plus, "toPlusAdder", function ( fail, first ) {
 _.rule( _.binaryPlus, "asSeq", function ( fail, a, b ) {
     return _.rely( fail, _.asSeq, a, function ( a ) {
         b = _.toSeq( b );
-        return _.namedlet( a, function ( a, trampnext, next ) {
+        return _.namedlet( a, function ( a, next ) {
             return _.Seq.by( function ( then, els ) {
                 
                 var apartA = _.iffirst( a );
@@ -1971,7 +1985,7 @@ _.rule( _.flatmap, "map", function ( fail, first, coll, func ) {
 _.rule( _.toSeqAndBack, "likeArray", function ( fail, x ) {
     if ( !_.likeArray( x ) ) fail( "It isn't likeArray." );
     return {
-        val: _.namedlet( 0, function ( i, trampnext, next ) {
+        val: _.namedlet( 0, function ( i, next ) {
             return _.Seq.by( function ( then, els ) {
                 if ( i < x.length )
                     return then( x[ i ], next( i + 1 ) );
@@ -2109,8 +2123,14 @@ var _ = topArgs !== void 0 && typeof exports !== "undefined" ?
 // We're putting these in a separate (function () { ... })(); block
 // just in case.
 
-
-_.globeval = function ( code ) { return eval.call( null, code ); };
+// This implementation of _.globeval is inspired by
+// <http://perfectionkills.com/global-eval-what-are-the-options/>.
+_.globeval = eval;
+try { var NaN = 0; NaN = _.globeval( "NaN" ); NaN === NaN && {}.x(); }
+catch ( e )
+    { _.globeval = function ( expr ) { return root.eval( expr ); }; }
+try { NaN = 0; NaN = _.globeval( "NaN" ); NaN === NaN && {}.x(); }
+catch ( e ) { _.globeval = root.execScript; }
 
 _.funclet = function ( var_args ) {
     var code = [];

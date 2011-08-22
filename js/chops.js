@@ -71,7 +71,7 @@ $.chopBrackets = function ( markup ) {
         frame = stack.pop();
         frame.push( oldFrame );
     }
-    _.each( tokens, function ( token ) {
+    _.arrEach( tokens, function ( token ) {
         if ( token === "]" )
             pop();
         else if ( token === "[" )
@@ -135,7 +135,7 @@ $.chopBetweenRegex = function (
         if ( part !== "" )
             no.push( part );
     }
-    _.each( chops, function ( chop ) {
+    _.arrEach( chops, function ( chop ) {
         if ( !_.isString( chop ) )
             return yieldNoPart( chop );
         var match, nextStart = regex.lastIndex = 0;
@@ -167,7 +167,7 @@ $.chopSplit = function ( chops, delim, limit ) {
             if ( part.length != 0 )
                 para.push( part );
         }
-        _.each( chops, function ( chop ) {
+        _.arrEach( chops, function ( chop ) {
             if ( !_.isString( chop ) )
                 return yPart( chop );
             var match, nextStart = delim.lastIndex = 0;
@@ -248,11 +248,11 @@ $.letChopLtrimRegex = function ( chops, regex, opt_then, opt_els ) {
 
 $.unchop = function ( chop ) {
     return _.acc( function ( y ) {
-        _.namedlet( chop, function ( chop, trampnext, next ) {
+        _.namedlet( chop, function ( chop, next ) {
             if ( _.isString( chop ) )
                 return y( chop );
             y( "[" );
-            _.each( chop, function ( chop ) { next( chop ); } );
+            _.arrEach( chop, function ( chop ) { next( chop ); } );
             y( "]" );
         } );
     } ).join( "" );
@@ -273,7 +273,7 @@ $.parseInlineChop = function ( env, chop ) {
 };
 
 $.parseInlineChops = function ( env, chops ) {
-    return _.map( chops, function ( chop ) {
+    return _.arrMap( chops, function ( chop ) {
         return $.parseInlineChop( env, chop );
     } );
 };
@@ -285,7 +285,7 @@ $.parseBlockChops = function ( env, chops ) {
 
 $.parseDocumentOfChops = function ( env, document ) {
     return $.normalizeChoppedDocument( env,
-        _.map( document, function ( blockChops ) {
+        _.arrMap( document, function ( blockChops ) {
             return $.parseBlockChops( env, blockChops );
         } ) );
 };
