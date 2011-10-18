@@ -31,11 +31,21 @@
 
 //"use strict";
 
-(function ( root, body ) { body( root ); })( this, function ( root ) {
-// TODO: This root.exports and root.require business is just blind
-// guessing. Figure out what to *actually* do about Node.js.
-var _ = root.require ? root.require( "lathe" ) : root.rocketnia.lathe;
-var $ = root.exports || (root.rocketnia.chops = {});
+(function ( topThis, topArgs, body ) { body( topThis, topArgs ); })(
+    this, typeof arguments === "undefined" ? void 0 : arguments,
+    function ( topThis, topArgs ) {
+
+// In Node.js, this whole file is semantically in a local context, and
+// certain plain variables exist that aren't on the global object.
+// Here, we get the global object in Node.js by taking advantage of
+// the fact that it doesn't implement ECMAScript 5's strict mode.
+var root = (function () { return this; })() || topThis;
+
+var _, $;
+if ( topArgs === void 0 )
+    _ = root.rocketnia.lathe, $ = root.rocketnia.chops = {};
+else  // We assume Node.js and a flat directory.
+    _ = require( "./lathe" ), $ = exports;
 
 
 $.normalizeNewlines = function ( markup ) {
@@ -61,7 +71,7 @@ $.chopBrackets = function ( markup ) {
         frame = stack.pop();
         frame.push( oldFrame );
     }
-    _.each( tokens, function ( token ) {
+    _.arrEach( tokens, function ( token ) {
         if ( token === "]" )
             pop();
         else if ( token === "[" )
@@ -125,7 +135,7 @@ $.chopBetweenRegex = function (
         if ( part !== "" )
             no.push( part );
     }
-    _.each( chops, function ( chop ) {
+    _.arrEach( chops, function ( chop ) {
         if ( !_.isString( chop ) )
             return yieldNoPart( chop );
         var match, nextStart = regex.lastIndex = 0;
@@ -157,7 +167,7 @@ $.chopSplit = function ( chops, delim, limit ) {
             if ( part.length != 0 )
                 para.push( part );
         }
-        _.each( chops, function ( chop ) {
+        _.arrEach( chops, function ( chop ) {
             if ( !_.isString( chop ) )
                 return yPart( chop );
             var match, nextStart = delim.lastIndex = 0;
@@ -206,33 +216,43 @@ $.chopParas = function ( chops ) {
     return $.chopTrimTokens( chops, /\n\n+/g );
 };
 
-$.letChopWords = function ( chops, num, then, opt_els ) {
+$.letChopWords = function ( chops, num, opt_then, opt_els ) {
+    if ( !_.given( opt_then ) )
+        opt_then =
+            function ( var_args ) { return _.arrCut( arguments ); };
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
     var words = $.chopTokens( chops, /\s+/g, num );
     if ( words.length <= num )
-        return _.given( opt_els ) ? opt_els() : void 0;
-    return _.classicapply( null, then, words );
+        return opt_els();
+    else
+        return _.classicapply( null, opt_then, words );
 };
 
-$.letChopLtrimRegex = function ( chops, regex, then, opt_els ) {
+$.letChopLtrimRegex = function ( chops, regex, opt_then, opt_els ) {
+    if ( !_.given( opt_then ) )
+        opt_then = function ( match, rest ) {
+            return { match: match, rest: rest };
+        };
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
     var first = chops[ 0 ];
     if ( !_.isString( first ) )
         first = "";
     var match = new RegExp( regex ).exec( first );
     if ( match === null || match.index != 0 )
-        return _.given( opt_els ) ? opt_els() : void 0;
+        return opt_els();
     var newFirst = first.substring( match[ 0 ].length );
-    return then( match,
+    return opt_then( match,
         (newFirst === "" ? [] : [ newFirst ]).
             concat( _.arrCut( chops, 1 ) ) );
 };
 
 $.unchop = function ( chop ) {
     return _.acc( function ( y ) {
-        _.namedlet( chop, function ( chop, trampnext, next ) {
+        _.namedlet( chop, function ( chop, next ) {
             if ( _.isString( chop ) )
                 return y( chop );
             y( "[" );
-            _.each( chop, function ( chop ) { next( chop ); } );
+            _.arrEach( chop, function ( chop ) { next( chop ); } );
             y( "]" );
         } );
     } ).join( "" );
@@ -247,15 +267,13 @@ _.rulebook( $, "normalizeChoppedDocument" );
 $.parseInlineChop = function ( env, chop ) {
     if ( _.isString( chop ) )
         return $.parseTextChop( env, chop );
-    return $.letChopLtrimRegex( chop, /^\S*/, function (
-        opMatch, body ) {
-        
-        return $.parseOpChop( env, opMatch[ 0 ], body );
-    } );
+    var apart = $.letChopLtrimRegex( chop, /^\S*/ );
+    return apart ?
+        $.parseOpChop( env, apart.match[ 0 ], apart.rest ) : void 0;
 };
 
 $.parseInlineChops = function ( env, chops ) {
-    return _.map( chops, function ( chop ) {
+    return _.arrMap( chops, function ( chop ) {
         return $.parseInlineChop( env, chop );
     } );
 };
@@ -267,16 +285,19 @@ $.parseBlockChops = function ( env, chops ) {
 
 $.parseDocumentOfChops = function ( env, document ) {
     return $.normalizeChoppedDocument( env,
-        _.map( document, function ( blockChops ) {
+        _.arrMap( document, function ( blockChops ) {
             return $.parseBlockChops( env, blockChops );
         } ) );
 };
 /*
-$.letChopLtrimWords = function ( chops, num, then, opt_els ) {
+$.letChopLtrimWords = function ( chops, num, opt_then, opt_els ) {
+    if ( !_.given( opt_then ) )
+        opt_then =
+            function ( var_args ) { return _.arrCut( arguments ); };
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
     var words = $.chopLtrimTokens( chops, /\s+/g, num );
-    if ( words.length <= num )
-        return _.given( opt_els ) ? opt_els() : void 0;
-    return _.classicapply( null, then, words );
+    return words.length <= num ?
+        opt_els() : _.classicapply( null, opt_then, words );
 };
 */
 $.chopcode = function ( code ) {

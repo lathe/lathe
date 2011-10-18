@@ -37,6 +37,7 @@ your option.
    "initial-scale = 1.0, maximum-scale = 1.0, width = device-width" />
 <script type="text/javascript" src="lathe.js"></script>
 <script type="text/javascript" src="chops.js"></script>
+<script type="text/javascript" src="choppascript.js"></script>
 <style type="text/css">
 p.test { background-color: #CCC; }
 
@@ -46,6 +47,7 @@ p.test { background-color: #CCC; }
 <script type="text/javascript">//"use strict";
 
 var _ = rocketnia.lathe, $ = rocketnia.chops;
+var choppaScript = rocketnia.choppascript;
 
 window.onload = function () {
     _.blahrepl( _.el( "repl" ) );
@@ -101,47 +103,6 @@ it
 </script>
 
 <script type="text/javascript">//"use strict";
-
-/*
-
-NOTE: Some of the syntaxes defined here have *vaguely* the
-progression:
-
-[>- foo( [<- bar ], [<- baz ] ) ]
-==>
-[>-> g1  bar
-     g2  baz
-         [just foo( g1, g2 ) ]]
-==>
-[> [just monadBind( bar, [fn g1 = [next] ] ) ]
-   [just monadBind( baz, [fn g2 = [next] ] ) ]
-   [just foo( g1, g2 ) ]]
-
-Among other slight differences, ">-" and ">->" don't bind "next".
-
-*/
-
-
-
-/*
-// TODO: Add this to Lathe proper, maybe. But first, see if it's
-// necessary. (It didn't seem to help without map's optimization too.)
-_.rule( _.anyRb, "likeArray", function ( fail, coll, check ) {
-    if ( !_.likeArray( coll ) ) fail( "It isn't likeArray." );
-    return _.arrAny( coll, check );
-} );
-
-_.preferNamesFirst( "anyRb/likeArray is an optimization",
-    _.anyRb, "likeArray" );
-*/
-
-_.rule( _.map, "likeArray", function ( fail, coll, convert ) {
-    if ( !_.likeArray( coll ) ) fail( "It isn't likeArray." );
-    return _.arrMap( coll, convert );
-} );
-
-_.preferNamesFirst( "map/likeArray is an optimization",
-    _.map, "likeArray" );
 
 
 // ===== Demonstrations. =============================================
@@ -217,7 +178,6 @@ kindatry( function () {
 writeTest( "heya " + _.fact( 0 ) );
 writeTest( "beya " + _.fact( 4 ) );
 
-// TODO: Figure out why this isn't working.
 writeTest( "beya " + _.toArray( [ [ 1, 2, 3 ], [ 4, 5, 6 ] ] ) );
 writeTest( "beya " + _.asSeq( [ [ 1, 2, 3 ], [ 4, 5, 6 ] ], _.idfn ) );
 writeTest( "beya " + _.mappend( [], [ [ 1, 2, 3 ], [ 4, 5, 6 ] ], _.idfn ).length );
@@ -256,184 +216,21 @@ testChopWords( "a b[] c d", 2 );
 
 writeTest( "blah " + _.blahpp( $.condenseStrings( [ "", " ", [ "foo" ], "", [], " you ", "know" ] ) ) );
 
-function Splice( what ) { this.what = what; }
+writeTest( "blah " + _.blahpp( choppaScript.parse( "woo[foo]moo" ) ) );
 
-function splice( var_args ) {
-    return new Splice( _.mappend( [], arguments, function ( it ) {
-        return _.isString( it ) ? [ it ] : it;
-    } ) );
-}
-
-function unsplice( elems ) {
-    if ( elems instanceof Splice )
-        return unsplice( [ elems ] );
-    return _.mappend( [], elems, function ( it ) {
-        return it instanceof Splice ? it.what : [ it ];
-    } );
-}
-
-function resplice( elems ) {
-    return splice.apply( null, unsplice( elems ) );
-};
-
-
-// TODO: Uncomment these in lathe.js.
-
-_.arrAnyDown = function ( arr, check ) {
-    for ( var i = arr.length - 1; 0 <= i; i-- ) {
-        var result = check( arr[ i ] );
-        if ( result )
-            return result;
-    }
-    return false;
-};
-
-_.arrDown = function ( arr, check ) {
-    _.arrAnyDown(
-        arr, function ( it ) { check( it ); return false; } );
-};
-
-_.arrFoldr = function ( arr, init, func ) {
-    var result = init;
-    _.arrDown(
-        arr, function ( it ) { result = func( it, result ); } );
-    return result;
-};
-
-
-// TODO: Put these in lathe.js.
-
-_.arrTuple = function ( n, arr ) {
-    var tuples = [];
-    var tuple = [];
-    _.arrEach( arr, function ( it ) {
-        tuple.push( it );
-        if ( tuple.length == n ) {
-            tuples.push( tuple );
-            tuple = [];
-        }
-    } );
-    if ( tuple.length != 0 )
-        throw new TypeError( "Can't arrTuples into uneven tuples." );
-    return tuples;
-};
-
-_.arrPair = function ( arr ) { return _.arrTuple( 2, arr ); };
-
-_.gensymPrefix = "gs" + Math.floor( Math.random() * 1e10 ) + "_";
-_.gensymSuffix = 0;
-_.gensym = function () { return _.gensymPrefix + _.gensymSuffix++; };
-
-
-// We're putting this on the window object so that it's easy to try
-// out at the REPL.
-window.choppaScript = $.ChopsEnvObj.of( {
-    " block": function ( chops ) {
-        return unsplice( chops ).join( "" );
-    },
-    "": function ( chops, env ) {
-        return splice(
-            "[", unsplice( $.parseInlineChops( env, chops ) ), "]" );
-    },
-    ">-": function ( chops, env ) {
-        var bindings = [];
-        var locals = $.ChopsEnvObj.of(
-            _.shadow( $.unwrapChopsEnvObj( env ), {
-            "<-": function ( chops2, env2 ) {
-                var param = _.gensym();
-                bindings.push( { param: param, val: chops2 } );
-                return param;
-            }
-        } ) );
-        return _.arrFoldr(
-            bindings, $.parseInlineChops( locals, chops ),
-            function ( binding, body ) {
-                var val = $.parseInlineChops( env, binding.val );
-                return splice(
-                    "(monadBind( (", unsplice( val ), "), ",
-                        "function ( ", binding.param, " ) { ",
-                            "return (", unsplice( body ), "); ",
-                        "} ))" );
-            } );
-    },
-    ">->": function ( chops, env ) {
-        var words = $.chopTrimTokens( chops, /\s+/g );
-        var body = $.parseInlineChops( env, words.pop() );
-        return _.arrFoldr( _.arrPair( words ), body,
-            function ( binding, body ) {
-                var param = binding[ 0 ];
-                var val = $.parseInlineChops( env, binding[ 1 ] );
-                return splice(
-                    "(monadBind( (", unsplice( val ), "), ",
-                        "function ( ", param, " ) { ",
-                            "return (", unsplice( body ), "); ",
-                        "} ))" );
-            } );
-    },
-    ">": function ( chops, env ) {
-        var words = $.chopTrimTokens( chops, /\s+/g );
-        return _.arrFoldr( words,
-            $.parseInlineChops( env, words.pop() ),
-            function ( template, next ) {
-                var locals = $.ChopsEnvObj.of(
-                    _.shadow( $.unwrapChopsEnvObj( env ), {
-                    "next": function () { return resplice( next ); }
-                } ) );
-                return resplice(
-                    $.parseInlineChops( locals, template ) );
-            } );
-    },
-    "fn": function ( chops, env ) {
-        return $.letChopLtrimRegex( chops, /^([\s_$a-z01-9]*)(:|=)/,
-            function ( match, rest ) {
-                var parms = _.arrKeep( match[ 1 ].split( /\s+/g ),
-                    function ( it ) { return it !== ""; } ).
-                    join( ", " );
-                if ( parms !== "" )
-                    parms = " " + parms + " ";
-                var body = $.parseInlineChops( env, rest );
-                if ( match[ 2 ] === "=" )
-                    body =
-                        splice( "return (", unsplice( body ), ");" );
-                return splice( "(function (", parms, ") { ",
-                    unsplice( body ), " })" );
-            },
-            function () { throw new SyntaxError(
-                "Chops can't parse this fn form." ); } );
-    },
-    "just": function ( chops, env ) {
-        return resplice( $.parseInlineChops( env, chops ) );
-    },
-    "a": function ( chops, env ) {
-        return $.letChopWords( chops, 1,
-            function () {
-                return splice( "(lathe.arrCut( arguments, (",
-                    unsplice( $.parseInlineChops( env, chops ) ),
-                ") ))" );
-            },
-            function () {
-                return "(lathe.arrCut( arguments ))";
-            }
-        );
-    },
-    "foo": _.idfn
-} );
-
-writeTest( "blah " + _.blahpp( $.parseChopcode( choppaScript, "woo[foo]moo" ) ) );
-
-writeTest( "blah " + _.blahpp( $.parseChopcode( choppaScript, "woo[a 2][ 1 [a] ][][just m]oo" ) ) );
+writeTest( "blah " + _.blahpp( choppaScript.parse( "woo[a 2][ 1 [a] ][][just m]oo" ) ) );
 
 writeTest( "blah " + _.blahpp( $.unchop( $.chopcode( "woo[moo [woo] ]foo[bar]" ) ) ) );
 
-writeTest( "blah " + _.blahpp( $.parseChopcode( choppaScript, _.el( "monad-test" ).innerHTML ) ) );
+writeTest( "blah " + _.blahpp( choppaScript.parse( _.el( "monad-test" ).innerHTML ) ) );
 
-writeTest( "blah " + _.blahpp( $.parseChopcode( choppaScript, "woo( [fn :], [fn it: it(); ], [fn a b = a + b ] )" ) ) );
+writeTest( "blah " + _.blahpp( choppaScript.parse( "woo( [fn :], [fn it: it(); ], [fn a b = a + b ] )" ) ) );
 
-writeTest( "blah " + _.blahpp( $.parseChopcode( choppaScript, _.el( "monad-fn-test" ).innerHTML ) ) );
+writeTest( "blah " + _.blahpp( choppaScript.parse( _.el( "monad-fn-test" ).innerHTML ) ) );
 
-writeTest( "blah " + _.blahpp( $.parseChopcode( choppaScript, _.el( "monad-bind-test" ).innerHTML ) ) );
+writeTest( "blah " + _.blahpp( choppaScript.parse( _.el( "monad-bind-test" ).innerHTML ) ) );
 
-writeTest( "blah " + _.blahpp( $.parseChopcode( choppaScript, _.el( "monad-side-channel-test" ).innerHTML ) ) );
+writeTest( "blah " + _.blahpp( choppaScript.parse( _.el( "monad-side-channel-test" ).innerHTML ) ) );
 
 
 }, function ( e ) {
