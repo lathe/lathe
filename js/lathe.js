@@ -101,7 +101,10 @@ function classTester( clazz ) {
     };
 };
 
-// NOTE: This works even on things which have a typeof of "string".
+// NOTE: These works even on things which have a typeof of "boolean",
+// "number", or "string".
+_.isBoolean = classTester( "Boolean" );
+_.isNumber = classTester( "Number" );
 _.isString = classTester( "String" );
 
 _.kfn = function ( result ) {
@@ -171,7 +174,9 @@ _.arrAny = function ( arr, check ) {
 };
 
 _.arrAll = function ( arr, check ) {
-    return !_.arrAny( arr, function ( it ) { return !check( it ); } );
+    return !_.arrAny( arr, function ( it, i ) {
+        return !check( it, i );
+    } );
 };
 
 _.arrEach = function ( arr, body ) {
@@ -302,7 +307,7 @@ var gensymSuffix = 0;
 _.gensym = function () { return gensymPrefix + gensymSuffix++; };
 
 
-// ===== Utilities for dealing in object literals. ===================
+// ===== Utilities for dealing in object literals and JSON. ==========
 
 
 // This is inspired by Pauan's Object.create() at
@@ -323,11 +328,33 @@ _.shadow = function ( parent, opt_entries ) {
 };
 
 
-_.likeObjectLiteral = function ( x ) {
-    if ( typeof x !== "object" ) return false;
-    var Ctor = x.constructor;
-    return Ctor === Ctor.prototype.constructor;
-};
+if ( root.Object.getPrototypeOf )
+    _.likeObjectLiteral = function ( x ) {
+        if ( x === null ||
+            root.Object.prototype.toString.call( x ) !==
+                "[object Object]" )
+            return false;
+        var p = root.Object.getPrototypeOf( x );
+        return p !== null && typeof p === "object" &&
+            root.Object.getPrototypeOf( p ) === null;
+    };
+else if ( {}.__proto__ !== void 0 )
+    _.likeObjectLiteral = function ( x ) {
+        if ( x === null ||
+            root.Object.prototype.toString.call( x ) !==
+                "[object Object]" )
+            return false;
+        var p = x.__proto__;
+        return p !== null && typeof p === "object" &&
+            p.__proto__ === null;
+    };
+else
+    _.likeObjectLiteral = function ( x ) {
+        return x !== null &&
+            root.Object.prototype.toString.call( x ) ===
+                "[object Object]" &&
+            x.constructor === {}.constructor;
+    };
 
 _.objOwnAny = function ( obj, func ) {
     for ( var key in obj )
@@ -337,6 +364,12 @@ _.objOwnAny = function ( obj, func ) {
                 return result;
         }
     return false;
+};
+
+_.objOwnAll = function ( obj, func ) {
+    return !_.objOwnAny( obj, function ( k, v ) {
+        return !func( k, v );
+    } );
 };
 
 _.objOwnEach = function ( obj, func ) {
@@ -390,6 +423,46 @@ _.Opt.prototype.or = function ( var_args ) {
         }
     }
     return new _.Opt( bam );
+};
+
+// NOTE: This returns true for _.jsonIso( 0, -0 ) and false for
+// _.jsonIso( 0 / 0, 0 / 0 ). This treats arguments objects as Arrays.
+_.jsonIso = function ( a, b ) {
+    if ( _.likeArray( a ) )
+        return _.likeArray( b ) && a.length === b.length &&
+            _.arrAll( a, function ( it, i ) {
+                return _.jsonIso( it, b[ i ] );
+            } );
+    if ( _.isString( a ) )
+        return _.isString( b ) && "" + a === "" + b;
+    if ( _.isNumber( a ) )
+        return _.isNumber( b ) && 1 * a === 1 * b;
+    if ( _.isBoolean( a ) )
+        return _.isBoolean( b ) && !a === !b;
+    if ( a === null )
+        return b === null;
+    if ( _.likeObjectLiteral( a ) )
+        return _.likeObjectLiteral( b ) &&
+            _.objOwnAll( a, function ( k, v ) {
+                return _.hasOwn( b, k ) && _.jsonIso( v, b[ k ] );
+            } ) && _.objOwnAll( b, function ( k, v ) {
+                return _.hasOwn( a, k );
+            } );
+    throw new Error( "Invalid argument to jsonIso()." );
+};
+
+// TODO: Make this more flexible.
+_.copdate = function ( obj, key, update ) {
+    if ( _.likeObjectLiteral( obj ) )
+        obj = _.objCopy( obj );
+    else if ( _.likeArray( obj ) )
+        obj = _.arrCut( obj );
+    else
+        throw new Error( "Invalid obj argument to copdate()." );
+    if ( !_.isFunction( update ) )
+        update = _.kfn( update );
+    obj[ key ] = update( obj[ key ] );
+    return obj;
 };
 
 
@@ -2015,6 +2088,60 @@ _.rule( _.ifanyRb, "likeArray",
 } );
 
 
+// ===== DOM utilities. ==============================================
+
+_.el = function ( domElementId ) {
+    return root.document.getElementById( domElementId );
+};
+
+function handle( el, eventName, handler ) {
+    if ( el.addEventListener )
+        el.addEventListener( eventName, handler, !"capture" );
+    else  // IE
+        el.attachEvent( "on" + eventName, handler );
+}
+
+function appendOneDom( el, part ) {
+    if ( _.likeArray( part ) )
+        for ( var i = 0, n = part.length; i < n; i++ )
+            appendOneDom( el, part[ i ] );
+    else if ( _.isString( part ) )
+        el.appendChild( root.document.createTextNode( "" + part ) );
+    else if ( _.likeObjectLiteral( part ) )
+        for ( var k in part ) {
+            var v = part[ k ];
+            if ( _.isFunction( v ) )
+                handle( el, k, v );
+            else if ( _.isString( v ) )
+                el.setAttribute( k, "" + v );
+            else
+                throw new root.Error(
+                    "Unrecognized map arg to appendDom() or dom()." );
+        }
+    else if ( part instanceof root.Element )
+        el.appendChild( part );
+    else
+        throw new root.Error(
+            "Unrecognized list arg to appendDom() or dom()." );
+    return el;
+}
+
+_.appendDom = function ( el, var_args ) {
+    return appendOneDom( el, _.arrCut( arguments, 1 ) );
+};
+
+_.dom = function ( el, var_args ) {
+    if ( _.isString( el ) )
+        el = document.createElement( el );
+    else if ( el instanceof root.Element )
+        while ( el.hasChildNodes() )
+            el.removeChild( el.firstChild );
+    else
+        throw new root.Error( "Unrecognized name arg to dom()." );
+    return appendOneDom( el, _.arrCut( arguments, 1 ) );
+};
+
+
 // ===== Disorganized utilities. =====================================
 //
 // TODO: Continuously prune this section down.
@@ -2062,11 +2189,6 @@ _.rule( _.blahpp, "undefined", function ( fail, x ) {
 } );
 
 
-_.el = function ( domElementId ) {
-    return root.document.getElementById( domElementId );
-};
-
-
 // ===== Optimization rules. =========================================
 //
 // TODO: Remove these, if possible. Possibly redesign utilities like
@@ -2108,9 +2230,11 @@ _.orderRulebooks();
 } );
 
 
-(function ( topThis, topArgs, body ) { body( topThis, topArgs ); })(
-    this, typeof arguments === "undefined" ? void 0 : arguments,
-    function ( topThis, topArgs ) {
+(function ( topThis, topArgs, desperateEval, body ) {
+    body( topThis, topArgs, desperateEval );
+})( this, typeof arguments === "undefined" ? void 0 : arguments,
+    function () { return eval( arguments[ 0 ] ); },
+    function ( topThis, topArgs, desperateEval ) {
 
 var root = (function () { return this; })() || topThis;
 
@@ -2126,11 +2250,17 @@ var _ = topArgs !== void 0 && typeof exports !== "undefined" ?
 // This implementation of _.globeval is inspired by
 // <http://perfectionkills.com/global-eval-what-are-the-options/>.
 _.globeval = eval;
-try { var NaN = 0; NaN = _.globeval( "NaN" ); NaN === NaN && {}.x(); }
+try { var NaN = 0; NaN = _.globeval( "NaN" ); NaN === NaN && 0(); }
 catch ( e )
     { _.globeval = function ( expr ) { return root.eval( expr ); }; }
-try { NaN = 0; NaN = _.globeval( "NaN" ); NaN === NaN && {}.x(); }
+try { NaN = 0; NaN = _.globeval( "NaN" ); NaN === NaN && 0(); }
 catch ( e ) { _.globeval = root.execScript; }
+
+// NOTE: This may execute things in a local scope, but it will always
+// return a value.
+_.almostGlobeval = _.globeval( "1" ) ? _.globeval :
+    function ( expr ) { return desperateEval( expr ); };
+
 
 _.funclet = function ( var_args ) {
     var code = [];
@@ -2161,49 +2291,59 @@ _.newcall = function ( Ctor, var_args ) {
 var ENTER_KEY = 13;
 var NO_CAPTURE = false;
 
+function keyCode( event ) {
+    return event.which ||
+        event.keyCode;  // IE
+}
+
+function preventDefault( event ) {
+    if ( event.preventDefault )
+        event.preventDefault();
+    else
+        event.returnValue = false;  // IE
+}
+
 // TODO: See if this leaks memory with its treatment of DOM nodes.
 _.blahrepl = function ( elem ) {
     
-    var scrollback = root.document.createElement( "textarea" );
-    scrollback.className = "scrollback";
-    scrollback.readOnly = true;
-    elem.appendChild( scrollback );
+    var scrollback = _.dom( "textarea",
+        { "class": "scrollback", "readonly": "readonly" } );
+    var prompt = _.dom( "textarea", { "class": "prompt",
+        "keydown": function ( event ) {
+            if ( keyCode( event ) === ENTER_KEY )
+                preventDefault( event );
+        },
+        "keyup": function ( event ) {
+            if ( keyCode( event ) === ENTER_KEY )
+                doEval();
+        } } );
     
-    var prompt = root.document.createElement( "textarea" );
-    prompt.className = "prompt";
-    prompt.addEventListener( "keydown", function ( event ) {
-        if ( event.which === ENTER_KEY )
-            event.preventDefault();
-    }, !"capture" );
-    prompt.addEventListener( "keyup", function ( event ) {
-        if ( event.which === ENTER_KEY )
-            doEval();
-    }, !"capture" );
-    elem.appendChild( prompt );
+    _.appendDom( elem, scrollback, prompt,
+        _.dom( "button", "Eval", { "class": "eval",
+            "click": function ( event ) { doEval(); } } ) );
     
-    var evalButton = root.document.createElement( "button" );
-    evalButton.className = "eval";
-    evalButton.appendChild( root.document.createTextNode( "Eval" ) );
-    evalButton.addEventListener( "click", function ( event ) {
-        doEval();
-    }, !"capture" );
-    elem.appendChild( evalButton );
-    
+    var atStart = true;
     function doEval() {
         var command = prompt.value;
         
+        if ( atStart )
+            atStart = false;
+        else
+            scrollback.value += "\n\n";
         scrollback.value += ">>> " + command + "\n";
         scrollback.scrollTop = scrollback.scrollHeight;
         
         var success = false;
-        try { var result = _.globeval( command ); success = true; }
-        catch ( e ) {
+        try {
+            var result = _.almostGlobeval( command );
+            success = true;
+        } catch ( e ) {
             var message = "(error rendering error)";
             try { message = "" + e; } catch ( e ) {}
-            scrollback.value += "Error: " + message + "\n\n";
+            scrollback.value += "Error: " + message;
         }
         if ( success )
-            scrollback.value += "--> " + result + "\n\n";
+            scrollback.value += "--> " + result;
         
         scrollback.scrollTop = scrollback.scrollHeight;
         
