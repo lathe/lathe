@@ -213,7 +213,8 @@ $.chopTrimTokens = function ( chops, regex, opt_limit ) {
 };
 
 $.chopParas = function ( chops ) {
-    return $.chopTrimTokens( chops, /\n\n+/g );
+    return $.chopTrimTokens(
+        $.letChopRtrimRegex( chops, /\n*$/ ).rest, /\n\n+/g );
 };
 
 $.letChopWords = function ( chops, num, opt_then, opt_els ) {
@@ -235,15 +236,38 @@ $.letChopLtrimRegex = function ( chops, regex, opt_then, opt_els ) {
         };
     if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
     var first = chops[ 0 ];
-    if ( !_.isString( first ) )
+    if ( !_.isString( first ) ) {
         first = "";
+        chops = [ "" ].concat( chops );
+    }
     var match = new RegExp( regex ).exec( first );
-    if ( match === null || match.index != 0 )
+    if ( match === null || match.index !== 0 )
         return opt_els();
     var newFirst = first.substring( match[ 0 ].length );
     return opt_then( match,
         (newFirst === "" ? [] : [ newFirst ]).
             concat( _.arrCut( chops, 1 ) ) );
+};
+
+$.letChopRtrimRegex = function ( chops, regex, opt_then, opt_els ) {
+    if ( !_.given( opt_then ) )
+        opt_then = function ( match, rest ) {
+            return { match: match, rest: rest };
+        };
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
+    var last = chops[ chops.length - 1 ];
+    if ( !_.isString( last ) ) {
+        last = "";
+        chops = chops.concat( [ "" ] );
+    }
+    var match = new RegExp( regex ).exec( last );
+    if ( match === null
+        || match.index + match[ 0 ].length !== last.length )
+        return opt_els();
+    var newLast = last.substring( 0, match.index );
+    return opt_then( match,
+        _.arrCut( chops, 0, chops.length - 1 ).concat(
+            newLast === "" ? [] : [ newLast ] ) );
 };
 
 $.unchop = function ( chop ) {
@@ -256,6 +280,10 @@ $.unchop = function ( chop ) {
             y( "]" );
         } );
     } ).join( "" );
+};
+
+$.unchops = function ( chops ) {
+    return _.arrMap( chops, $.unchop ).join( "" );
 };
 
 
@@ -309,12 +337,16 @@ $.chopup = function ( markup ) {
     return $.chopParas( $.chopcode( markup ) );
 };
 
+$.parseChopline = function ( env, code ) {
+    return $.parseInlineChops( env, $.chopcode( code ) );
+};
+
 $.parseChopcode = function ( env, code ) {
     return $.parseBlockChops( env, $.chopcode( code ) );
 };
 
 $.parseChopup = function ( env, markup ) {
-    return $.parseDocumentOfChops( env, $chopup( markup ) );
+    return $.parseDocumentOfChops( env, $.chopup( markup ) );
 };
 
 

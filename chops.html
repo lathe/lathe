@@ -102,6 +102,17 @@ it
 
 </script>
 
+<script type="text/x-rocketnia-chops" id="str-test">
+
+[str |
+
+[This is a multi-line string.]
+[See it not run.]
+
+]
+
+</script>
+
 <script type="text/javascript">//"use strict";
 
 
@@ -231,6 +242,8 @@ writeTest( "blah " + _.blahpp( choppaScript.parse( _.el( "monad-fn-test" ).inner
 writeTest( "blah " + _.blahpp( choppaScript.parse( _.el( "monad-bind-test" ).innerHTML ) ) );
 
 writeTest( "blah " + _.blahpp( choppaScript.parse( _.el( "monad-side-channel-test" ).innerHTML ) ) );
+
+writeTest( "blah " + _.blahpp( choppaScript.parse( _.el( "str-test" ).innerHTML ) ) );
 
 
 }, function ( e ) {

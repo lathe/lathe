@@ -179,7 +179,15 @@ my.env = $c.ChopsEnvObj.of( {
         else
             return "(lathe.arrCut( arguments ))";
     },
-    "foo": _.idfn
+    "foo": _.idfn,
+    "str": function ( chops, env ) {
+        chops = $c.letChopLtrimRegex(
+            chops, /^(?:(?!\n)\s)*[\n|]?/ ).rest;
+        return "(" + _.arrMap( $.unchops( chops ).split( /\n/g ),
+            function ( line ) {
+                return JSON.stringify( line );
+            } ).join( " + \"\\n\" + " ) + ")";
+    }
 } );
 
 my.parse = function ( source ) {

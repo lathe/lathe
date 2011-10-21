@@ -210,11 +210,11 @@ _.arrMappend = function ( arr, convert ) {
 _.arrUnbend = function ( args, opt_start ) {
     args = _.arrCut( args, opt_start );
     return args.concat( _.arrCut( args.pop() ) );
-}
+};
 
 _.classicapply = function ( self, func, var_args ) {
     return func.apply( self, _.arrUnbend( arguments, 2 ) );
-}
+};
 
 _.classiccall = function ( func, var_args ) {
     return _.classicapply( null, func, _.arrCut( arguments, 1 ) );
@@ -254,7 +254,7 @@ _.sameTwo = function ( a, b ) {
     return (a === b &&
         (a !== 0 || 1 / a === 1 / b)) ||  // -0 === 0, but 1/-0 !== 1/0
         (a !== a && b !== b);             // NaN !== NaN
-}
+};
 
 _.alGet = function ( al, k ) {
     for ( var i = 0, n = al.length; i < n; i++ ) {
@@ -389,6 +389,14 @@ _.objAcc = function ( body ) {
     var result = {};
     body( function ( k, v ) { result[ k ] = v; } );
     return result;
+};
+
+_.objMap = function ( obj, func ) {
+    return _.objAcc( function ( y ) {
+        _.objOwnEach( obj, function ( k, v ) {
+            y( k, func( v, k ) );
+        } );
+    } );
 };
 
 _.objCopy = function ( obj ) {
