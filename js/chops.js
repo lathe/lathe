@@ -193,7 +193,13 @@ $.chopSplit = function ( chops, delim, limit ) {
 $.chopTokens = function ( chops, regex, opt_limit ) {
     if ( !_.given( opt_limit ) ) opt_limit = 1 / 0;  // IEEE Infinity
     return _.acc( function ( y ) {
-        $.chopBetweenRegex( chops, regex, opt_limit, y, _.idfn );
+        var n = 0;
+        $.chopBetweenRegex( chops, regex, opt_limit, function ( no ) {
+            n++;
+            y( no );
+        }, _.idfn );
+        if ( n === opt_limit )
+            y( [] );
     } );
 };
 
@@ -215,18 +221,6 @@ $.chopTrimTokens = function ( chops, regex, opt_limit ) {
 $.chopParas = function ( chops ) {
     return $.chopTrimTokens(
         $.letChopRtrimRegex( chops, /\n*$/ ).rest, /\n\n+/g );
-};
-
-$.letChopWords = function ( chops, num, opt_then, opt_els ) {
-    if ( !_.given( opt_then ) )
-        opt_then =
-            function ( var_args ) { return _.arrCut( arguments ); };
-    if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
-    var words = $.chopTokens( chops, /\s+/g, num );
-    if ( words.length <= num )
-        return opt_els();
-    else
-        return _.classicapply( null, opt_then, words );
 };
 
 $.letChopLtrimRegex = function ( chops, regex, opt_then, opt_els ) {
@@ -268,6 +262,19 @@ $.letChopRtrimRegex = function ( chops, regex, opt_then, opt_els ) {
     return opt_then( match,
         _.arrCut( chops, 0, chops.length - 1 ).concat(
             newLast === "" ? [] : [ newLast ] ) );
+};
+
+$.letChopWords = function ( chops, num, opt_then, opt_els ) {
+    if ( !_.given( opt_then ) )
+        opt_then =
+            function ( var_args ) { return _.arrCut( arguments ); };
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
+    chops = $.letChopLtrimRegex( chops, /^\s+/ ).rest;
+    var words = $.chopTokens( chops, /\s+/g, num );
+    if ( num < words.length )
+        return _.classicapply( null, opt_then, words );
+    else
+        return opt_els();
 };
 
 $.unchop = function ( chop ) {
