@@ -1225,12 +1225,15 @@ _.preferNamesLast = defPreferNames( _.preferLast );
 // merging that space with another?
 
 // TODO: See if this should inherit from Error.
-_.FailureError = function ( failure ) { this.failure = failure; };
+_.FailureError = function ( failure ) {
+    this.error_ = new root.Error();  // for stack trace
+    this.failure_ = failure;
+};
 
 // TODO: This can cause side effects or fail, if pprintMessage is set
 // up to do that. See if there's an alternative.
 _.FailureError.prototype.toString = function () {
-    return _.pprintMessage( this.failure );
+    return _.pprintMessage( this.failure_ );
 };
 
 // This is the default fail parameter.
