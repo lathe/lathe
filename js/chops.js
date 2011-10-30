@@ -355,9 +355,11 @@ _.deftype( $, "ChopsEnvObj", "unwrapChopsEnvObj" );
 _.rule( $.parseOpChop, "unwrapChopsEnvObj", function (
     fail, env, op, chops ) {
     
-    return _.tapply( env,
-        _.rely( fail, $.unwrapChopsEnvObj, env )[ op ],
-        [ chops, env ] );
+    var rep = _.rely( fail, $.unwrapChopsEnvObj, env );
+    if ( !(op in rep) )
+        throw new Error(
+            "The op " + _.blahpp( op ) + " doesn't exist." );
+    return _.tapply( env, rep[ op ], [ chops, env ] );
 } );
 
 _.rule( $.parseTextChop, "unwrapChopsEnvObj", function (

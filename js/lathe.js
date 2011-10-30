@@ -202,6 +202,10 @@ _.arrMap = function ( arr, convert ) {
     } );
 };
 
+_.arrPlus = function ( var_args ) {
+    return root.Array.prototype.concat.apply( [], arguments );
+};
+
 _.arrMappend = function ( arr, convert ) {
     return root.Array.prototype.concat.apply(
         [], _.arrMap( arr, convert ) );
@@ -387,14 +391,45 @@ _.objOwnKeys = function ( obj ) {
 
 _.objAcc = function ( body ) {
     var result = {};
-    body( function ( k, v ) { result[ k ] = v; } );
+    body( function ( var_args ) {
+        for ( var i = 0, n = arguments.length; i < n; ) {
+            var arg = arguments[ i ];
+            i++;
+            var v = arguments[ i ];
+            if ( _.isString( arg ) && i < arguments.length )
+                i++, result[ arg ] = v;
+            else if ( _.likeObjectLiteral( arg ) )
+                _.objOwnEach( arg, function ( k, v ) {
+                    result[ k ] = v;
+                } );
+            else if ( _.likeArray( arg ) && i < arguments.length )
+                i++, _.arrEach( arg, function ( k ) {
+                    result[ k ] = v;
+                } );
+            else
+                throw new root.Error(
+                    "Unrecognized argument to an objAcc callback." );
+        }
+    } );
     return result;
 };
+
+function informalArgsToObj( args ) {
+    return _.objAcc( function ( y ) { y.apply( null, args ); } );
+}
 
 _.objMap = function ( obj, func ) {
     return _.objAcc( function ( y ) {
         _.objOwnEach( obj, function ( k, v ) {
             y( k, func( v, k ) );
+        } );
+    } );
+};
+
+_.objMappend = function ( obj, func ) {
+    return _.objAcc( function ( y ) {
+        _.objOwnEach( obj, function ( k, v ) {
+            y( func( v, k ) );
         } );
     } );
 };
@@ -407,30 +442,35 @@ _.objCopy = function ( obj ) {
 
 _.Opt = function ( bam ) { this.bam = bam; };
 
-_.opt = function ( result ) { return new _.Opt( _.kfn( result ) ); };
+_.opt = function ( opt_result ) {
+    return new _.Opt(
+        _.kfn( _.given( opt_result ) ? opt_result : {} ) );
+};
 
 _.Opt.prototype.or = function ( var_args ) {
-    var bam = this.bam;
-    var args = _.arrCut( arguments );
-    while ( args.length != 0 ) {
-        var arg = args.shift();
-        if ( _.isString( arg ) && args.length != 0 ) {
-            var obj = {};
-            obj[ arg ] = args.shift();
-            bam = _.opt( bam ).or( obj ).bam;
-        } else {
-            var oldBam = bam;
-            bam = function () {
-                var result = _.objCopy( oldBam() );
-                _.objOwnEach( arg, function ( k, v ) {
-                    if ( !_.hasOwn( result, k ) )
-                        result[ k ] = v;
-                } );
-                return result;
-            };
-        }
-    }
-    return new _.Opt( bam );
+    var args = informalArgsToObj( arguments );
+    var oldBam = this.bam;
+    return new _.Opt( function () {
+        var result = _.objCopy( oldBam() );
+        _.objOwnEach( args, function ( k, v ) {
+            if ( !_.hasOwn( result, k ) )
+                result[ k ] = v;
+        } );
+        return result;
+    } );
+};
+
+_.Opt.prototype.orf = function ( var_args ) {
+    var args = informalArgsToObj( arguments );
+    var oldBam = this.bam;
+    return new _.Opt( function () {
+        var result = _.objCopy( oldBam() );
+        _.objOwnEach( args, function ( k, v ) {
+            if ( !_.hasOwn( result, k ) )
+                result[ k ] = _.isFunction( v ) ? v() : v;
+        } );
+        return result;
+    } );
 };
 
 // NOTE: This returns true for _.jsonIso( 0, -0 ) and false for
@@ -2102,11 +2142,21 @@ _.el = function ( domElementId ) {
     return root.document.getElementById( domElementId );
 };
 
-function handle( el, eventName, handler ) {
-    if ( el.addEventListener )
+var handle, unhandle;
+if ( root.document.addEventListener ) {
+    handle = function ( el, eventName, handler ) {
         el.addEventListener( eventName, handler, !"capture" );
-    else  // IE
+    };
+    unhandle = function ( el, eventName, handler ) {
+        el.removeEventListener( eventName, handler, !"capture" );
+    };
+} else {  // IE
+    handle = function ( el, eventName, handler ) {
         el.attachEvent( "on" + eventName, handler );
+    };
+    unhandle = function ( el, eventName, handler ) {
+        el.detachEvent( "on" + eventName, handler );
+    };
 }
 
 function appendOneDom( el, part ) {
@@ -2148,6 +2198,34 @@ _.dom = function ( el, var_args ) {
         throw new root.Error( "Unrecognized name arg to dom()." );
     return appendOneDom( el, _.arrCut( arguments, 1 ) );
 };
+
+_.fetchFrame = function ( holder, url, opt_then, opt_timeout ) {
+    var hash = "#" + root.Math.random();
+    var finished = false;
+    function finish( result ) {
+        if ( finished || !_.given( opt_then ) ) return;
+        finished = true;
+        unhandle( window, "message", onMessage );
+        opt_then( result );
+    }
+    function onMessage( e ) {
+        var data = e.data;
+        if ( _.likeObjectLiteral( data ) && data[ "hash" ] === hash )
+            finish( { "val": data[ "val" ] } );
+    }
+    if ( _.given( opt_then ) )
+        handle( window, "message", onMessage );
+    var frame = _.dom( "iframe" );
+    holder.appendChild( frame );
+    _.appendDom( frame, { "load": function () {
+        holder.removeChild( frame );
+        root.setTimeout( function () {
+            finish( false );
+        }, _.given( opt_timeout ) ? opt_timeout : 0 );
+    } } );
+    frame.src = url + hash;
+};
+
 
 
 // ===== Disorganized utilities. =====================================
