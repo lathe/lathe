@@ -2199,6 +2199,31 @@ _.dom = function ( el, var_args ) {
     return appendOneDom( el, _.arrCut( arguments, 1 ) );
 };
 
+// This fetches a value cross-origin using an iframe and
+// postMessage(). Here's an example of a document that works with it:
+//
+// <!DOCTYPE html>
+// <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+// <title></title>
+// <script type="text/plain" id="x">Here's some text.
+// 
+// Strings like "<@/script>" and "<@!--" (without the @@ signs) can be
+// troublesome, JS has no standardized multiline string support, and
+// cross-origin AJAX requests can be a pain.
+// 
+// This example demonstrates a combination of workarounds. Though it
+// may appear more secure than JSONP, don't get your hopes up. I only
+// intend to use this for communication between multiple origins I
+// control (like local files). For REST APIs, I recommend
+// CORS.</script>
+// <script>
+// parent.postMessage( { hash: location.hash, val:
+//     { type: "text/x-rocketnia-choppascript",
+//         text: document.getElementById( "x" ).
+//             textContent.replace( /@(@*)/g, "$1" ) } }, "*" );
+// </script>
+// </html>
+//
 _.fetchFrame = function ( holder, url, opt_then, opt_timeout ) {
     var hash = "#" + root.Math.random();
     var finished = false;
