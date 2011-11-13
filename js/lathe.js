@@ -521,7 +521,7 @@ _.blahlogs = {};
 _.blahlogs.docPara = function ( opt_text ) {
     if ( !_.given( opt_text ) ) opt_text = "";
     opt_text = ("" + opt_text).replace( /\n/g, "<br />" );
-    if ( opt_text.length == 0 ) opt_text = "&nbsp;";
+    if ( opt_text.length === 0 ) opt_text = "&nbsp;";
     root.document.write( "<p class='blahlog'>" + opt_text + "</p>" );
     return opt_text;
 };
@@ -881,7 +881,7 @@ _.TransitiveDag = function ( elems ) {
                 } );
             } );
         }
-        while ( nodes.length != 0 ) {
+        while ( nodes.length !== 0 ) {
             commit( _.arrMap(
                 _.arrKeep( nodes, function ( node ) {
                      return _.arrSubset(
@@ -932,7 +932,7 @@ _.circularlyOrder = function ( repToComp, comparatorReps ) {
             } );
             ucs = _.arrSetMinus( _.sameTwo, ucs, cs );
         }
-        while ( ucs.length != 0 ) {
+        while ( ucs.length !== 0 ) {
             var consideredCs = _.arrRem( ucs, function ( uc ) {
                 return _.arrAny( ucs, function ( it ) {
                     return alreadyPromoted( it, uc );
@@ -957,7 +957,7 @@ _.circularlyOrder = function ( repToComp, comparatorReps ) {
                         return _.sameTwo( uc, r.rec.after );
                     } );
                 } );
-            if ( uncontestedCs.length != 0 ) {
+            if ( uncontestedCs.length !== 0 ) {
                 promoteCs( uncontestedCs );
             } else {
                 
@@ -1145,7 +1145,7 @@ function defPreferNames( prefer ) {
             _.arrMap( ruleNames, function ( name ) {
                 return function ( rule ) {
                     return _.sameTwo( rule.rbToken, rbToken ) &&
-                        rule.name == name;
+                        rule.name === name;
                 };
             } ) );
     };
@@ -1353,7 +1353,7 @@ _.getRules = function ( rb ) {
 _.getRuleImpl = _.pluckfn( "impl" );
 
 _.ruleIsNamed = function ( rule, name ) {
-    return rule.name == name;
+    return rule.name === name;
 };
 
 _.unorderedRulebook = _.definer( function ( obj, name ) {
@@ -1557,7 +1557,7 @@ _.rulebook( _, "isRb" );
 
 _.is = function ( var_args ) {
     var args = _.arrCut( arguments );
-    if ( args.length == 0 ) return true;
+    if ( args.length === 0 ) return true;
     var first = args.shift();
     return _.arrAll( args, function ( arg ) {
         return _.sameTwo( first, arg ) ||
@@ -1949,7 +1949,7 @@ _.failfn( _, "tuple", function ( fail, size, seq ) {
                 var n = 0;
                 var rest = seq;
                 while ( true ) {
-                    if ( n == size )
+                    if ( n === size )
                         return then(
                             andBack.back( _.rev( tuple ) ),
                             nextTuples( rest ) );
@@ -1958,7 +1958,7 @@ _.failfn( _, "tuple", function ( fail, size, seq ) {
                         tuple = _.cons( apart.first, tuple );
                         n++;
                         rest = apart.rest;
-                    } else if ( n != 0 ) {
+                    } else if ( n !== 0 ) {
                         throw new TypeError(
                             "Can't tuple into uneven tuples." );
                     } else {
@@ -2010,7 +2010,7 @@ _.rulebook( _, "plus" );
 
 // TODO: Give this rule a name in the Penknife draft.
 _.rule( _.plus, "unary", function ( fail, opt_result, var_args ) {
-    if ( arguments.length != 2 )
+    if ( arguments.length !== 2 )
         fail( "There isn't exactly one argument." );
     return opt_result;
 } );
@@ -2291,7 +2291,7 @@ _.rule( _.blahpp, "string", function ( fail, x ) {
 _.rule( _.blahpp, "likeArray", function ( fail, x ) {
     if ( !_.likeArray( x ) )
         fail( "It isn't likeArray." );
-    if ( x.length == 0 )
+    if ( x.length === 0 )
         return "[]";
     return "[ " +
         _.map( _.arrCut( x ), _.blahpp ).join( ", " ) + " ]";
@@ -2380,9 +2380,9 @@ _.funclet = function ( var_args ) {
     var code = [];
     var vals = [];
     _.arrEach( arguments, function ( arg, i ) {
-        (i % 2 == 0 ? code : vals).push( arg );
+        (i % 2 === 0 ? code : vals).push( arg );
     } );
-    if ( code.length != vals.length + 1 )
+    if ( code.length !== vals.length + 1 )
         throw new Error(
             "Can't funclet an even number of arguments." );
     return Function.apply( null, code ).apply( null, vals );
