@@ -73,7 +73,7 @@ _.rule( _.fact, "zero", function ( n ) {
 
 _.rule( _.fact, "wrong zero", function ( n ) {
     if ( n != 0 ) _.fail( "The number wasn't 0." );
-    return _.fail( 166 );
+    return _.win( 166 );
 } );
 
 // At the moment (although it's an unspecified behavior), the rule
