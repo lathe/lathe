@@ -120,19 +120,19 @@ it
 
 _.rulebook( _, "fact" );
 
-_.rule( _.fact, "positive", function ( fail, n ) {
-    if ( n <= 0 ) fail( "The number wasn't positive." );
-    return n * _.fact( n - 1 );
+_.rule( _.fact, "positive", function ( n ) {
+    if ( n <= 0 ) return _.fail( "The number wasn't positive." );
+    return _.win( n * _.fact( n - 1 ) );
 } );
 
-_.rule( _.fact, "zero", function ( fail, n ) {
-    if ( n != 0 ) fail( "The number wasn't 0." );
-    return 1;
+_.rule( _.fact, "zero", function ( n ) {
+    if ( n != 0 ) return _.fail( "The number wasn't 0." );
+    return _.win( 1 );
 } );
 
-_.rule( _.fact, "wrong zero", function ( fail, n ) {
-    if ( n != 0 ) fail( "The number wasn't 0." );
-    return 166;
+_.rule( _.fact, "wrong zero", function ( n ) {
+    if ( n != 0 ) _.fail( "The number wasn't 0." );
+    return _.fail( 166 );
 } );
 
 // At the moment (although it's an unspecified behavior), the rule
@@ -170,7 +170,7 @@ writeTest( "heya" );
 //document.write( "hmm " + _.isSecretargAware( _.secretargAware( function () { return 2; } ) ) );
 //document.write( "hmm " + _.isSecretargAware( function () { return 2; } ) );
 document.write( "<br />" );
-//document.write( "hmm " + _.failfn( function ( fail, a, b ) { return a + b; } ).call( null, 1, 2 ) );
+//document.write( "hmm " + _.failfn( function ( a, b ) { return _.win( a + b ); } ).call( null, 1, 2 ) );
 //try {
 //document.write( "hmm " + _.secretargAware( function () { return 2; } ).call() );
 //} catch ( e ) { alert( e ); }

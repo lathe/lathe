@@ -630,7 +630,7 @@ my.sapply = function ( self, func, sargs, var_args ) {
 };
 
 my.scall = function ( func, sargs, var_args ) {
-    return my.sapply( null, func, sargs, my.arrCut( arguments, 3 ) );
+    return my.sapply( null, func, sargs, my.arrCut( arguments, 2 ) );
 };
 
 my.sargfn = my.definer( function ( obj, name, innerFunc ) {
@@ -1170,6 +1170,8 @@ my.preferNamesLast = defPreferNames( my.preferLast );
 // ===== Failcall. ===================================================
 
 // TODO: Incorporate typo corrections in this text back into Arc.
+// TODO: Rewrite this to account for the fact that failcall() is now
+// fcall() and uses no escape continuations.
 //
 // This simulates a parameter on *every* function call that specifies
 // what to do instead if the function call doesn't make sense. This
@@ -1247,42 +1249,45 @@ my.FailureError.prototype.toString = function () {
     return my.pprintMessage( this.failure_ );
 };
 
-// This is the default fail parameter.
+// This is what to do with failures when not fcalling.
 my.raiseFailure = function ( failure ) {
     throw new my.FailureError( failure );
 };
 
-my.failSarg = new my.Sarg( my.raiseFailure );
+my.fcallingSarg = new my.Sarg( false );
 
-my.tfailapply = function ( self, func, fail, var_args ) {
-    return my.tsapply( self, func, [ [ my.failSarg, fail ] ],
-        my.arrUnbend( arguments, 3 ) );
+my.tfailapply = function ( self, func, var_args ) {
+    return my.tsapply( self, func, [ [ my.fcallingSarg, true ] ],
+        my.arrUnbend( arguments, 2 ) );
 };
 
-my.tfn( my, "failapply", function ( self, func, fail, var_args ) {
-    return my.tfailapply(
-        self, func, fail, my.arrUnbend( arguments, 3 ) );
-} );
-
-my.tfailcall = function ( func, fail, var_args ) {
-    return my.tfailapply(
-        null, func, fail, my.arrCut( arguments, 2 ) );
-};
-
-my.tfn( my, "failcall", function ( func, fail, var_args ) {
-    return my.tfailapply(
-        null, func, fail, my.arrCut( arguments, 2 ) );
+my.tfn( my, "failapply", function ( self, func, var_args ) {
+    return my.tfailapply( self, func, my.arrUnbend( arguments, 2 ) );
 } );
 
 my.fcall = function ( func, var_args ) {
-    var args = my.arrCut( arguments, 1 );
-    var fail = args.pop();
-    return my.failapply( null, func, fail, args );
+    return my.failapply( null, func, my.arrCut( arguments, 1 ) );
 };
 
-my.rely = function ( fail, func, var_args ) {
-    return my.failapply(
-        null, func, fail, my.arrCut( arguments, 2 ) );
+
+my.FcallResult_ = function () {};
+my.FcallResult_.prototype.init_ = function ( success, val ) {
+    this.success_ = success;
+    this.val_ = val;
+    return this;
+};
+my.FcallResult_.prototype.fail = function () {
+    return !this.success_;
+};
+my.FcallResult_.prototype.val = function () {
+    return this.val_;
+};
+
+my.win = function ( val ) {
+    return new my.FcallResult_().init_( !!"success", val );
+};
+my.fail = function ( val ) {
+    return new my.FcallResult_().init_( !"success", val );
 };
 
 
@@ -1300,15 +1305,18 @@ my.failfn = my.definer( function ( obj, name, func ) {
     // up the tailTrampObjSarg for use in the user-defined function
     // body.
     var result = my.tfn( function ( var_args ) {
-        var self = this, args = my.arrCut( arguments )
-        var sargs = my.sargs(), fail = my.failSarg.getValue();
-        var result = my.point( function ( fail ) {
-            return my.sapply( self, func, sargs, fail, args );
-        } );
-        if ( result.returned )
-            return result.val;
-        return fail(
-            new my.FunctionFailure( result, self, args, result.val ) );
+        var self = this, args = my.arrCut( arguments );
+        var sargs = my.sargs(), fcalling = my.fcallingSarg.getValue();
+        var result = my.sapply( self, func, sargs, args );
+        if ( result.fail() ) {
+            var failure = new my.FunctionFailure(
+                result, self, args, result.val() );
+            if ( fcalling )
+                return my.fail( failure );
+            my.raiseFailure( failure );
+        } else {
+            return fcalling ? result : result.val();
+        }
     } );
     result.toString = function () { return "[failfn " + name + "]"; };
     return result;
@@ -1323,15 +1331,6 @@ my.RulebookFailure = function ( name, self, args, complaints ) {
 };
 
 
-// TODO: See if point() is strictly better than this.
-// TODO: See if this can be redesigned in a non-CPS way.
-my.ifsuccess = function ( thunk, consequence, alternative ) {
-    return my.rely( alternative,
-        my.failfn( "-ifsuccess-", function ( fail ) {
-            return consequence( my.rely( fail, thunk ) );
-        } ) );
-};
-
 // TODO: Redesign the Arc version this way.
 my.casefn = my.definer( function (
     obj, name, getCases, opt_getImpl ) {
@@ -1340,7 +1339,7 @@ my.casefn = my.definer( function (
     // TODO: See if it makes sense for this to be a tfn.
     return my.sargfn( name, function () {
         var self = this, args = my.arrCut( arguments );
-        var sargs = my.sargs(), fail = my.failSarg.getValue();
+        var sargs = my.sargs(), fcalling = my.fcallingSarg.getValue();
         // NOTE: We're saving stack frames by inlining
         // my.point( ... ).val and my.arrEach( getCases(), ... ).
         // NOTE: We're saving stack frames by inlining acc.
@@ -1348,16 +1347,19 @@ my.casefn = my.definer( function (
         var cases = getCases();
         for ( var i = 0, len = cases.length; i < len; i++ ) {
             var thisCase = cases[ i ];
-            var result = my.point( function ( fail ) {
-                return my.sapply( self, opt_getImpl( thisCase ),
-                    my.alCons( my.failSarg, fail, sargs ), args );
-            } );
-            if ( result.returned )
-                return result.val;
-            complaints.push( result.val );
+            var result = my.sapply( self, opt_getImpl( thisCase ),
+                my.alCons( my.fcallingSarg, true, sargs ), args );
+            if ( result.fail() )
+                complaints.push( result.val() );
+            else
+                return fcalling ? result : result.val();
         }
-        return fail( new my.RulebookFailure(
-            name, self, args, complaints ) );
+        var failure =
+            new my.RulebookFailure( name, self, args, complaints );
+        if ( fcalling )
+            return my.fail( failure );
+        else
+            my.raiseFailure( failure );
     } );
 } );
 
@@ -1447,12 +1449,12 @@ my.instanceofRule = my.ruleDefiner( function (
     rb, name, Type, func ) {
     
     return my.failfn( prefixName( "instanceofRule", name ), function (
-        fail, var_args ) {
+        var_args ) {
         
-        var first = arguments[ 1 ];
-        if ( arguments.length < 2
+        var first = arguments[ 0 ];
+        if ( arguments.length < 1
             || !(typeof first === "object" && first instanceof Type) )
-            fail(
+            return my.fail(
                 "The first argument wasn't a(n) " + Type.name + "." );
         return my.tsapply( this, func, my.sargs(), arguments );
     } );
@@ -1460,11 +1462,13 @@ my.instanceofRule = my.ruleDefiner( function (
 
 my.zapRule = my.ruleDefiner( function ( rb, name, zapper, func ) {
     return my.failfn( prefixName( "zapRule", name ), function (
-        fail, var_args ) {
+        var_args ) {
         
-        return my.tsapply( this, func, my.sargs(), fail,
-            my.rely( fail, zapper, arguments[ 1 ] ),
-            my.arrCut( arguments, 2 ) );
+        var sargs = my.sargs();
+        var relied = my.fcall( zapper, arguments[ 0 ] );
+        if ( relied.fail() ) return relied;
+        return my.tsapply( this, func, sargs, relied.val(),
+            my.arrCut( arguments, 1 ) );
     } );
 } );
 
@@ -1472,23 +1476,23 @@ my.zapRule = my.ruleDefiner( function ( rb, name, zapper, func ) {
 my.pprintMessage = function ( message ) {
     // If it's an unrecognized type, we just use its toString
     // appearance.
-    return my.fcall( my.pprintMessageRb, message,
-        function () { return "" + message; } );
+    var unrelied = my.fcall( my.pprintMessageRb, message );
+    return unrelied.fail() ? "" + message : unrelied.val();
 };
 
 my.rulebook( my, "pprintMessageRb" );
 
-my.rule( my.pprintMessageRb, "string", function ( fail, failure ) {
+my.rule( my.pprintMessageRb, "string", function ( failure ) {
     if ( !my.isString( failure ) )
-        fail( "The failure isn't a string." );
-    return failure;
+        return my.fail( "The failure isn't a string." );
+    return my.win( failure );
 } );
 
 my.instanceofRule(
     my.pprintMessageRb, "FunctionFailure", my.FunctionFailure,
-    function ( fail, failure ) {
+    function ( failure ) {
     
-    return ( ""
+    return my.win( ""
         + "/\n"
         + "Calling function " + failure.func + " on " + failure.self +
             " with " + failure.args + " failed with this complaint:\n"
@@ -1500,9 +1504,9 @@ my.instanceofRule(
 // TODO: Fix this case in Arc.
 my.instanceofRule(
     my.pprintMessageRb, "RulebookFailure", my.RulebookFailure,
-    function ( fail, failure ) {
+    function ( failure ) {
     
-    return ( ""
+    return my.win( ""
         + "/\n"
         + "Calling rulebook " + failure.name + " on " + failure.self +
             " with " + failure.args +
@@ -1550,10 +1554,10 @@ my.deftype = my.definer( function ( obj, name, var_args ) {
         // TODO: This will complain "The first argument wasn't a(n)
         // Result." Make that more informative.
         my.instanceofRule( rb, ruleName, Result, function (
-            fail, x, var_args ) {
+            x, var_args ) {
             
-            return my.tsapply( this, x.impl[ i ], my.sargs(),
-                my.arrCut( arguments, 2 ) );
+            return my.win( my.tsapply( this, x.impl[ i ], my.sargs(),
+                my.arrCut( arguments, 1 ) ) );
         } );
     } );
     Result.prototype.toString = function () {
@@ -1580,45 +1584,47 @@ my.is = function ( var_args ) {
     if ( args.length === 0 ) return true;
     var first = args.shift();
     return my.arrAll( args, function ( arg ) {
-        return my.sameTwo( first, arg ) ||
-            my.fcall( my.isRb, first, arg, my.kfn( false ) );
+        if ( my.sameTwo( first, arg ) ) return true;
+        var unrelied = my.fcall( my.isRb, first, arg );
+        return !unrelied.fail() && unrelied.val();
     } );
 }
 
 
 my.rulebook( my, "toCheckRb" );
 
-my.rule( my.toCheckRb, "function", function ( fail, x ) {
+my.rule( my.toCheckRb, "function", function ( x ) {
     if ( !(typeof x === "function"
         || (typeof x === "object" && x instanceof root.Function)) )
-        fail( "It isn't a function." );
-    return x;
+        return my.fail( "It isn't a function." );
+    return my.win( x );
 } );
 
 my.toCheck = function ( x ) {
-    return my.fcall( my.toCheckRb, x, function () {
-        return function ( y ) { return my.is( x, y ); };
-    } );
+    var unrelied = my.fcall( my.toCheckRb, x );
+    return unrelied.fail() ?
+        function ( y ) { return my.is( x, y ); } : unrelied.val();
 };
 
 
 my.rulebook( my, "ifanyRb" );
 
-my.failfn( my, "ifany", function (
-    fail, coll, check, opt_then, opt_els ) {
+my.failfn( my, "ifany", function ( coll, check, opt_then, opt_els ) {
     
     if ( !my.given( opt_then ) )
         opt_then = function ( elem, checkResult ) {
             return { elem: elem, checkResult: checkResult };
         };
     if ( !my.given( opt_els ) ) opt_els = my.kfn( null );
-    return my.rely( fail,
+    return my.fcall(
         my.ifanyRb, coll, my.toCheck( check ), opt_then, opt_els );
 } );
 
-my.failfn( my, "any", function ( fail, coll, check ) {
-    var apart = my.rely( fail, my.ifany, coll, my.toCheck( check ) );
-    return apart ? apart.checkResult : false;
+my.failfn( my, "any", function ( coll, check ) {
+    var relied = my.fcall( my.ifany, coll, my.toCheck( check ) );
+    if ( relied.fail() ) return relied;
+    var apart = relied.val();
+    return my.win( apart ? apart.checkResult : false );
 } );
 
 // TODO: This is a more open-faced implementation of lathe.any(),
@@ -1628,13 +1634,15 @@ my.failfn( my, "any", function ( fail, coll, check ) {
 /*
 my.rulebook( my, "anyRb" );
 
-my.failfn( my, "any", function ( fail, coll, check ) {
-    return my.rely( fail, my.anyRb, coll, my.toCheck( check ) );
+my.failfn( my, "any", function ( coll, check ) {
+    return my.fcall( my.anyRb, coll, my.toCheck( check ) );
 } );
 
-my.rule( my.anyRb, "ifany", function ( fail, coll, check ) {
-    var apart = my.rely( fail, my.ifany, coll, check );
-    return apart ? apart.checkResult : false;
+my.rule( my.anyRb, "ifany", function ( coll, check ) {
+    var relied = my.fcall( my.ifany, coll, check );
+    if ( relied.fail() ) return relied;
+    var apart = relied.val();
+    return my.win( apart ? apart.checkResult : false );
 } );
 */
 
@@ -1642,70 +1650,80 @@ my.rule( my.anyRb, "ifany", function ( fail, coll, check ) {
 my.rulebook( my, "ifanykeyRb" );
 
 my.failfn( my, "ifanykey", function (
-    fail, coll, check, opt_then, opt_els ) {
+    coll, check, opt_then, opt_els ) {
     
     if ( !my.given( opt_then ) )
         opt_then = function ( k, v, checkResult ) {
             return { k: k, v: v, checkResult: checkResult };
         };
     if ( !my.given( opt_els ) ) opt_els = my.kfn( null );
-    return my.rely( fail,
-        my.ifanykeyRb, coll, check, opt_then, opt_els );
+    return my.fcall( my.ifanykeyRb, coll, check, opt_then, opt_els );
 } );
 
-my.failfn( my, "anykey", function ( fail, coll, check ) {
-    var apart = my.rely( fail, my.ifanykey, coll, check );
-    return apart ? apart.checkResult : false;
+my.failfn( my, "anykey", function ( coll, check ) {
+    var relied = my.fcall( my.ifanykey, coll, check );
+    if ( relied.fail() ) return relied;
+    var apart = relied.val();
+    return my.win( apart ? apart.checkResult : false );
 } );
 
 
-my.rule( my.ifanyRb, "ifanykey",
-    function ( fail, coll, check, then, els ) {
-    
-    var apart = my.rely( fail, my.ifanykey, coll,
+my.rule( my.ifanyRb, "ifanykey", function ( coll, check, then, els ) {
+    var relied = my.fcall( my.ifanykey, coll,
         function ( k, v ) { return check( v ); } );
-    return apart ? then( apart.v, apart.checkResult ) : els();
+    if ( relied.fail() ) return relied;
+    var apart = relied.val();
+    return my.win(
+        apart ? then( apart.v, apart.checkResult ) : els() );
 } );
 
 
 // TODO: Fix this in the Penknife draft. (It passes a function of the
 // wrong arity.)
-my.failfn( my, "allkey", function ( fail, coll, check ) {
-    return !my.rely( fail,
+my.failfn( my, "allkey", function ( coll, check ) {
+    var relied = my.fcall(
         my.anykey, function ( k, v ) { return !check( k, v ); } );
+    if ( relied.fail() ) return relied;
+    return my.win( !relied.val() );
 } );
 
-my.failfn( my, "all", function ( fail, coll, check ) {
+my.failfn( my, "all", function ( coll, check ) {
     check = my.toCheck( check );
-    return !my.rely( fail,
+    var relied = my.fcall(
         my.any, coll, function ( it ) { return !check( it ); } );
+    if ( relied.fail() ) return relied;
+    return my.win( !relied.val() );
 } );
 
-my.failfn( my, "poskey", function ( fail, coll, check ) {
-    var apart =
-        my.rely( fail, my.ifanykey, coll, my.toCheck( check ) );
-    return apart ? apart.k : void 0;
+my.failfn( my, "poskey", function ( coll, check ) {
+    var relied = my.fcall( my.ifanykey, coll, my.toCheck( check ) );
+    if ( relied.fail() ) return relied;
+    var apart = relied.val();
+    return my.win( apart ? apart.k : void 0 );
 } );
 
-my.failfn( my, "pos", function ( fail, coll, check ) {
+my.failfn( my, "pos", function ( coll, check ) {
     check = my.toCheck( check );
-    return my.rely( fail, my.poskey, coll,
-        function ( k, v ) { return check( v ); } );
+    return my.fcall(
+        my.poskey, coll, function ( k, v ) { return check( v ); } );
 } );
 
-my.failfn( my, "findkey", function ( fail, coll, check ) {
-    var apart =
-        my.rely( fail, my.ifanykey, coll, my.toCheck( check ) );
-    return apart ? apart.v : void 0;
+my.failfn( my, "findkey", function ( coll, check ) {
+    var relied = my.fcall( my.ifanykey, coll, my.toCheck( check ) );
+    if ( relied.fail() ) return relied;
+    var apart = relied.val();
+    return my.win( apart ? apart.v : void 0 );
 } );
 
-my.failfn( my, "find", function ( fail, coll, check ) {
-    var apart = my.rely( fail, my.ifany, coll, my.toCheck( check ) );
-    return apart ? apart.elem : void 0;
+my.failfn( my, "find", function ( coll, check ) {
+    var relied = my.fcall( my.ifany, coll, my.toCheck( check ) );
+    if ( relied.fail() ) return relied;
+    var apart = relied.val();
+    return my.win( apart ? apart.elem : void 0 );
 } );
 
-my.failfn( my, "each", function ( fail, coll, body ) {
-    my.rely( fail, my.any, coll, function ( elem ) {
+my.failfn( my, "each", function ( coll, body ) {
+    return my.fcall( my.any, coll, function ( elem ) {
         body( elem );
         return false;
     } );
@@ -1716,59 +1734,68 @@ my.rulebook( my, "asKeyseq" );
 
 my.rulebook( my, "toKeyseq" );
 
-my.rule( my.toKeyseq, "asKeyseq", function ( fail, x ) {
-    return my.point( function ( decide ) {
-        return my.rely( fail, my.asKeyseq, x, decide );
-    } ).val;
+my.rule( my.toKeyseq, "asKeyseq", function ( x ) {
+    var hasResult = false;
+    var result;
+    var relied = my.fcall( my.asKeyseq, x, function ( val ) {
+        if ( hasResult ) throw new root.Error();
+        hasResult = true;
+        result = val;
+    } );
+    if ( relied.fail() ) return relied;
+    if ( !hasResult ) throw new root.Error();
+    return my.win( result );
 } );
 
 my.deftype( my, "Keyseq", "iffirstkeyRb" );
 
-my.failfn( my, "iffirstkey", function (
-    fail, coll, opt_then, opt_els ) {
-    
+my.failfn( my, "iffirstkey", function ( coll, opt_then, opt_els ) {
     if ( !my.given( opt_then ) )
         opt_then = function ( k, v, rest ) {
             return { k: k, v: v, rest: rest };
         };
     if ( !my.given( opt_els ) ) opt_els = my.kfn( null );
-    return my.rely( fail, my.iffirstkeyRb, coll, opt_then, opt_els );
+    return my.fcall( my.iffirstkeyRb, coll, opt_then, opt_els );
 } );
 
 my.zapRule( my.ifanykeyRb, "toKeyseq",
     my.latefn( function () { return my.toKeyseq; } ),
-    function ( fail, coll, check, then, els ) {
+    function ( coll, check, then, els ) {
     
     // NOTE: We're saving stack frames by inlining tramplet.
     while ( true ) {
         var apart = my.iffirstkey( coll );
         if ( !apart )
-            return els();
+            return my.win( els() );
         
         var k = apart.k, v = apart.v;
         var it = check( k, v );
         if ( it )
-            return then( k, v, it );
+            return my.win( then( k, v, it ) );
         coll = apart.rest;
     }
 } );
 
 my.rulebook( my, "toSeqAndBack" );
 
-my.failfn( my, "asSeq", function ( fail, x, body ) {
-    var andBack = my.rely( fail, my.toSeqAndBack, x );
-    return andBack.back( body( andBack.val ) );
+my.failfn( my, "asSeq", function ( x, body ) {
+    var relied = my.fcall( my.toSeqAndBack, x );
+    if ( relied.fail() ) return relied;
+    var andBack = relied.val();
+    return my.win( andBack.back( body( andBack.val ) ) );
 } );
 
 my.rulebook( my, "toSeq" );
 
-my.rule( my.toSeq, "toSeqAndBack", function ( fail, x ) {
-    return my.rely( fail, my.toSeqAndBack, x ).val;
+my.rule( my.toSeq, "toSeqAndBack", function ( x ) {
+    var relied = my.fcall( my.toSeqAndBack, x );
+    if ( relied.fail() ) return relied;
+    return my.win( relied.val().val );
 } );
 
 my.zapRule( my.ifanyRb, "toSeq",
     my.latefn( function () { return my.toSeq; } ),
-    function ( fail, coll, check, then, els ) {
+    function ( coll, check, then, els ) {
     
     // NOTE: We're saving stack frames by inlining tramplet.
     while ( true ) {
@@ -1776,12 +1803,12 @@ my.zapRule( my.ifanyRb, "toSeq",
         // before its usage here.
         var apart = my.iffirst( coll );
         if ( !apart )
-            return els();
+            return my.win( els() );
         
         var first = apart.first;
         var it = check( first );
         if ( it )
-            return then( first, it );
+            return my.win( then( first, it ) );
         coll = apart.rest;
     }
 } );
@@ -1801,29 +1828,30 @@ my.lazykeycons = function ( keyGetter, valGetter, restGetter ) {
 
 // TODO: Fix this in the Penknife draft. It says "self" where it
 // should say "rest".
-my.rule( my.keycons, "Keyseq", function ( fail, k, v, rest ) {
-    if ( !(rest instanceof my.Keyseq) ) fail( "It isn't a Keyseq." );
-    return my.Keyseq.by( function ( then, els ) {
+my.rule( my.keycons, "Keyseq", function ( k, v, rest ) {
+    if ( !(rest instanceof my.Keyseq) )
+        return my.fail( "It isn't a Keyseq." );
+    return my.win( my.Keyseq.by( function ( then, els ) {
         return then( k, v, rest );
-    } );
+    } ) );
 } );
 
 my.instanceofRule( my.asKeyseq, "Keyseq", my.Keyseq, function (
-    fail, x, body ) {
+    x, body ) {
     
-    return my.tcall( body, x );
+    return my.win( my.tcall( body, x ) );
 } );
 
 
 my.deftype( my, "Seq", "iffirstRb" );
 
-my.failfn( my, "iffirst", function ( fail, coll, opt_then, opt_els ) {
+my.failfn( my, "iffirst", function ( coll, opt_then, opt_els ) {
     if ( !my.given( opt_then ) )
         opt_then = function ( first, rest ) {
             return { first: first, rest: rest };
         };
     if ( !my.given( opt_els ) ) opt_els = my.kfn( null );
-    return my.rely( fail, my.iffirstRb, coll, opt_then, opt_els );
+    return my.fcall( my.iffirstRb, coll, opt_then, opt_els );
 } );
 
 my.rulebook( my, "cons" );
@@ -1834,17 +1862,18 @@ my.lazycons = function ( firstGetter, restGetter ) {
     } );
 };
 
-my.rule( my.cons, "Seq", function ( fail, first, rest ) {
-    if ( !(rest instanceof my.Seq) ) fail( "It isn't a Seq." );
-    return my.Seq.by( function ( then, els ) {
+my.rule( my.cons, "Seq", function ( first, rest ) {
+    if ( !(rest instanceof my.Seq) )
+        return my.fail( "It isn't a Seq." );
+    return my.win( my.Seq.by( function ( then, els ) {
         return then( first, rest );
-    } );
+    } ) );
 } );
 
 my.instanceofRule( my.toSeqAndBack, "Seq", my.Seq, function (
-    fail, x, body ) {
+    x, body ) {
     
-    return { val: x, back: my.idfn };
+    return my.win( { val: x, back: my.idfn } );
 } );
 
 
@@ -1853,8 +1882,8 @@ my.nilseq = my.Seq.by( function ( then, els ) { return els(); } );
 
 my.rulebook( my, "map" );
 
-my.rule( my.map, "asSeq", function ( fail, coll, convert ) {
-    return my.rely( fail, my.asSeq, coll, function ( coll ) {
+my.rule( my.map, "asSeq", function ( coll, convert ) {
+    return my.fcall( my.asSeq, coll, function ( coll ) {
         return my.namedlet( coll, function ( coll, next ) {
             var apart = my.iffirst( coll );
             if ( apart ) {
@@ -1878,24 +1907,27 @@ my.rule( my.map, "asSeq", function ( fail, coll, convert ) {
 
 my.rulebook( my, "eager" );
 
-my.rule( my.eager, "keyseq", function ( fail, coll ) {
-    var apart = my.rely( fail, my.iffirstkey, coll );
-    if ( apart )
-        return my.keycons( apart.k, apart.v, my.eager( apart.rest ) );
-    else
-        return my.nilseq;
+my.rule( my.eager, "keyseq", function ( coll ) {
+    var relied = my.fcall( my.iffirstkey, coll );
+    if ( relied.fail() ) return relied;
+    var apart = relied.val();
+    return my.win( apart ?
+        my.keycons( apart.k, apart.v, my.eager( apart.rest ) ) :
+        my.nilseq );
 } );
 
-my.rule( my.eager, "seq", function ( fail, coll ) {
-    var apart = my.rely( fail, my.iffirst, coll );
-    return apart ?
-        my.cons( apart.first, my.eager( apart.rest ) ) : my.nilseq;
+my.rule( my.eager, "seq", function ( coll ) {
+    var relied = my.fcall( my.iffirst, coll );
+    if ( relied.fail() ) return relied;
+    var apart = relied.val();
+    return my.win( apart ?
+        my.cons( apart.first, my.eager( apart.rest ) ) : my.nilseq );
 } );
 
 
 // TODO: Port this to the Penknife draft.
 my.instanceofRule( my.iffirstkeyRb, "Seq", my.Seq, function (
-    fail, coll, then, els ) {
+    coll, then, els ) {
     
     var apart = my.iffirstkey(
         my.namedlet( coll, 0, function ( coll, i, next ) {
@@ -1908,16 +1940,20 @@ my.instanceofRule( my.iffirstkeyRb, "Seq", my.Seq, function (
                     return els();
             } );
         } ) );
-    return apart ? then( apart.k, apart.v, apart.rest ) : els();
+    return my.win(
+        apart ? then( apart.k, apart.v, apart.rest ) : els() );
 } );
 
 
 my.rulebook( my, "toArray" );
 
-my.rule( my.toArray, "each", function ( fail, x ) {
-    return my.acc( function ( y ) {
-        my.rely( fail, my.each, x, y );
+my.rule( my.toArray, "each", function ( x ) {
+    var relied;
+    var result = my.acc( function ( y ) {
+        relied = my.fcall( my.each, x, y );
     } );
+    if ( relied.fail() ) return relied;
+    return my.win( result );
 } );
 
 
@@ -1925,28 +1961,29 @@ my.rule( my.toArray, "each", function ( fail, x ) {
 
 my.rulebook( my, "foldl" );
 
-my.rule( my.foldl, "each", function ( fail, init, coll, func ) {
+my.rule( my.foldl, "each", function ( init, coll, func ) {
     var result = init;
-    my.rely( fail, my.each, coll,
+    var relied = my.fcall( my.each, coll,
         function ( it ) { result = func( result, it ); } );
-    return result;
+    if ( relied.fail() ) return relied;
+    return my.win( result );
 } );
 
 my.rulebook( my, "foldr" );
 
 my.zapRule( my.foldr, "toArray",
     my.latefn( function () { return my.toArray; } ),
-    function ( fail, coll, init, func ) {
+    function ( coll, init, func ) {
     
     var result = init;
     my.arrDown(
         coll, function ( it ) { result = func( it, result ); } );
-    return result;
+    return my.win( result );
 } );
 
 
-my.failfn( my, "rev", function ( fail, seq ) {
-    return my.rely( fail, my.asSeq, seq, function ( seq ) {
+my.failfn( my, "rev", function ( seq ) {
+    return my.fcall( my.asSeq, seq, function ( seq ) {
         return my.toSeq( my.arrCut( my.toArray( seq ) ).reverse() );
     } );
 } );
@@ -1954,18 +1991,20 @@ my.failfn( my, "rev", function ( fail, seq ) {
 // TODO: See if there's a better default for opt_by. It would be nice
 // to have a generic, extensible comparator, like is() and isRb() for
 // equality.
-my.failfn( my, "sort", function ( fail, seq, opt_by ) {
+my.failfn( my, "sort", function ( seq, opt_by ) {
     if ( !my.given( opt_by ) )
         opt_by = function ( a, b ) { return a - b; };
-    return my.rely( fail, my.asSeq, seq, function ( seq ) {
+    return my.fcall( my.asSeq, seq, function ( seq ) {
         return my.toSeq(
             my.arrCut( my.toArray( seq ) ).sort( opt_by ) );
     } );
 } );
 
-my.failfn( my, "tuple", function ( fail, size, seq ) {
-    var andBack = my.rely( fail, my.toSeqAndBack, seq );
-    return andBack.back( my.namedlet( andBack.val,
+my.failfn( my, "tuple", function ( size, seq ) {
+    var relied = my.fcall( my.toSeqAndBack, seq );
+    if ( relied.fail() ) return relied;
+    var andBack = relied.val();
+    return my.win( andBack.back( my.namedlet( andBack.val,
         function ( seq, nextTuples ) {
             return my.Seq.by( function ( then, els ) {
                 // NOTE: We're saving stack frames by inlining
@@ -1991,18 +2030,18 @@ my.failfn( my, "tuple", function ( fail, size, seq ) {
                     }
                 }
             } );
-        } ) );
+        } ) ) );
 } );
 
-my.failfn( my, "pair", function ( fail, seq ) {
-    return my.rely( fail, my.tuple, 2, seq );
+my.failfn( my, "pair", function ( seq ) {
+    return my.fcall( my.tuple, 2, seq );
 } );
 
 // Returns a sequence with consecutive duplicates removed. This is
 // effective for removing all duplicates from a sorted sequence.
-my.failfn( my, "dedupGrouped", function ( fail, seq, opt_eq ) {
+my.failfn( my, "dedupGrouped", function ( seq, opt_eq ) {
     if ( !my.given( opt_eq ) ) opt_eq = my.is;
-    return my.rely( fail, my.asSeq, seq, function ( seq ) {
+    return my.fcall( my.asSeq, seq, function ( seq ) {
         return my.namedlet( seq, false, void 0, function (
             seq, hasPrev, prev, nextDedup ) {
             
@@ -2034,23 +2073,23 @@ my.failfn( my, "dedupGrouped", function ( fail, seq, opt_eq ) {
 my.rulebook( my, "plus" );
 
 // TODO: Give this rule a name in the Penknife draft.
-my.rule( my.plus, "unary", function ( fail, opt_result, var_args ) {
-    if ( arguments.length !== 2 )
-        fail( "There isn't exactly one argument." );
-    return opt_result;
+my.rule( my.plus, "unary", function ( opt_result, var_args ) {
+    if ( arguments.length !== 1 )
+        return my.fail( "There isn't exactly one argument." );
+    return my.win( opt_result );
 } );
 
 my.rulebook( my, "binaryPlus" );
 
 // TODO: Give this rule a name in the Penknife draft.
-my.rule( my.plus, "binaryPlus",
-    function ( fail, opt_a, opt_b, var_args ) {
-    
-    if ( arguments.length < 3 )
-        fail( "There aren't at least two arguments." );
-    var rest = my.arrCut( arguments, 3 );
-    return my.classicapply( null,
-        my.plus, my.rely( fail, my.binaryPlus, opt_a, opt_b ), rest );
+my.rule( my.plus, "binaryPlus", function ( opt_a, opt_b, var_args ) {
+    if ( arguments.length < 2 )
+        return my.fail( "There aren't at least two arguments." );
+    var rest = my.arrCut( arguments, 2 );
+    var relied = my.fcall( my.binaryPlus, opt_a, opt_b );
+    if ( relied.fail() ) return relied;
+    return my.win(
+        my.classicapply( null, my.plus, relied.val(), rest ) );
 } );
 
 
@@ -2058,14 +2097,16 @@ my.rulebook( my, "sent" );
 
 my.rulebook( my, "sentall" );
 
-my.rule( my.sentall, "foldl", function ( fail, target, elems ) {
-    return my.rely( fail, my.foldl, target, elems, my.sent );
+my.rule( my.sentall, "foldl", function ( target, elems ) {
+    return my.fcall( my.foldl, target, elems, my.sent );
 } );
 
-my.rule( my.sentall, "seq", function ( fail, target, elems ) {
-    var apart = my.rely( fail, my.iffirst, elems );
-    return !apart ? target :
-        my.sentall( my.sent( target, apart.first ), apart.rest );
+my.rule( my.sentall, "seq", function ( target, elems ) {
+    var relied = my.fcall( my.iffirst, elems );
+    if ( relied.fail() ) return relied;
+    var apart = relied.val();
+    return my.win( !apart ? target :
+        my.sentall( my.sent( target, apart.first ), apart.rest ) );
 } );
 
 
@@ -2076,20 +2117,21 @@ my.rulebook( my, "toPlusAdder" );
 
 // TODO: In the Penknife draft, change this from a fun* to a rule*.
 // NOTE: This can't be a zapRule since it has two failure conditions.
-my.rule( my.plus, "toPlusAdder", function ( fail, first ) {
-    if ( arguments.length < 2 )
-        fail( "There are no arguments." );
-    var rest = my.arrCut( arguments, 2 );
-    return my.unbox(
-        my.sentall( my.rely( fail, my.toPlusAdder, first ), rest ) );
+my.rule( my.plus, "toPlusAdder", function ( opt_first, var_args ) {
+    if ( arguments.length < 1 )
+        return my.fail( "There are no arguments." );
+    var rest = my.arrCut( arguments, 1 );
+    var relied = my.fcall( my.toPlusAdder, opt_first );
+    if ( relied.fail() ) return relied;
+    return my.win( my.unbox( my.sentall( relied.val(), rest ) ) );
 } );
 
 
 // TODO: In the Penknife Draft, stop using rely twice. That could make
 // this rule take more than constant time to fail.
 // TODO: In the Penknife draft, use asSeq instead of toSeq.
-my.rule( my.binaryPlus, "asSeq", function ( fail, a, b ) {
-    return my.rely( fail, my.asSeq, a, function ( a ) {
+my.rule( my.binaryPlus, "asSeq", function ( a, b ) {
+    return my.fcall( my.asSeq, a, function ( a ) {
         b = my.toSeq( b );
         return my.namedlet( a, function ( a, next ) {
             return my.Seq.by( function ( then, els ) {
@@ -2118,8 +2160,10 @@ my.mappend = function ( first, coll, func ) {
 
 my.rulebook( my, "flatmap" );
 
-my.rule( my.flatmap, "map", function ( fail, first, coll, func ) {
-    return my.flat( my.rely( fail, my.map, coll, func ) );
+my.rule( my.flatmap, "map", function ( first, coll, func ) {
+    var relied = my.fcall( my.map, coll, func );
+    if ( relied.fail() ) return relied;
+    return my.win( my.flat( relied.val() ) );
 } );
 
 // TODO: According to <http://google-styleguide.googlecode.com/svn/
@@ -2129,9 +2173,9 @@ my.rule( my.flatmap, "map", function ( fail, first, coll, func ) {
 // TODO: Figure out what to do about concurrent modification to the
 // underlying array (in any of these utilities!).
 //
-my.rule( my.toSeqAndBack, "likeArray", function ( fail, x ) {
-    if ( !my.likeArray( x ) ) fail( "It isn't likeArray." );
-    return {
+my.rule( my.toSeqAndBack, "likeArray", function ( x ) {
+    if ( !my.likeArray( x ) ) return my.fail( "It isn't likeArray." );
+    return my.win( {
         val: my.namedlet( 0, function ( i, next ) {
             return my.Seq.by( function ( then, els ) {
                 if ( i < x.length )
@@ -2140,25 +2184,26 @@ my.rule( my.toSeqAndBack, "likeArray", function ( fail, x ) {
             } );
         } ),
         back: function ( x ) { return my.toArray( x ); }
-    };
+    } );
 } );
 
 // TODO: See if array concatenation should use send() instead.
-my.rule( my.binaryPlus, "likeArray", function ( fail, a, b ) {
+my.rule( my.binaryPlus, "likeArray", function ( a, b ) {
     if ( !my.likeArray( a ) )
-        fail( "The first argument isn't likeArray." );
+        return my.fail( "The first argument isn't likeArray." );
     if ( !my.likeArray( b ) )
-        fail( "The second argument isn't likeArray." );
-    return a.concat( b );
+        return my.fail( "The second argument isn't likeArray." );
+    return my.win( a.concat( b ) );
 } );
 
 // TODO: See if this is necessary.
 my.rule( my.ifanyRb, "likeArray",
-    function ( fail, coll, check, then, els ) {
+    function ( coll, check, then, els ) {
     
-    if ( !my.likeArray( coll ) ) fail( "It isn't likeArray." );
+    if ( !my.likeArray( coll ) )
+        return my.fail( "It isn't likeArray." );
     var result = my.arrAny( coll, check );
-    return result ? then( result ) : els();
+    return my.win( result ? then( result ) : els() );
 } );
 
 
@@ -2295,10 +2340,10 @@ my.fetchFrame = function ( holder, url, opt_then, opt_timeout ) {
 
 // TODO: Add more rules to this.
 my.rulebook( my, "blahpp" );
-my.rule( my.blahpp, "string", function ( fail, x ) {
+my.rule( my.blahpp, "string", function ( x ) {
     if ( !my.isString( x ) )
-        fail( "It isn't a string." );
-    return "\"" + my.map( x.split( /\\/ ), function ( part ) {
+        return my.fail( "It isn't a string." );
+    return my.win( "\"" + my.map( x.split( /\\/ ), function ( part ) {
         return part.replace( /\"/g, "\\\"" ).replace( /\n/g, "\\n" ).
             replace( /\r/g, "\\r" ).replace( /\t/g, "\\t" ).
             replace( /\x08/g, "\\b" ).replace( /\f/g, "\\f" ).
@@ -2309,20 +2354,20 @@ my.rule( my.blahpp, "string", function ( fail, x ) {
                 return "\\u" +
                     ("0000" + code).substring( 4 - code.length );
             } );
-    } ).join( "\\\\" ) + "\"";
+    } ).join( "\\\\" ) + "\"" );
 } );
-my.rule( my.blahpp, "likeArray", function ( fail, x ) {
+my.rule( my.blahpp, "likeArray", function ( x ) {
     if ( !my.likeArray( x ) )
-        fail( "It isn't likeArray." );
+        return my.fail( "It isn't likeArray." );
     if ( x.length === 0 )
-        return "[]";
-    return "[ " +
-        my.map( my.arrCut( x ), my.blahpp ).join( ", " ) + " ]";
+        return my.win( "[]" );
+    return my.win( "[ " +
+        my.map( my.arrCut( x ), my.blahpp ).join( ", " ) + " ]" );
 } );
-my.rule( my.blahpp, "undefined", function ( fail, x ) {
+my.rule( my.blahpp, "undefined", function ( x ) {
     if ( x !== void 0 )
-        fail( "It isn't undefined." );
-    return "void 0";
+        return my.fail( "It isn't undefined." );
+    return my.win( "void 0" );
 } );
 
 
@@ -2336,18 +2381,20 @@ my.rule( my.blahpp, "undefined", function ( fail, x ) {
 /*
 // TODO: See if this is necessary. (It didn't seem to help without
 // map's optimization too.)
-my.rule( my.anyRb, "likeArray", function ( fail, coll, check ) {
-    if ( !my.likeArray( coll ) ) fail( "It isn't likeArray." );
-    return my.arrAny( coll, check );
+my.rule( my.anyRb, "likeArray", function ( coll, check ) {
+    if ( !my.likeArray( coll ) )
+        return my.fail( "It isn't likeArray." );
+    return my.win( my.arrAny( coll, check ) );
 } );
 
 my.preferNamesFirst( "anyRb/likeArray is an optimization",
     my.anyRb, "likeArray" );
 */
 
-my.rule( my.map, "likeArray", function ( fail, coll, convert ) {
-    if ( !my.likeArray( coll ) ) fail( "It isn't likeArray." );
-    return my.arrMap( coll, convert );
+my.rule( my.map, "likeArray", function ( coll, convert ) {
+    if ( !my.likeArray( coll ) )
+        return my.fail( "It isn't likeArray." );
+    return my.win( my.arrMap( coll, convert ) );
 } );
 
 my.preferNamesFirst( "map/likeArray is an optimization",

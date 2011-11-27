@@ -269,7 +269,7 @@ $.letChopWords = function ( chops, num, opt_then, opt_els ) {
         opt_then =
             function ( var_args ) { return _.arrCut( arguments ); };
     if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
-    chops = $.letChopLtrimRegex( chops, /^\s+/ ).rest;
+    chops = $.letChopLtrimRegex( chops, /^\s*/ ).rest;
     var words = $.chopTokens( chops, /\s+/g, num );
     if ( num < words.length )
         return _.classicapply( null, opt_then, words );
@@ -360,39 +360,47 @@ $.parseChopup = function ( env, markup ) {
 _.deftype( $, "ChopsEnvObj", "unwrapChopsEnvObj" );
 
 _.rule( $.parseOpChop, "unwrapChopsEnvObj", function (
-    fail, env, op, chops ) {
+    env, op, chops ) {
     
-    var rep = _.rely( fail, $.unwrapChopsEnvObj, env );
+    var relied = _.fcall( $.unwrapChopsEnvObj, env );
+    if ( relied.fail() ) return relied;
+    var rep = relied.val();
     if ( !(op in rep) )
         throw new Error(
             "The op " + _.blahpp( op ) + " doesn't exist." );
-    return _.tapply( env, rep[ op ], [ chops, env ] );
+    return _.win( _.tapply( env, rep[ op ], [ chops, env ] ) );
 } );
 
 _.rule( $.parseTextChop, "unwrapChopsEnvObj", function (
-    fail, env, text ) {
+    env, text ) {
     
-    var rep = _.rely( fail, $.unwrapChopsEnvObj, env );
-    return " text" in rep ?
-        _.tapply( env, rep[ " text" ], [ text, env ] ) : text;
+    var relied = _.fcall( $.unwrapChopsEnvObj, env );
+    if ( relied.fail() ) return relied;
+    var rep = relied.val();
+    return _.win( " text" in rep ?
+        _.tapply( env, rep[ " text" ], [ text, env ] ) : text );
 } );
 
 _.rule( $.normalizeChoppedBlock, "unwrapChopsEnvObj", function (
-    fail, env, chopResults ) {
+    env, chopResults ) {
     
-    var rep = _.rely( fail, $.unwrapChopsEnvObj, env );
-    return " block" in rep ?
+    var relied = _.fcall( $.unwrapChopsEnvObj, env );
+    if ( relied.fail() ) return relied;
+    var rep = relied.val();
+    return _.win( " block" in rep ?
         _.tapply( env, rep[ " block" ], [ chopResults, env ] ) :
-        chopResults;
+        chopResults );
 } );
 
 _.rule( $.normalizeChoppedDocument, "unwrapChopsEnvObj", function (
-    fail, env, blockResults ) {
+    env, blockResults ) {
     
-    var rep = _.rely( fail, $.unwrapChopsEnvObj, env );
-    return " document" in rep ?
+    var relied = _.fcall( $.unwrapChopsEnvObj, env );
+    if ( relied.fail() ) return relied;
+    var rep = relied.val();
+    return _.win( " document" in rep ?
         _.tapply( env, rep[ " document" ], [ blockResults, env ] ) :
-        blockResults;
+        blockResults );
 } );
 
 
