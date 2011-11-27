@@ -131,7 +131,7 @@ _.rule( _.fact, "zero", function ( n ) {
 } );
 
 _.rule( _.fact, "wrong zero", function ( n ) {
-    if ( n != 0 ) _.fail( "The number wasn't 0." );
+    if ( n != 0 ) return _.fail( "The number wasn't 0." );
     return _.win( 166 );
 } );
 
