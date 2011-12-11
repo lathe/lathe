@@ -294,10 +294,10 @@ $.unchops = function ( chops ) {
 };
 
 
-_.rulebook( $, "parseOpChop" );
-_.rulebook( $, "parseTextChop" );
-_.rulebook( $, "normalizeChoppedBlock" );
-_.rulebook( $, "normalizeChoppedDocument" );
+$.parseOpChop = _.rulebook( "parseOpChop" );
+$.parseTextChop = _.rulebook( "parseTextChop" );
+$.normalizeChoppedBlock = _.rulebook( "normalizeChoppedBlock" );
+$.normalizeChoppedDocument = _.rulebook( "normalizeChoppedDocument" );
 
 $.parseInlineChop = function ( env, chop ) {
     if ( _.isString( chop ) )
@@ -357,7 +357,8 @@ $.parseChopup = function ( env, markup ) {
 };
 
 
-_.deftype( $, "ChopsEnvObj", "unwrapChopsEnvObj" );
+$.unwrapChopsEnvObj = _.rulebook( "unwrapChopsEnvObj" );
+$.ChopsEnvObj = _.deftype( "ChopsEnvObj", $.unwrapChopsEnvObj );
 
 _.rule( $.parseOpChop, "unwrapChopsEnvObj", function (
     env, op, chops ) {
@@ -368,7 +369,7 @@ _.rule( $.parseOpChop, "unwrapChopsEnvObj", function (
     if ( !(op in rep) )
         throw new Error(
             "The op " + _.blahpp( op ) + " doesn't exist." );
-    return _.win( _.tapply( env, rep[ op ], [ chops, env ] ) );
+    return _.win( rep[ op ].call( env, chops, env ) );
 } );
 
 _.rule( $.parseTextChop, "unwrapChopsEnvObj", function (
@@ -378,7 +379,7 @@ _.rule( $.parseTextChop, "unwrapChopsEnvObj", function (
     if ( relied.fail() ) return relied;
     var rep = relied.val();
     return _.win( " text" in rep ?
-        _.tapply( env, rep[ " text" ], [ text, env ] ) : text );
+        rep[ " text" ].call( env, text, env ) : text );
 } );
 
 _.rule( $.normalizeChoppedBlock, "unwrapChopsEnvObj", function (
@@ -388,8 +389,7 @@ _.rule( $.normalizeChoppedBlock, "unwrapChopsEnvObj", function (
     if ( relied.fail() ) return relied;
     var rep = relied.val();
     return _.win( " block" in rep ?
-        _.tapply( env, rep[ " block" ], [ chopResults, env ] ) :
-        chopResults );
+        rep[ " block" ].call( env, chopResults, env ) : chopResults );
 } );
 
 _.rule( $.normalizeChoppedDocument, "unwrapChopsEnvObj", function (
@@ -399,7 +399,7 @@ _.rule( $.normalizeChoppedDocument, "unwrapChopsEnvObj", function (
     if ( relied.fail() ) return relied;
     var rep = relied.val();
     return _.win( " document" in rep ?
-        _.tapply( env, rep[ " document" ], [ blockResults, env ] ) :
+        rep[ " document" ].call( env, blockResults, env ) :
         blockResults );
 } );
 

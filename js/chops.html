@@ -38,25 +38,7 @@ your option.
 <script type="text/javascript" src="lathe.js"></script>
 <script type="text/javascript" src="chops.js"></script>
 <script type="text/javascript" src="choppascript.js"></script>
-<style type="text/css">
-p.test { background-color: #CCC; }
-
-#repl textarea { display: block; width: 95%; }
-#repl .scrollback { height: 100px; }
-</style>
-<script type="text/javascript">//"use strict";
-
-var _ = rocketnia.lathe, $ = rocketnia.chops;
-var choppaScript = rocketnia.choppascript;
-
-window.onload = function () {
-    _.blahrepl( _.el( "repl" ) );
-};
-</script>
-</head>
-<body>
-<p><a id="top" href="#bottom">Go to bottom</a></p>
-<div id="repl"></div>
+<script type="text/javascript" src="chops-html-last.js"></script>
 
 
 <script type="text/x-rocketnia-chops" id="comment-test">
@@ -113,144 +95,18 @@ it
 
 </script>
 
-<script type="text/javascript">//"use strict";
 
+<style type="text/css">
+p.test { background-color: #CCC; }
 
-// ===== Demonstrations. =============================================
-
-_.rulebook( _, "fact" );
-
-_.rule( _.fact, "positive", function ( n ) {
-    if ( n <= 0 ) return _.fail( "The number wasn't positive." );
-    return _.win( n * _.fact( n - 1 ) );
-} );
-
-_.rule( _.fact, "zero", function ( n ) {
-    if ( n != 0 ) return _.fail( "The number wasn't 0." );
-    return _.win( 1 );
-} );
-
-_.rule( _.fact, "wrong zero", function ( n ) {
-    if ( n != 0 ) return _.fail( "The number wasn't 0." );
-    return _.win( 166 );
-} );
-
-// At the moment (although it's an unspecified behavior), the rule
-// sorts "zero" before "wrong zero" by default, so these will change
-// that.
-//
-//_.preferNamesFirst( "wrong zero is right", _.fact, "wrong zero" );
-//_.preferNamesLast( "right zero is wrong", _.fact, "zero" );
-_.preferNames( "wrong zero is more correct than right zero",
-    _.fact, "wrong zero", "zero" );
-
-// These would have an effect if the rule system sorted things
-// differently by default.
-//
-//_.preferNamesFirst( "right zero is right", _.fact, "zero" );
-//_.preferNamesLast( "wrong zero is wrong", _.fact, "wrong zero" );
-//_.preferNames( "right zero is more correct than wrong zero",
-//    _.fact, "zero", "wrong zero" );
-
-// TODO: See if normallyOrder() can be changed to make the order
-// last-defined-first-tried by default.
-
-_.orderRulebooks();
-
-
-function writeTest( text ) {
-    document.write( '<p class="test">' + text + '</p>' );
-};
-
-writeTest( "heya" );
-//var p = new _.Param( 1 );
-//var q = new _.Param( 2 );
-
-//document.write( "hmm " + _.letParams( p, 3, q, 4, function () { return p.getValue() + " " + q.getValue(); } ) );
-//document.write( "hmm " + _.isSecretargAware( _.secretargAware( function () { return 2; } ) ) );
-//document.write( "hmm " + _.isSecretargAware( function () { return 2; } ) );
-document.write( "<br />" );
-//document.write( "hmm " + _.failfn( function ( a, b ) { return _.win( a + b ); } ).call( null, 1, 2 ) );
-//try {
-//document.write( "hmm " + _.secretargAware( function () { return 2; } ).call() );
-//} catch ( e ) { alert( e ); }
-
-var doOrDoNot = false;
-
-function kindatry( body, onCatch ) {
-    if ( doOrDoNot )
-        return body();
-    try { return body(); }
-    catch ( e ) { return onCatch( e ); }
-}
-
-kindatry( function () {
-
-writeTest( "heya " + _.fact( 0 ) );
-writeTest( "beya " + _.fact( 4 ) );
-
-writeTest( "beya " + _.toArray( [ [ 1, 2, 3 ], [ 4, 5, 6 ] ] ) );
-writeTest( "beya " + _.asSeq( [ [ 1, 2, 3 ], [ 4, 5, 6 ] ], _.idfn ) );
-writeTest( "beya " + _.mappend( [], [ [ 1, 2, 3 ], [ 4, 5, 6 ] ], _.idfn ).length );
-
-writeTest( "seya" );
-writeTest( "seya " + _.blahpp( "   woo  hoo   ".split( /\s+/ ) ) );
-
-document.write( "<h1>chops</h1>" );
-
-function testChops( code ) {
-    function write( it ) { writeTest( "try " + _.blahpp( code ) + ": " + it ); }
-    kindatry( function () {
-        write( _.blahpp( $.chopup( code ) ) );
-    }, function ( e ) {
-        write( "ERROR: " + e );
-    } );
-}
-
-function testChopWords( code, num ) {
-    function write( it ) { writeTest( "try words " + _.blahpp( code ) + " " + num + ": " + it ); }
-    kindatry( function () {
-        $.letChopWords( $.chopup( code )[ 0 ], num, function () {
-            write( _.blahpp( arguments ) );
-        } );
-    }, function ( e ) {
-        write( "ERROR: " + e );
-    } );
-}
-
-testChops( "" );
-testChops( "woo[moo]foo[bar]" );
-//testChops( "woo[moo]foo[bar" );
-testChops( "woo[moo [woo] ]foo[bar]" );
-testChops( _.el( "comment-test" ).innerHTML );
-testChopWords( "a b[] c d", 2 );
-
-writeTest( "blah " + _.blahpp( $.condenseStrings( [ "", " ", [ "foo" ], "", [], " you ", "know" ] ) ) );
-
-writeTest( "blah " + _.blahpp( choppaScript.parse( "woo[foo]moo" ) ) );
-
-writeTest( "blah " + _.blahpp( choppaScript.parse( "woo[a 2][ 1 [a] ][][just m]oo" ) ) );
-
-writeTest( "blah " + _.blahpp( $.unchop( $.chopcode( "woo[moo [woo] ]foo[bar]" ) ) ) );
-
-writeTest( "blah " + _.blahpp( choppaScript.parse( _.el( "monad-test" ).innerHTML ) ) );
-
-writeTest( "blah " + _.blahpp( choppaScript.parse( "woo( [fn :], [fn it: it(); ], [fn a b = a + b ] )" ) ) );
-
-writeTest( "blah " + _.blahpp( choppaScript.parse( _.el( "monad-fn-test" ).innerHTML ) ) );
-
-writeTest( "blah " + _.blahpp( choppaScript.parse( _.el( "monad-bind-test" ).innerHTML ) ) );
-
-writeTest( "blah " + _.blahpp( choppaScript.parse( _.el( "monad-side-channel-test" ).innerHTML ) ) );
-
-writeTest( "blah " + _.blahpp( choppaScript.parse( _.el( "str-test" ).innerHTML ) ) );
-
-
-}, function ( e ) {
-    _.blahlog( "Error: " + e );
-} );
-
-</script>
+#repl textarea { display: block; width: 95%; }
+#repl .scrollback { height: 100px; }
+</style>
+</head>
+<body>
+<p><a id="top" href="#bottom">Go to bottom</a></p>
+<div id="repl"></div>
+<div id="results"></div>
 <p><a href="lathe.html">lathe.html</a></p>
 <p><a id="bottom" href="#top">Go to top</a></p>
 </body>

@@ -36,6 +36,7 @@ your option.
 <meta name="viewport" content=
    "initial-scale = 1.0, maximum-scale = 1.0, width = device-width" />
 <script type="text/javascript" src="lathe.js"></script>
+<script type="text/javascript" src="lathe-html-last.js"></script>
 <style type="text/css">
 p { background-color: #CCC; }
 p.blahlog { background-color: transparent; }
@@ -43,93 +44,9 @@ p.blahlog { background-color: transparent; }
 #repl textarea { display: block; width: 95%; }
 #repl .scrollback { height: 100px; }
 </style>
-<script type="text/javascript">"use strict";
-
-var _ = rocketnia.lathe;
-
-window.onload = function () {
-    _.blahrepl( _.el( "repl" ) );
-};
-</script>
 </head>
 <body>
 <div id="repl"></div>
-<script type="text/javascript">"use strict";
-
-
-// ===== Demonstrations. =============================================
-
-_.rulebook( _, "fact" );
-
-_.rule( _.fact, "positive", function ( n ) {
-    if ( n <= 0 ) return _.fail( "The number wasn't positive." );
-    return _.win( n * _.fact( n - 1 ) );
-} );
-
-_.rule( _.fact, "zero", function ( n ) {
-    if ( n != 0 ) return _.fail( "The number wasn't 0." );
-    return _.win( 1 );
-} );
-
-_.rule( _.fact, "wrong zero", function ( n ) {
-    if ( n != 0 ) return _.fail( "The number wasn't 0." );
-    return _.win( 166 );
-} );
-
-// At the moment (although it's an unspecified behavior), the rule
-// sorts "zero" before "wrong zero" by default, so these will change
-// that.
-//
-//_.preferNamesFirst( "wrong zero is right", _.fact, "wrong zero" );
-//_.preferNamesLast( "right zero is wrong", _.fact, "zero" );
-_.preferNames( "wrong zero is more correct than right zero",
-    _.fact, "wrong zero", "zero" );
-
-// These would have an effect if the rule system sorted things
-// differently by default.
-//
-//_.preferNamesFirst( "right zero is right", _.fact, "zero" );
-//_.preferNamesLast( "wrong zero is wrong", _.fact, "wrong zero" );
-//_.preferNames( "right zero is more correct than wrong zero",
-//    _.fact, "zero", "wrong zero" );
-
-// TODO: See if normallyOrder() can be changed to make the order
-// last-defined-first-tried by default.
-
-_.orderRulebooks();
-
-
-
-document.write( "<p>heya</p>" );
-//var p = new _.Param( 1 );
-//var q = new _.Param( 2 );
-
-//document.write( "hmm " + _.letParams( p, 3, q, 4, function () { return p.getValue() + " " + q.getValue(); } ) );
-//document.write( "hmm " + _.isSecretargAware( _.secretargAware( function () { return 2; } ) ) );
-//document.write( "hmm " + _.isSecretargAware( function () { return 2; } ) );
-document.write( "<br />" );
-//document.write( "hmm " + _.failfn( function ( a, b ) { return _.win( a + b ); } ).call( null, 1, 2 ) );
-//try {
-//document.write( "hmm " + _.secretargAware( function () { return 2; } ).call() );
-//} catch ( e ) { alert( e ); }
-
-try {
-
-document.write( "<p>heya " + _.fact( 0 ) + "</p>" );
-document.write( "<p>beya " + _.fact( 4 ) + "</p>" );
-
-// TODO: Figure out why this isn't working.
-document.write( "<p>beya " + _.toArray( [ [ 1, 2, 3 ], [ 4, 5, 6 ] ] ) + "</p>" );
-document.write( "<p>beya " + _.asSeq( [ [ 1, 2, 3 ], [ 4, 5, 6 ] ], _.idfn ) + "</p>" );
-document.write( "<p>beya " + _.mappend( [], [ [ 1, 2, 3 ], [ 4, 5, 6 ] ], _.idfn ).length + "</p>" );
-
-document.write( "<p>seya</p>" );
-document.write( "<p>heya " + _.fact( -1 ) + "</p>" );
-
-} catch ( e ) {
-    _.blahlog( "Error: " + e );
-}
-
-</script>
+<div id="results"></div>
 </body>
 </html>
