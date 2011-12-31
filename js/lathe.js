@@ -355,8 +355,9 @@ my.shadow = function ( parent, opt_entries ) {
     
     var result = new Shadower();
     if ( my.given( opt_entries ) )
-        for ( var key in opt_entries )
-            result[ key ] = opt_entries[ key ];
+        my.objOwnEach( opt_entries, function ( k, v ) {
+            result[ k ] = v;
+        } );
     return result;
 };
 
@@ -387,6 +388,7 @@ else
     };
 
 my.objOwnAny = function ( obj, func ) {
+    // TODO: See what to do about the IE DontEnum bug, if anything.
     for ( var key in obj )
         if ( my.hasOwn( obj, key ) ) {
             var result = func( key, obj[ key ] );
@@ -2159,8 +2161,7 @@ function appendOneDom( el, part ) {
     else if ( my.isString( part ) )
         el.appendChild( createTextNode( "" + part ) );
     else if ( my.likeObjectLiteral( part ) )
-        for ( var k in part ) {
-            var v = part[ k ];
+        my.objOwnEach( part, function ( k, v ) {
             if ( my.isFunction( v ) )
                 handle( el, k, v );
             else if ( my.isString( v ) )
@@ -2168,7 +2169,7 @@ function appendOneDom( el, part ) {
             else
                 throw new Error(
                     "Unrecognized map arg to appendDom() or dom()." );
-        }
+        } );
     else if ( part instanceof Element )
         el.appendChild( part );
     else
@@ -2295,10 +2296,9 @@ my.rule( my.blahpp, "undefined", function ( x ) {
 
 // ===== Optimization rules. =========================================
 //
-// TODO: Remove these, if possible. Possibly redesign utilities like
-// iffirst() and ifany() so that they're not reliant on tail calls,
-// which we don't get for free. (Alternately, we could uncomment the
-// trampolining code and fix it up.)
+// TODO: Remove these, if appropriate. The fact that utilities like
+// iffirst() and ifany() no longer rely on tail calls means that these
+// might be unnecessary now.
 
 /*
 // TODO: See if this is necessary. (It didn't seem to help without
