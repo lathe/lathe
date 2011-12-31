@@ -2617,6 +2617,176 @@ my.rule( my.blahpp, "undefined", function ( x ) {
     return my.win( "void 0" );
 } );
 
+// This, followDeclarationSync(), is a simplified version of
+// followDeclaration(), without support for asynchronous intermediate
+// calculations. You may want to understand this utility first but
+// then switch to followDeclaration() as soon as you do.
+//
+// This takes a "lead" and follows it. A lead can split apart into
+// sub-leads and clues, and sometimes a lead might be impossible to
+// follow until certain clues have been found elsewhere. Once all the
+// leads have run dry, the tree of clues is returned. This utility is
+// mainly useful when loading a declarative program where some parts
+// of the program are indecipherable (or unavailable, or not even
+// presumed to exist) until another part of the program specifies how
+// to get at them. I (Ross) find this case comes up surprisingly
+// often... or at least in two places, library-provided syntax and
+// library-provided module loading mechanisms.
+//
+// Technically, a *lead* is an object with a "follow" method that
+// takes the current *tree* and the lead's *path* and returns a
+// *patch*. A *tree* is a root *node*. A *path* is an Array of
+// integers saying where a node is in a tree. A *node* is either
+// immature or mature. An *immature node* is an object with a "lead"
+// field containing the currently pending lead at that node and a
+// "path" field containing the node's path in the tree. A *mature
+// node* is the same object with its "lead" field set to null and with
+// two additional fields: "clues" (containing an Array of *clues*,
+// which are actually allowed to be any kind of value) and "branches"
+// (containing an Array of nodes). A *patch* is either a falsy value,
+// indicating that the lead isn't ready to mature yet, or an object
+// containing the details of how to mature its node: A "clues" field
+// to use for the lead's "clues" field, and a "leads" field containing
+// an Array of leads to follow in the branches. Both fields of a patch
+// can be falsy or absent, in which case they default to empty Arrays.
+//
+// All in all, this is a very leaky abstraction. It maintains a single
+// lead tree and mutates it along the way, passing it over and
+// over to the various leads so they can check it to see if they're
+// ready to continue. One could easily mutate the tree in one's own
+// special ways and cause all sorts of confusing havoc. Of course, if
+// one gets confused, one told one so. ;)
+//
+// TODO: Test this.
+//
+my.followDeclarationSync = function ( rootLead ) {
+    var tree = { "lead": rootLead, "path": [] };
+    var leaves = [ tree ];
+    pass: while ( true ) {
+        var len = leaves.length;
+        if ( len === 0 )
+            return tree;
+        for ( var i = 0; i < len; i++ ) {
+            var leaf = leaves.shift();
+            var path = leaf[ "path" ];
+            var lead = leaf[ "lead" ];
+            var patch = lead[ "follow" ]( tree, path );
+            if ( patch ) {
+                
+                // TODO: Does this help at all? The point is to help
+                // release no-longer-needed memory.
+                leaf[ "lead" ] = null;
+                
+                leaf[ "clues" ] = (patch[ "clues" ] || []).slice();
+                leaf[ "branches" ] = (patch[ "leads" ] || []).map(
+                    function ( lead, i ) {
+                    
+                    var leaf = { "lead": lead,
+                        "path": path.concat( [ i ] ) };
+                    // By pushing the branches to the end of the line,
+                    // we're doing a breadth-first traversal. This
+                    // could just as easily be .unshift() for a
+                    // depth-first traversal.
+                    leaves.push( leaf );
+                    return leaf;
+                } );
+                continue pass;
+            } else {
+                // However, this can't be .unshift() because then we'd
+                // try the same dud leaf over and over.
+                leaves.push( leaf );
+            }
+        }
+        throw new Error( "Lead deadlock!" );
+    }
+};
+
+// Like followDeclarationSync(), this follows a "lead" as it unfolds
+// into a branching tree of sub-leads and "clues". It's a way to make
+// sense of a declarative program in which not all of the declarations
+// are known/meaningful until *the program itself* specifies how to
+// get at them.
+//
+// Unlike followDeclarationSync(), this is asynchronous--and yet it
+// can also be used in a synchronous context by specifying that it
+// should give up instead of trying anything asynchronous. These
+// features change the interface of this utility in two places.
+//
+// First, this takes a callback parameter of the form
+// (function ( error, result ) {}), which it eventually calls with
+// either a truthy error value and an unspecified result value or a
+// falsy error value and the usual clue-tree result. It also takes an
+// optional boolean parameter to specify whether it should give up
+// instead of actually trying to do something asynchronous. Finally,
+// for convenience, the immediate return value of followDeclaration()
+// is a boolean indicating whether it finished its entire computation
+// synchronously.
+//
+// Second, the leads' "follow" methods must also conform to this
+// convention. That is, they must now take four parameters--the
+// clue-tree so far, the path of the lead, a two-parameter callback
+// (taking an error and a result), and a restrict-to-synchronous
+// boolean--and they *must* return a we-finished-synchronously
+// boolean.
+//
+// TODO: Test this.
+//
+my.followDeclaration = function ( rootLead, then, opt_sync ) {
+    var tree = { "lead": rootLead, "path": [] };
+    return followDeclarationStep( tree, [ tree ], 0, then, opt_sync );
+};
+
+function followDeclarationStep(
+    tree, leaves, leavesChecked, then, opt_sync ) {
+    
+    var error = null;
+    var thisSync = true;
+    while ( thisSync ) {
+        if ( leaves.length === 0 ) return then( null, tree ), true;
+        if ( leaves.length === leavesChecked )
+            return then( new Error( "Lead deadlock!" ) ), true;
+        var leaf = leaves.shift();
+        var path = leaf[ "path" ];
+        var lead = leaf[ "lead" ];
+        if ( !lead[ "follow" ]( tree, path, function ( e, patch ) {
+            if ( error = e ) return void (thisSync || then( e ));
+            if ( patch ) {
+                
+                // TODO: Does this help at all? The point is to help
+                // release no-longer-needed memory.
+                leaf[ "lead" ] = null;
+                
+                leaf[ "clues" ] = (patch[ "clues" ] || []).slice();
+                leaf[ "leads" ] = (patch[ "leads" ] || []).map(
+                    function ( lead, i ) {
+                    
+                    var leaf = { "lead": lead,
+                        "path": path.concat( [ i ] ) };
+                    // By pushing the branches to the end of the line,
+                    // we're doing a breadth-first traversal. This
+                    // could just as easily be .unshift() for a
+                    // depth-first traversal.
+                    leaves.push( leaf );
+                    return leaf;
+                } );
+                leavesChecked = 0;
+            } else {
+                // However, this can't be .unshift() because then we'd
+                // try the same dud leaf over and over.
+                leaves.push( leaf );
+                leavesChecked++;
+            }
+            if ( !thisSync )
+                followDeclarationStep(
+                    tree, leaves, leavesChecked, then, opt_sync );
+        }, opt_sync ) )
+            thisSync = false;
+        if ( error )
+            return then( error ), true;
+    }
+    return false;
+}
+
 
 // ===== Optimization rules. =========================================
 //
