@@ -106,8 +106,10 @@ function getElementById( x ) {
     return document[ "getElementById" ]( x );
 }
 var Function = root[ "Function" ];
-var Element = root[ "Element" ];
 var setTimeout = root[ "setTimeout" ];
+function toJson( x ) {
+    return root[ "JSON" ][ "stringify" ]( x );
+}
 
 // ===== Miscellaneous utilities. ====================================
 
@@ -2159,7 +2161,8 @@ function appendOneDom( el, part ) {
         for ( var i = 0, n = part.length; i < n; i++ )
             appendOneDom( el, part[ i ] );
     else if ( my.isString( part ) )
-        el.appendChild( createTextNode( "" + part ) );
+        el.appendChild(
+            el.ownerDocument.createTextNode( "" + part ) );
     else if ( my.likeObjectLiteral( part ) )
         my.objOwnEach( part, function ( k, v ) {
             if ( my.isFunction( v ) )
@@ -2168,13 +2171,19 @@ function appendOneDom( el, part ) {
                 el.setAttribute( k, "" + v );
             else
                 throw new Error(
-                    "Unrecognized map arg to appendDom() or dom()." );
+                    "Unrecognized map arg to appendDom(), dom(), " +
+                    "or domInDoc()." );
         } );
-    else if ( part instanceof Element )
-        el.appendChild( part );
+    // TODO: Figure out how to do a multi-document "instanceof
+    // Element" check.
     else
-        throw new Error(
-            "Unrecognized list arg to appendDom() or dom()." );
+        el.appendChild( part );
+//    else if ( part instanceof Element )
+//        el.appendChild( part );
+//    else
+//        throw new Error(
+//            "Unrecognized list arg to appendDom(), dom(), or " +
+//            "domInDoc()." );
     return el;
 }
 
@@ -2182,16 +2191,55 @@ my.appendDom = function ( el, var_args ) {
     return appendOneDom( el, my.arrCut( arguments, 1 ) );
 };
 
-my.dom = function ( el, var_args ) {
+my.domInDoc = function ( doc, el, var_args ) {
     if ( my.isString( el ) )
-        el = createElement( el );
-    else if ( el instanceof Element )
+        el = doc[ "createElement" ]( el );
+    // TODO: Figure out how to do a multi-document "instanceof
+    // Element" check.
+    else
         while ( el.hasChildNodes() )
             el.removeChild( el.firstChild );
-    else
-        throw new Error( "Unrecognized name arg to dom()." );
-    return appendOneDom( el, my.arrCut( arguments, 1 ) );
+//    else if ( el instanceof Element )
+//        while ( el.hasChildNodes() )
+//            el.removeChild( el.firstChild );
+//    else
+//        throw new Error( "Unrecognized name arg to dom()." );
+    return appendOneDom( el, my.arrCut( arguments, 2 ) );
 };
+
+my.dom = function ( el, var_args ) {
+    return my.domInDoc( document, el, my.arrCut( arguments, 1 ) );
+};
+
+function makePostMessageFrame(
+    holder, create, init, opt_then, opt_timeout ) {
+    
+    var hash = "#" + random();
+    var finished = false;
+    function finish( result ) {
+        if ( finished || !my.given( opt_then ) ) return;
+        finished = true;
+        unhandle( window, "message", onMessage );
+        opt_then( result );
+    }
+    function onMessage( e ) {
+        var data = e.data;
+        if ( my.likeObjectLiteral( data ) && data[ "hash" ] === hash )
+            finish( { "val": data[ "val" ] } );
+    }
+    if ( my.given( opt_then ) )
+        handle( window, "message", onMessage );
+    var frame = create();
+    holder.appendChild( frame );
+    my.appendDom( frame, { "load": function () {
+        holder.removeChild( frame );
+        if ( opt_timeout !== 1 / 0 )
+            setTimeout( function () {
+                finish( false );
+            }, my.given( opt_timeout ) ? opt_timeout : 0 );
+    } } );
+    init( frame, hash );
+}
 
 // This fetches a value cross-origin using an iframe and
 // postMessage(). Here's an example of a document that works with it:
@@ -2219,30 +2267,85 @@ my.dom = function ( el, var_args ) {
 // </html>
 //
 my.fetchFrame = function ( holder, url, opt_then, opt_timeout ) {
-    var hash = "#" + random();
-    var finished = false;
-    function finish( result ) {
-        if ( finished || !my.given( opt_then ) ) return;
-        finished = true;
-        unhandle( window, "message", onMessage );
-        opt_then( result );
-    }
-    function onMessage( e ) {
-        var data = e.data;
-        if ( my.likeObjectLiteral( data ) && data[ "hash" ] === hash )
-            finish( { "val": data[ "val" ] } );
-    }
-    if ( my.given( opt_then ) )
-        handle( window, "message", onMessage );
-    var frame = my.dom( "iframe" );
-    holder.appendChild( frame );
-    my.appendDom( frame, { "load": function () {
-        holder.removeChild( frame );
-        setTimeout( function () {
-            finish( false );
-        }, my.given( opt_timeout ) ? opt_timeout : 0 );
-    } } );
-    frame.src = url + hash;
+    makePostMessageFrame( holder,
+        function () { return my.dom( "iframe" ); },
+        function ( frame, hash ) { frame.src = url + hash; },
+        opt_then, opt_timeout );
+};
+
+// TODO: Test this. It probably doesn't work, and it probably isn't
+// very useful in this incarnation anyway.
+my.evalHtmlInFrame = function (
+    holder, code, opt_then, opt_timeout ) {
+    
+    makePostMessageFrame( holder,
+        function () {
+            return my.dom( "iframe", { "sandbox": "allow-scripts" } );
+        },
+        function ( frame, hash ) {
+            frame.contentDocument.innerHTML = code;
+            // TODO: Somehow disable the iframe from having
+            // same-origin privileges with us.
+            // TODO: See if the following actually sets the hash. It
+            // probably doesn't.
+            frame.src = hash;
+        },
+        opt_then, opt_timeout );
+};
+
+// This evaluates a single arbitrary piece of JavaScript code rather
+// than a full-powered asynchronous operation, but this itself isn't
+// synchronous.
+my.evalSyncJsInFrame = function (
+    holder, code, opt_then, opt_timeout ) {
+    
+    makePostMessageFrame( holder,
+        function () {
+            return my.dom( "iframe", { "sandbox": "allow-scripts" } );
+        },
+        function ( frame, hash ) {
+            var doc = frame.contentDocument;
+            // TODO: See if the code still needs to be sanitized (for
+            // instance, to remove "</" and "<!").
+            my.appendDom( doc.body, my.domInDoc( doc, "script",
+                { "type": "text/javascript" },
+                "parent.postMessage( {" +
+                "    hash: " + toJson( hash ) + ", " +
+                "    val: eval( " + toJson( code ) + " ) }, \"*\" );"
+            ) );
+            // TODO: Somehow disable the iframe from having
+            // same-origin privileges with us.
+        },
+        opt_then, opt_timeout );
+};
+
+// This takes arbitrary JavaScript code that eval's to a function, and
+// it calls that function with a callback that should eventually be
+// called with the result. There's no particular way to communicate an
+// error, so be sure the code catches errors itself and encodes them
+// in the result value, or you won't be able to detect them.
+// TODO: Test this.
+my.evalJsInFrame = function ( holder, code, opt_then, opt_timeout ) {
+    makePostMessageFrame( holder,
+        function () {
+            return my.dom( "iframe", { "sandbox": "allow-scripts" } );
+        },
+        function ( frame, hash ) {
+            var doc = frame.contentDocument;
+            // TODO: See if the code still needs to be sanitized (for
+            // instance, to remove "</" and "<!").
+            my.appendDom( doc.body, my.domInDoc( doc, "script",
+                { "type": "text/javascript" },
+                "eval( " + toJson( code ) + " )( function ( val ) {" +
+                "    parent.postMessage( {" +
+                "        hash: " + toJson( hash ) + ", " +
+                "        val: val }, \"*\" );" +
+                "} );"
+            ) );
+            // TODO: Somehow disable the iframe from having
+            // same-origin privileges with us.
+        },
+        opt_then, opt_timeout );
 };
 
 
