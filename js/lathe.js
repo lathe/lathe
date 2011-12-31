@@ -90,6 +90,9 @@ var slice = root[ "Array" ].prototype[ "slice" ];
 var arrConcat = root[ "Array" ].prototype[ "concat" ];
 var floor = root[ "Math" ][ "floor" ];
 var random = root[ "Math" ][ "random" ];
+var pow = root[ "Math" ][ "pow" ];
+var log = root[ "Math" ][ "log" ];
+var ln2 = root[ "Math" ][ "LN2" ];
 var Error = root[ "Error" ];
 var document = root[ "document" ];
 function write( x ) {
@@ -109,6 +112,11 @@ var Function = root[ "Function" ];
 var setTimeout = root[ "setTimeout" ];
 function toJson( x ) {
     return root[ "JSON" ][ "stringify" ]( x );
+}
+// TODO: See if
+// "var fromCharCode = root[ "String" ][ "fromCharCode" ];" works.
+function fromCharCode( x ) {
+    return root[ "String" ][ "fromCharCode" ]( x );
 }
 
 // ===== Miscellaneous utilities. ====================================
@@ -2346,6 +2354,219 @@ my.evalJsInFrame = function ( holder, code, opt_then, opt_timeout ) {
             // same-origin privileges with us.
         },
         opt_then, opt_timeout );
+};
+
+
+// ===== Binary encoding/decoding. ===================================
+
+var pow2cache = {};
+function pow2( exp ) {
+    return pow2cache[ exp ] || (pow2cache[ exp ] = pow( 2, exp ));
+}
+
+// This is based on the description at <http://en.wikipedia.org/wiki/
+// Double_precision_floating-point_format>.
+
+my.wordsToNum = function ( words ) {
+    var high = words[ 0 ];
+    var neg = (high & 0x80000000) ? -1 : 1;
+    var exp = (high & 0x7FF00000) >>> 20;
+    var mantissa = (high & 0x000FFFFF) * 0x0100000000 + words[ 1 ];
+    if ( exp === 0x7FF )
+        return mantissa === 0 ? neg * 1 / 0 : 0 / 0;
+    if ( exp === 0x000 ) {
+        if ( mantissa === 0 )
+            return neg * 0;
+        exp = 0x001;         // subnormal
+    } else {
+        mantissa += 0x0010000000000000;  // normal
+    }
+    // NOTE: Be careful with the order of operations here.
+    return mantissa / 0x0010000000000000 * pow2( exp - 0x3FF ) * neg;
+};
+
+my.numToWords = function ( num ) {
+    if ( num !== num ) return [ 0xFFFFFFFF, 0xFFFFFFFF ];    // NaN
+    if ( num === 1 / 0 ) return [ 0x7FF00000, 0x00000000 ];
+    if ( num === -1 / 0 ) return [ 0xFFF00000, 0x00000000 ];
+    if ( num === 0 ) return [
+        (1 / num < 0 ? 0x80000000 : 0x00000000), 0x00000000 ];
+    var neg = num < 0;
+    num = neg ? -num : num;
+    var exp = floor( log( num ) / ln2 );
+    var pow = pow2( exp );
+    while ( pow <= num ) {
+        exp++;
+        pow *= 2;
+    }
+    exp--;
+    pow = pow2( exp );     // Above, pow might have reached Infinity.
+    while ( num < pow ) {
+        exp--;
+        pow = pow2( exp );
+    }
+    var subnormal = exp < -0x3FE;
+    if ( subnormal ) exp = -0x3FE;
+    var mantissa = num / pow2( exp ) * 0x0010000000000000;
+    if ( !subnormal ) mantissa -= 0x0010000000000000;
+    return [
+        (neg ? 0x80000000 : 0x00000000) +
+            (subnormal ? 0x000 : ((exp + 0x3FF) << 20)) +
+            floor( mantissa / 0x0100000000 ),
+        // NOTE: Since 0xFFFFFFFF & 0xFFFFFFF === -1,
+        // "mantissa & 0xFFFFFFFF" doesn't suffice here.
+        (mantissa >>> 16 & 0xFFFF) * 0x010000 + (mantissa & 0xFFFF)
+    ];
+};
+
+// debugging utilities
+/*
+function hext( num ) {
+    var words = numToWords( num );
+    var a = ("00000000" + words[ 0 ].toString( 16 )).toUpperCase();
+    var b = ("00000000" + words[ 1 ].toString( 16 )).toUpperCase();
+    return a.substring( a.length - 8 ) + b.substring( b.length - 8 );
+}
+
+function test( num ) {
+    var result = wordsToNum( numToWords( num ) );
+    return num !== num ? result !== result :
+        num === 0 ? 1 / num === 1 / result : num === result;
+}
+*/
+
+var b64digits =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+    "abcdefghijklmnopqrstuvwxyz" + "0123456789" + "+/";
+
+// TODO: Test this and the things that use it.
+my.accB64 = function ( body ) {
+    var remainder = 0x00000000;
+    var remainderLen = 0;
+    var digits = [];
+    function write( numBytes, val ) {
+        var numBits = numBytes * 8;
+        remainder = (remainder << numBits) + val;
+        remainderLen += numBits;
+        while ( 6 <= remainderLen ) {
+            var diff = remainderLen - 6;
+            var digit = remainder >>> diff;
+            digits.push( b64digits.charAt( digit ) );
+            remainder -= digit << diff;
+            remainderLen -= 6;
+        }
+    }
+    body( write );
+    if ( remainderLen === 2 ) {
+        write( 2, 0x0000 );
+        digits.pop();
+        digits.pop();
+        digits.push( "==" );
+    } else if ( remainderLen === 4 ) {
+        write( 2, 0x0000 );
+        digits.pop();
+        digits.pop();
+        digits.push( "=" );
+    }
+    return digits.join( "" );
+};
+
+// TODO: When converting from base64 to 32-bit words/shorts/charcodes
+// and back, we use big-endian words/shorts/charcodes. Figure out if
+// little-endian should be an option too.
+// TODO: Figure out what endianness bias exists in wordsToNum and
+// numToWords, if any.
+
+my.wordsToB64 = function ( wordArray ) {
+    return my.accB64( function ( y ) {
+        for ( var i = 0, len = wordArray.length; i < len; i++ ) {
+            var word = wordArray[ i ];
+            y( 2, 0 | (word / 0x010000) );
+            y( 2, word & 0xFFFF );
+        }
+    } );
+};
+
+my.shortsToB64 = function ( shortArray ) {
+    return my.accB64( function ( y ) {
+        for ( var i = 0, len = shortArray.length; i < len; i++ )
+            y( 2, shortArray[ i ] );
+    } );
+};
+
+my.charCodesToB64 = function ( string ) {
+    return my.accB64( function ( y ) {
+        for ( var i = 0, len = string.length; i < len; i++ )
+            y( 2, string.charCodeAt( i ) );
+    } );
+};
+
+// TODO: Figure out what to do about numbers of bytes not divisible by
+// 4.
+my.b64ToWords = function ( b64 ) {
+    // NOTE: The remainder is a 36-bit value. JavaScript numbers can
+    // handle that without rounding or truncation as long as we don't
+    // use bitwise operations.
+    var remainder = 0x000000000;
+    var remainderLen = 0;
+    var words = [];
+    for ( var i = 0, len = b64.length; i < len; i++ ) {
+        var digitString = b64.charAt( i );
+        if ( digitString === "=" ) break;
+        var digit = b64digits.indexOf( digitString );
+        if ( digit === -1 ) throw new Error();
+        remainder *= 0x40;
+        remainder += digit;
+        remainderLen += 6;
+        if ( 32 <= remainderLen ) {
+            var diff = remainderLen - 32;
+            var pow = pow2( diff );
+            var word = floor( remainder / pow );
+            words.push( word );
+            remainder -= word * pow;
+            remainderLen -= 32;
+        }
+    }
+    return words;
+};
+
+// TODO: Figure out what to do about numbers of bytes not divisible by
+// 2.
+// TODO: Write b64ToShorts() and/or b64ToCharCodes().
+// TODO: Test this and the things that use it.
+my.b64ToYieldedShorts = function ( b64, y ) {
+    // NOTE: The remainder is a 20-bit value.
+    var remainder = 0x00000;
+    var remainderLen = 0;
+    for ( var i = 0, len = b64.length; i < len; i++ ) {
+        var digitString = b64.charAt( i );
+        if ( digitString === "=" ) break;
+        var digit = b64digits.indexOf( digitString );
+        if ( digit === -1 ) throw new Error();
+        remainder = (remainder << 6) | digit;
+        remainderLen += 6;
+        if ( 16 <= remainderLen ) {
+            var diff = remainderLen - 16;
+            var zhort = remainder >> diff;
+            y( zhort );
+            remainder -= zhort << diff;
+            remainderLen -= 32;
+        }
+    }
+};
+
+my.b64ToShorts = function ( b64 ) {
+    return my.acc( function ( y ) {
+        my.b64ToYieldedShorts( b64, y );
+    } );
+};
+
+my.b64ToCharCodes = function ( b64 ) {
+    return my.acc( function ( y ) {
+        my.b64ToYieldedShorts( b64, function ( x ) {
+            y( fromCharCode( x ) );
+        } );
+    } ).join( "" );
 };
 
 
