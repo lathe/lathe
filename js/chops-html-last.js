@@ -144,6 +144,8 @@ _.appendDom( window, { "load": function () {
     
     writeTest( "blah " + _.blahpp( choppaScript.parse( _.el( "str-test" ).innerHTML ) ) );
     
+    writeTest( "blah " + _.blahpp( choppaScript.parse( _.el( "quote-test" ).innerHTML ) ) );
+    
     
     }, function ( e ) {
         _.blahlog( "Error: " + e );

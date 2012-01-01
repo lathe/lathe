@@ -97,12 +97,36 @@ function resplice( elems ) {
 
 
 my.env = $c.ChopsEnvObj.of( {
+    // These first few are actually useful.
     " block": function ( chops ) {
         return unsplice( chops ).join( "" );
     },
     "": function ( chops, env ) {
         return splice(
             "[", unsplice( $c.parseInlineChops( env, chops ) ), "]" );
+    },
+    "just": function ( chops, env ) {
+        return resplice( $c.parseInlineChops( env, chops ) );
+    },
+    "str": function ( chops, env ) {
+        chops = $c.letChopLtrimRegex(
+            chops, /^(?:(?!\n)\s)*[\n|]?/ ).rest;
+        return "(" + _.arrMap( $.unchops( chops ).split( /\n/g ),
+            function ( line ) {
+                return JSON.stringify( line );
+            } ).join( " + \"\\n\" + " ) + ")";
+    },
+    // The rest of these are more experimental than useful at this
+    // point.
+    "'": function ( chops, env ) {
+        return "(" + _.arrMap(
+            unsplice( $c.parseInlineChops( env,
+                $c.letChopLtrimRegex(
+                    chops, /^(?:(?!\n)\s)*[\n|]?/ ).rest
+            ) ).join( "" ).split( /\n/g ),
+            function ( line ) {
+                return JSON.stringify( line );
+            } ).join( " + \"\\n\" + " ) + ")";
     },
     ">-": function ( chops, env ) {
         var bindings = [];
@@ -168,9 +192,6 @@ my.env = $c.ChopsEnvObj.of( {
         return splice( "(function (", parms, ") { ", unsplice( body ),
             " })" );
     },
-    "just": function ( chops, env ) {
-        return resplice( $c.parseInlineChops( env, chops ) );
-    },
     "a": function ( chops, env ) {
         if ( $c.letChopWords( chops, 1 ) )
             return splice( "(lathe.arrCut( arguments, (",
@@ -179,15 +200,7 @@ my.env = $c.ChopsEnvObj.of( {
         else
             return "(lathe.arrCut( arguments ))";
     },
-    "foo": _.idfn,
-    "str": function ( chops, env ) {
-        chops = $c.letChopLtrimRegex(
-            chops, /^(?:(?!\n)\s)*[\n|]?/ ).rest;
-        return "(" + _.arrMap( $.unchops( chops ).split( /\n/g ),
-            function ( line ) {
-                return JSON.stringify( line );
-            } ).join( " + \"\\n\" + " ) + ")";
-    }
+    "foo": _.idfn
 } );
 
 my.parse = function ( source ) {

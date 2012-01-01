@@ -404,4 +404,132 @@ _.rule( $.normalizeChoppedDocument, "unwrapChopsEnvObj", function (
 } );
 
 
+
+// ===== Character stream reader =====================================
+//
+// Sometimes it's useful to be able to pull one chunk of data from an
+// ongoing character stream and process it on its own. With Chops
+// syntax, the obvious way to chunk the stream is as a sequence of
+// words (bracket-balanced strings separated by whitespace).
+//
+// Everybody knows JavaScript doesn't have streams, right? Well,
+// everybody's lying to you. :-p All these stream-reading utilities
+// need is a pair of asynchronous operations, one for peeking at the
+// next character and one for reading it. It's not hard to implement
+// these in terms of DOM events or any other kind of asynchronous IO,
+// as appropriate to the application. It's especially easy to
+// implement them in terms of cursors on strings... not that that gets
+// us anywhere!
+//
+// TODO: Document this stuff in more detail. In particular, document
+// how peekc and readc are expected to behave.
+// TODO: Test this stuff.
+
+function readWhile( peekc, readc, test, soFar, conj, then ) {
+    var thisSync = true;
+    var done = false;
+    while ( thisSync && !done ) {
+        done = true;
+        if ( !peekc( function ( e, c ) {
+            if ( e ) return void then( e );
+            if ( c === null || test( c ) ) {
+                then( null, soFar );
+            } else {
+                if ( !readc( function ( e, c ) {
+                    if ( e ) return void then( e );
+                    soFar = conj( soFar, c );
+                    done = false;
+                    if ( !thisSync )
+                        readWhile( peekc, readc, test, soFar, conj,
+                            then );
+                } ) )
+                    thisSync = false;
+            }
+        } ) )
+            thisSync = false;
+    }
+    return thisSync;
+}
+
+$.readWhite = function ( peekc, readc, then ) {
+    return readWhile( peekc, readc,
+        function ( c ) { return /[ \t\r\n]/.test( c ); },
+        null, function ( soFar, c ) { return null; }, then );
+};
+
+$.readChopsWhileC = function (
+    peekc, readc, test, soFar, conj, then ) {
+    
+    var thisSync = true;
+    var done = false;
+    while ( thisSync && !done ) {
+        done = true;
+        if ( !peekc( function ( e, c ) {
+            if ( e ) return void then( e );
+            if ( c === "[" ) {
+                if ( !readc( function ( e, c ) {
+                    if ( e ) return void then( e );
+                    if ( !$.readChopsWhileC( peekc, readc,
+                        function ( c ) { return c !== "]"; },
+                        [], function ( soFar, chop ) {
+                            soFar.push( chop );
+                            return soFar;
+                        },
+                        function ( e, chops ) {
+                            if ( !readc( function ( e, c ) {
+                                if ( e ) return void then( e );
+                                soFar = conj( soFar, chops );
+                                done = false;
+                                if ( !thisSync )
+                                    $.readChopsWhileC( peekc, readc,
+                                        test, conj( soFar, chops ),
+                                        conj, then );
+                            } ) )
+                                thisSync = false;
+                        } ) )
+                        thisSync = false;
+                } ) )
+                    thisSync = false;
+            } else if ( c !== null && test( c ) ) {
+                if ( !readWhile( peekc, readc,
+                    function ( c ) { return c !== "[" && test( c ); },
+                    [], function ( soFar, c ) {
+                        soFar.push( c );
+                        return soFar;
+                    },
+                    function ( e, string ) {
+                        if ( e ) return void then( e );
+                        soFar = conj( soFar, string.join( "" ) );
+                        done = false;
+                        if ( !thisSync )
+                            $.readChopsWhileC( peekc, readc, test,
+                                soFar, conj, then );
+                    } ) )
+                    thisSync = false;
+            } else {
+                then( null, soFar );
+            }
+        } ) )
+            thisSync = false;
+    }
+    return thisSync;
+};
+
+$.readChopsWord = function ( peekc, readc, then ) {
+    var thisSync = true;
+    if ( !$.readWhite( peekc, readc, function ( e, nul ) {
+        if ( e ) return void then( e );
+        if ( !$.readChopsWhileC( peekc, readc,
+            function ( c ) { return /[^ \t\r\n]/.test( c ); },
+            [], function ( soFar, chop ) {
+                soFar.push( chop );
+                return soFar;
+            }, then ) )
+            thisSync = false;
+    } ) )
+        thisSync = false;
+    return thisSync;
+};
+
+
 } );
