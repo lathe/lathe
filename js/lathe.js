@@ -2359,19 +2359,72 @@ my.evalJsInFrame = function ( holder, code, opt_then, opt_timeout ) {
 
 // ===== Binary encoding/decoding. ===================================
 
+// We use a rich vocabulary to describe the values these utilities
+// deal with. The terms simultaneously describe the bit layout of the
+// value and, if applicable, the JavaScript value it will be encoded
+// into or decoded from.
+//
+//   be16 - A big-endian 16-bit unsigned integer, encoded by default
+//     as a JavaScript number.
+//   byte - An alternate name for be8.
+//   bit - An alternate name for be1.
+//   be16s - A sequence of be16 values, encoded by default as an Array
+//     of encoded be16 values--that is, as an Array of JavaScript
+//     numbers.
+//   be16chars - A sequence of be16 values, encoded (losslessly) as
+//     char codes of a JavaScript string.
+//   b64 - A sequence of be8 values, encoded as a base64 string.
+//   fp64 - A JavaScript number, which in a binary encoding context
+//     will be enccoded as an IEEE 754 64-bit floating point value--a
+//     format described at <http://en.wikipedia.org/wiki/
+//     Double_precision_floating-point_format>--with JavaScript's NaN
+//     converting to FFFFFFFFFFFFFFFF. Other IEE 754 NaNs will decode
+//     to JavaScript's NaN, so this is a lossy format for binary. An
+//     fp64 value in a bit sequence is considered to start with the
+//     sign bit, continue through the exponent bits in big-endian
+//     order, then continue through the mantissa bits in big-endian
+//     order.
+//   fp64s - A sequence of fp64 values, encoded by default as an Array
+//     of encoded fp64 values--that is, as an Array of JavaScript
+//     numbers, normalizing every NaN to the same value.
+//
+// TODO: Figure out if little-endian should be an option too. If so,
+// here's the kind of terminology we would use:
+//
+//   le8bit - An unsigned 8-bit integer with its bits in little-endian
+//     order. Silly?
+//   le128be32 - An unsigned 128-bit integer with big-endian 32-bit
+//     chunks in little-endian order.
+//   lebe64 - Shorthand for le128be64. "Twice as big" is a reasonable
+//     default container size.
+//   le128 - Shorthand for le128be8. Be8 is a reasonable default chunk
+//     size.
+//   le16 - The preferred shorthand for le16be8. The lebe8 shorthand
+//     is equivalent, but it's longer and less obvious about the total
+//     number of bits.
+//   be128lebe16 - An unsigned 128-bit integer with chunks in
+//     big-endian order, where each chunk is a 32-bit integer with
+//     16-bit big-endian chunks in little-endian order.
+//   le64fp64 - An fp64 encoding as a 64-bit unsigned integer in the
+//     encoding determined by le64. That is, its 8 bytes are reversed
+//     from normal fp64 order. Note that this kind of ordering will
+//     tend to break up the mantissa (and sometimes the exponent) into
+//     noncontiguous regions of the binary sequence.
+//
+// TODO: Figure out if typed arrays make it possible to distinguish
+// between NaNs.
+
 var pow2cache = {};
 function pow2( exp ) {
     return pow2cache[ exp ] || (pow2cache[ exp ] = pow( 2, exp ));
 }
 
-// This is based on the description at <http://en.wikipedia.org/wiki/
-// Double_precision_floating-point_format>.
-
-my.wordsToNum = function ( words ) {
-    var high = words[ 0 ];
+// TODO: Figure out what to do when there aren't exactly two be32s.
+my.be32sToFp64 = function ( be32s ) {
+    var high = be32s[ 0 ];
     var neg = (high & 0x80000000) ? -1 : 1;
     var exp = (high & 0x7FF00000) >>> 20;
-    var mantissa = (high & 0x000FFFFF) * 0x0100000000 + words[ 1 ];
+    var mantissa = (high & 0x000FFFFF) * 0x0100000000 + be32s[ 1 ];
     if ( exp === 0x7FF )
         return mantissa === 0 ? neg * 1 / 0 : 0 / 0;
     if ( exp === 0x000 ) {
@@ -2385,7 +2438,7 @@ my.wordsToNum = function ( words ) {
     return mantissa / 0x0010000000000000 * pow2( exp - 0x3FF ) * neg;
 };
 
-my.numToWords = function ( num ) {
+my.fp64ToBe32s = function ( num ) {
     if ( num !== num ) return [ 0xFFFFFFFF, 0xFFFFFFFF ];    // NaN
     if ( num === 1 / 0 ) return [ 0x7FF00000, 0x00000000 ];
     if ( num === -1 / 0 ) return [ 0xFFF00000, 0x00000000 ];
@@ -2422,14 +2475,14 @@ my.numToWords = function ( num ) {
 // debugging utilities
 /*
 function hext( num ) {
-    var words = numToWords( num );
-    var a = ("00000000" + words[ 0 ].toString( 16 )).toUpperCase();
-    var b = ("00000000" + words[ 1 ].toString( 16 )).toUpperCase();
+    var be32s = my.fp64ToBe32s( num );
+    var a = ("00000000" + be32s[ 0 ].toString( 16 )).toUpperCase();
+    var b = ("00000000" + be32s[ 1 ].toString( 16 )).toUpperCase();
     return a.substring( a.length - 8 ) + b.substring( b.length - 8 );
 }
 
 function test( num ) {
-    var result = wordsToNum( numToWords( num ) );
+    var result = my.be32sToFp64( my.fp64ToBe32s( num ) );
     return num !== num ? result !== result :
         num === 0 ? 1 / num === 1 / result : num === result;
 }
@@ -2439,8 +2492,7 @@ var b64digits =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
     "abcdefghijklmnopqrstuvwxyz" + "0123456789" + "+/";
 
-// TODO: Test this and the things that use it.
-my.accB64 = function ( body ) {
+function accB64( body ) {
     var remainder = 0x00000000;
     var remainderLen = 0;
     var digits = [];
@@ -2469,47 +2521,48 @@ my.accB64 = function ( body ) {
         digits.push( "=" );
     }
     return digits.join( "" );
-};
+}
 
-// TODO: When converting from base64 to 32-bit words/shorts/charcodes
-// and back, we use big-endian words/shorts/charcodes. Figure out if
-// little-endian should be an option too.
-// TODO: Figure out what endianness bias exists in wordsToNum and
-// numToWords, if any.
-
-my.wordsToB64 = function ( wordArray ) {
-    return my.accB64( function ( y ) {
-        for ( var i = 0, len = wordArray.length; i < len; i++ ) {
-            var word = wordArray[ i ];
-            y( 2, 0 | (word / 0x010000) );
-            y( 2, word & 0xFFFF );
+my.be32sToB64 = function ( be32s ) {
+    return accB64( function ( y ) {
+        for ( var i = 0, len = be32s.length; i < len; i++ ) {
+            var be32 = be32s[ i ];
+            y( 2, 0 | (be32 / 0x010000) );
+            y( 2, be32 & 0xFFFF );
         }
     } );
 };
 
-my.shortsToB64 = function ( shortArray ) {
-    return my.accB64( function ( y ) {
+my.be16sToB64 = function ( shortArray ) {
+    return accB64( function ( y ) {
         for ( var i = 0, len = shortArray.length; i < len; i++ )
             y( 2, shortArray[ i ] );
     } );
 };
 
-my.charCodesToB64 = function ( string ) {
-    return my.accB64( function ( y ) {
+my.bytesToB64 = function ( byteArray ) {
+    return accB64( function ( y ) {
+        for ( var i = 0, len = byteArray.length; i < len; i++ )
+            y( 1, byteArray[ i ] );
+    } );
+};
+
+my.be16charsToB64 = function ( string ) {
+    return accB64( function ( y ) {
         for ( var i = 0, len = string.length; i < len; i++ )
             y( 2, string.charCodeAt( i ) );
     } );
 };
 
-// TODO: Figure out what to do about numbers of bytes not divisible by
-// 4.
-my.b64ToWords = function ( b64 ) {
+// TODO: Figure out what to do about remaining bytes.
+my.b64ToBe32s = function ( b64 ) {
+    var x = 32;
     // NOTE: The remainder is a 36-bit value. JavaScript numbers can
     // handle that without rounding or truncation as long as we don't
     // use bitwise operations.
     var remainder = 0x000000000;
     var remainderLen = 0;
-    var words = [];
+    var result = [];
     for ( var i = 0, len = b64.length; i < len; i++ ) {
         var digitString = b64.charAt( i );
         if ( digitString === "=" ) break;
@@ -2518,24 +2571,20 @@ my.b64ToWords = function ( b64 ) {
         remainder *= 0x40;
         remainder += digit;
         remainderLen += 6;
-        if ( 32 <= remainderLen ) {
-            var diff = remainderLen - 32;
+        if ( x <= remainderLen ) {
+            var diff = remainderLen - x;
             var pow = pow2( diff );
-            var word = floor( remainder / pow );
-            words.push( word );
-            remainder -= word * pow;
-            remainderLen -= 32;
+            var el = floor( remainder / pow );
+            result.push( el );
+            remainder -= el * pow;
+            remainderLen -= x;
         }
     }
-    return words;
+    return result;
 };
 
-// TODO: Figure out what to do about numbers of bytes not divisible by
-// 2.
-// TODO: Write b64ToShorts() and/or b64ToCharCodes().
-// TODO: Test this and the things that use it.
-my.b64ToYieldedShorts = function ( b64, y ) {
-    // NOTE: The remainder is a 20-bit value.
+function b64ToYieldedBeXs( b64, x, y ) {
+    // NOTE: The remainder is an x-plus-4-bit value.
     var remainder = 0x00000;
     var remainderLen = 0;
     for ( var i = 0, len = b64.length; i < len; i++ ) {
@@ -2545,28 +2594,46 @@ my.b64ToYieldedShorts = function ( b64, y ) {
         if ( digit === -1 ) throw new Error();
         remainder = (remainder << 6) | digit;
         remainderLen += 6;
-        if ( 16 <= remainderLen ) {
-            var diff = remainderLen - 16;
-            var zhort = remainder >> diff;
-            y( zhort );
-            remainder -= zhort << diff;
-            remainderLen -= 32;
+        if ( x <= remainderLen ) {
+            var diff = remainderLen - x;
+            var el = remainder >> diff;
+            y( el );
+            remainder -= el << diff;
+            remainderLen -= x;
         }
     }
-};
+}
 
-my.b64ToShorts = function ( b64 ) {
+// TODO: Figure out what to do about remaining bytes.
+my.b64ToBe16s = function ( b64 ) {
     return my.acc( function ( y ) {
-        my.b64ToYieldedShorts( b64, y );
+        b64ToYieldedBeXs( b64, 16, y );
     } );
 };
 
-my.b64ToCharCodes = function ( b64 ) {
+// TODO: Figure out what to do about remaining bytes.
+my.b64ToBe16chars = function ( b64 ) {
     return my.acc( function ( y ) {
-        my.b64ToYieldedShorts( b64, function ( x ) {
+        b64ToYieldedBeXs( b64, 16, function ( x ) {
             y( fromCharCode( x ) );
         } );
     } ).join( "" );
+};
+
+my.b64ToBytes = function ( b64 ) {
+    return my.acc( function ( y ) {
+        b64ToYieldedBeXs( b64, 8, y );
+    } );
+};
+
+my.fp64sToB64 = function ( numArray ) {
+    return my.be32sToB64( my.arrMappend( numArray, my.fp64ToBe32s ) );
+};
+
+// TODO: Figure out what to do about remaining bytes.
+my.b64ToFp64s = function ( b64 ) {
+    return my.arrMap(
+        my.pair( my.b64ToBe32s( b64 ) ), my.be32sToFp64 );
 };
 
 
