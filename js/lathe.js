@@ -2705,17 +2705,18 @@ my.rule( my.blahpp, "undefined", function ( x ) {
 // *patch*. A *tree* is a root *node*. A *path* is an Array of
 // integers saying where a node is in a tree. A *node* is either
 // immature or mature. An *immature node* is an object with a "lead"
-// field containing the currently pending lead at that node and a
-// "path" field containing the node's path in the tree. A *mature
-// node* is the same object with its "lead" field set to null and with
-// two additional fields: "clues" (containing an Array of *clues*,
-// which are actually allowed to be any kind of value) and "branches"
-// (containing an Array of nodes). A *patch* is either a falsy value,
-// indicating that the lead isn't ready to mature yet, or an object
-// containing the details of how to mature its node: A "clues" field
-// to use for the lead's "clues" field, and a "leads" field containing
-// an Array of leads to follow in the branches. Both fields of a patch
-// can be falsy or absent, in which case they default to empty Arrays.
+// field containing the currently pending lead at that node, a "path"
+// field containing the node's path in the tree, and an absent or
+// falsy "leads" field. A *mature node* is the same object with its
+// "lead" field set to null and with two additional fields: "clue"
+// (optional, containing a *clue*, which is actually allowed to be
+// any kind of value) and "branches" (containing an Array of nodes).
+// A *patch* is either a falsy value, indicating that the lead isn't
+// ready to mature yet, or an object containing the details of how to
+// mature its node: An optional "clue" field to use for the lead's
+// "clue" field, and a "leads" field containing an Array of leads to
+// follow in the branches. The "leads" field of a patch can be falsy
+// or absent, in which case it defaults to an empty Array.
 //
 // All in all, this is a very leaky abstraction. It maintains a single
 // lead tree and mutates it along the way, passing it over and
@@ -2744,7 +2745,8 @@ my.followDeclarationSync = function ( rootLead ) {
                 // release no-longer-needed memory.
                 leaf[ "lead" ] = null;
                 
-                leaf[ "clues" ] = (patch[ "clues" ] || []).slice();
+                if ( "clue" in patch )
+                    leaf[ "clue" ] = patch[ "clue" ];
                 leaf[ "branches" ] = (patch[ "leads" ] || []).map(
                     function ( lead, i ) {
                     
@@ -2823,7 +2825,8 @@ function followDeclarationStep(
                 // release no-longer-needed memory.
                 leaf[ "lead" ] = null;
                 
-                leaf[ "clues" ] = (patch[ "clues" ] || []).slice();
+                if ( "clue" in patch )
+                    leaf[ "clue" ] = patch[ "clue" ];
                 leaf[ "leads" ] = (patch[ "leads" ] || []).map(
                     function ( lead, i ) {
                     
@@ -2853,6 +2856,73 @@ function followDeclarationStep(
     }
     return false;
 }
+
+my.leadEager = function ( patch ) {
+    return function ( tree, path, opt_then, opt_sync ) {
+        if ( !my.given( opt_then ) )
+            return patch;
+        opt_then( null, patch );
+        return true;
+    };
+};
+
+my.leadWithClues = function ( clues, nextLead ) {
+    return my.arrFoldr( clues, nextLead, function ( clue, next ) {
+        return my.leadEager( { "clue": clue, "leads": [ next ] } );
+    } );
+};
+
+my.iterateDeclarations = function (
+    tree, isBlocking, isInteresting, onInteresting, onUnknown ) {
+    
+    var nodes = [ { cluesSoFar: [], tree: tree } ];
+    var results = [];
+    while ( nodes.length ) {
+        var node = nodes.shift();
+        var hasClue = "clue" in node.tree;
+        var clue = node.tree[ "clue" ];
+        var action;
+        if ( !node.tree[ "leads" ] )
+            action = onUnknown( node.cluesSoFar, node.tree );
+        else if ( hasClue && isBlocking( clue ) )
+            action = [ "skip" ];
+        else if ( hasClue && isInteresting( clue ) )
+            action =
+                onInteresting( node.cluesSoFar, clue, node.tree );
+        else
+            action = [ "recur" ];
+        var op = action[ 0 ];
+        if ( op === "skip" ) {
+        } else if ( op === "recur" ) {
+            recur( node );
+        } else if ( op === "finish" ) {
+            return results;
+        } else if ( op === "acc-skip" ) {
+            my.arrAddAll( results, action[ 1 ] );
+        } else if ( op === "acc-recur" ) {
+            my.arrAddAll( results, action[ 1 ] );
+            recur( node );
+        } else if ( op === "acc-finish" ) {
+            my.arrAddAll( results, action[ 1 ] );
+            return results;
+        } else if ( op === "finish-with" ) {
+            return action[ 1 ];
+        } else {
+            throw new Error();
+        }
+    }
+    return results;
+    
+    function recur( node ) {
+        var cluesSoFar = node.cluesSoFar.slice();
+        if ( "clue" in node.tree )
+            cluesSoFar.push( node.tree[ "clue" ] );
+        nodes = my.arrMap( node.tree[ "leads" ], function ( lead ) {
+            return { cluesSoFar: cluesSoFar, tree: lead };
+        } ).concat( nodes );
+    }
+};
+
 
 
 // ===== Optimization rules. =========================================
