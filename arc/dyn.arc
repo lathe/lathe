@@ -22,8 +22,8 @@
   (isa x my!param))
 
 
-; TODO: Make sure the two implementations of my!param-let are
-; equivalent with regard to threads and my!param-set.
+; TODO: Make sure the Racket and JVM implementations of my!param-let
+; are equivalent with regard to threads and my!param-set.
 (if
   ; Racket-based setups besides ar
   sn.plt*
@@ -142,6 +142,57 @@
         (call:do.jget rep.param))
       )
     
+    (=mc my.param-let body
+      (let binds (if (alist car.body)  pop.body
+                     cdr.body          (list pop.body pop.body))
+        (when (odd len.binds)
+          (err "A 'param-let form had an odd-length binding list."))
+        (zap [map [do `((,(uniq) (check ,_.0 ,my!aparam
+                                   (err:+ "A 'param-let form was "
+                                          "given at least one "
+                                          "non-parameter to bind.")))
+                        (,(uniq) ,_.1))]
+                  pair._]
+             binds)
+        (let resets (map [do `(,my!param-set ,_.0.0 ,(uniq))] binds)
+          `(with ,(mappend car binds)
+             (with ,(mappend cadr binds)
+               (with ,(mappend [do `(,_.2 (,my!param-get ,_.1))]
+                               resets)
+                 ; NOTE: We only pray that there are no errors when we
+                 ; try to set the values of the parameters. If the
+                 ; parameters have been manipulated only according to
+                 ; our own API, the only errors should end up being
+                 ; pretty exceptional, like StackOverflowErrors.
+                 ,@(map [do `(,my!param-set ,_.0.0 ,_.1.0)] binds)
+                 (after (do ,@body)
+                   ,@resets)))))))
+    )
+  
+  ; Others (just Rainbow.js for now)
+  ; TODO: Whoops. This doesn't play well with continuations,
+  ; obviously. We're cheating by pretending to support this.
+  ; TODO: If Rainbow.js ever supports threads, try to do something
+  ; like the JVM implementation there.
+  ; TODO: Once we support Arcueid, handle Arcueid here too.
+  t
+  (do
+    
+    (=fn my.make-param ((o initial-value))
+      (annotate my!param list.initial-value))
+    
+    (=fn my.param-get (param)
+      (unless my.aparam.param
+        (err "A non-parameter was given to 'param-get."))
+      rep.param.0)
+    
+    (=fn my.param-set (param new-value)
+      (unless my.aparam.param
+        (err "A non-parameter was given to 'param-set."))
+      (= rep.param.0 new-value))
+    
+    ; TODO: This is exactly the same as the JVM version. See if we
+    ; should reduce this copypasta.
     (=mc my.param-let body
       (let binds (if (alist car.body)  pop.body
                      cdr.body          (list pop.body pop.body))

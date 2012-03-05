@@ -3,6 +3,7 @@
 (prn "starting secretarg-demo")
 
 (nspaced:using-rels-as dy "../dyn.arc"
+                       wk "../weak.arc"
 
 
 (= my.tests-succeeded t)
@@ -35,6 +36,9 @@
 
 
 (if my.tests-succeeded (prn "All tests succeeded!"))
+(unless wk.weqtable-support*
+  (prn "HOWEVER, secretarg-aware functions will never be "
+       "garbage-collected on this platform!"))
 
 (prn "finishing secretarg-demo")
 

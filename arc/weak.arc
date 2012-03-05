@@ -10,7 +10,9 @@
 (if
   ; Racket-based setups besides ar
   sn.plt*
-  (do (=fn my.weqtable ()
+  (do (= my.weqtable-support* t)
+      
+      (=fn my.weqtable ()
         (annotate my!weqtable (sn:plt:make-weak-hasheq)))
       
       (=fn my.weqtable-get (set elem)
@@ -22,7 +24,9 @@
   
   ; Ar
   sn.ar-plt*
-  (do (=fn my.weqtable ()
+  (do (= my.weqtable-support* t)
+      
+      (=fn my.weqtable ()
         (annotate my!weqtable (racket-make-weak-hasheq)))
       
       (=fn my.weqtable-get (set elem)
@@ -40,6 +44,8 @@
                             jv.jvm!java-util-Map)
                           '(get put)))
     
+    (= my.weqtable-support* t)
+    
     (=fn my.weqtable ()
       (annotate my!weqtable call.jnew))
     
@@ -54,6 +60,25 @@
                "functions."))
       (do.jset rep.set elem val))
     )
+  
+  ; Others (just Rainbow.js for now)
+  ; TODO: If Rainbow.js ever supports threads, try to do something
+  ; like the JVM implementation there.
+  ; TODO: Once we support Arcueid, handle Arcueid here too.
+  (do (= my.weqtable-support* nil)
+      
+      (=fn my.weqtable ()
+        (annotate my!weqtable (table)))
+      
+      (=fn my.weqtable-get (set elem)
+        rep.set.elem)
+      
+      (=fn my.weqtable-set (set elem val)
+        (unless (isa elem 'fn)
+          (err:+ "A 'weqtable can't have a non-function key yet on "
+                 "Rainbow.js."))
+        (= rep.set.elem val))
+      )
   )
 
 
