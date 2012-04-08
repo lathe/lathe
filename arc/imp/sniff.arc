@@ -8,7 +8,8 @@
 (= my.cccraziness* nil)
 ; NOTE: We'd use catch.throw instead of ccc.idfn here, but Rainbow
 ; can't handle that. Has Rainbow implemented escape continuations?
-(catch:after (ccc.idfn [= my.cccraziness* t]) throw.nil)
+; NOTE: On Anarki, [= my.cccraziness* t] is nullary.
+(catch:after (ccc.idfn:fn (_) (= my.cccraziness* t)) throw.nil)
 
 
 ; This is based on a bug in official Arc's quasiquote which makes it
