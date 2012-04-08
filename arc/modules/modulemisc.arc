@@ -6,7 +6,8 @@
 ; scope would shadow them. Furthermore, the lexical scope will be
 ; totally inaccessible.
 (mac tldo body
-  `(do ,@(map [do `(eval ',_)] body)))
+  ; NOTE: In Anarki, [do `(eval ',_)] is nullary thanks to the quote.
+  `(do ,@(map (fn (_) `(eval ',_)) body)))
 
 
 (mac mc (parms . body)
@@ -92,7 +93,9 @@
   (w/uniq (g-name g-val)
     `(((,g-name ,g-val) (let _ ,name (list _ global._)))
       ,g-val
-      [eval `(= ,,g-name (',thunk._))])))
+      ; NOTE: In Anarki, [eval `(= ,,g-name (',thunk._))] is nullary
+      ; thanks to the quote.
+      (fn (_) (eval `(= ,,g-name (',thunk._)))))))
 
 (def safe-deglobalize (var)
   (zap expand var)

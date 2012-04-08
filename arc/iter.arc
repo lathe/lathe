@@ -145,7 +145,8 @@
 ; Since 'iterify works on strings and even symbols, this will probably
 ; go deeper than intended unless a specific termination condition is
 ; given.
-(=fn my.deepjoining (val (o condition [do t]))
+; NOTE: In Anarki, [do t] is nullary.
+(=fn my.deepjoining (val (o condition (fn (_) t)))
   (iflet iterable (and testify.condition.val my.iterify.val)
     (my.mappending [my.deepjoining _ condition] iterable)
     val))
