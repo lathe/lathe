@@ -37,7 +37,9 @@
 
 (=mc my.def-inherits (subtype . supertypes)
   `(,my!fn-def-inherits
-     ,@(map [do `',deglobalize._] (cons subtype supertypes))))
+     ; NOTE: In Anarki, [do `',deglobalize._] is nullary thanks to the
+     ; quote.
+     ,@(map (fn (_) `',deglobalize._) (cons subtype supertypes))))
 
 (=fn my.isinstance (x test-type)
   (my.inherits my.otype.x test-type))
@@ -59,7 +61,8 @@
 ; types, such as Java objects and tables with their 'type fields set.
 (=fn my.otype (x)
   (case x nil my!niltype
-    (on-err [do my!any] (fn () type.x))))
+    ; NOTE: In Anarki, [do my!any] is nullary.
+    (on-err (fn (_) my!any) (fn () type.x))))
 
 
 ; == A mechanism for rules which dispatch lexicographically by type ==

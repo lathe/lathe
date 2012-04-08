@@ -168,7 +168,9 @@
   `(let nmap (table)
      (w/global my nspace.nmap
        (tldo ,@body))
-     (pack-nmap:copy nmap ,@(mappend [do `(',_ nil)] names))))
+     ; NOTE: In Anarki, [do `(',_ nil)] is nullary because of the
+     ; quote.
+     (pack-nmap:copy nmap ,@(mappend (fn (_) `(',_ nil)) names))))
 
 
 ; originally from modules/path.arc
