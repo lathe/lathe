@@ -72,9 +72,15 @@
     // advantage of the fact that it doesn't implement ECMAScript 5's
     // strict mode.
     var root = (function () { return this; })() || topThis;
+    // Actually, newer versions of Node don't expose the global object
+    // that way either, and they probably don't put the whole file in
+    // a local context.
+    if ( !((root && typeof root === "object" && root[ "Object" ])
+        || typeof GLOBAL === "undefined") )
+        root = GLOBAL;
     
-    // And here, we get the Node.js exports if they exist, and we
-    // splat our exports on the global object if they don't.
+    // Here, we get the Node.js exports if they exist, and we splat
+    // our exports on the global object if they don't.
     var my = topArgs !== void 0 && typeof exports !== "undefined" ?
         exports :
         ((root.rocketnia || (root.rocketnia = {})).lathe = {});
@@ -104,7 +110,8 @@ function createElement( x ) {
 function createTextNode( x ) {
     return document[ "createTextNode" ]( x );
 }
-var document_addEventListener = document[ "addEventListener" ];
+var document_addEventListener =
+    document && document[ "addEventListener" ];
 function getElementById( x ) {
     return document[ "getElementById" ]( x );
 }
@@ -2990,10 +2997,13 @@ catch ( e )
     { my.globeval = function ( x ) { return root[ "eval" ]( x ); }; }
 try { NaN = 0; NaN = my.globeval( "NaN" ); NaN === NaN && 0(); }
 catch ( e ) { my.globeval = root[ "execScript" ]; }
+// TODO: On Node.js, my.globeval is now undefined. Actually, Node.js
+// probably has its own way of doing this:
+// <http://nodejs.org/api/vm.html>. Use it.
 
 // NOTE: This may execute things in a local scope, but it will always
 // return a value.
-my.almostGlobeval = my.globeval( "1" ) ? my.globeval :
+my.almostGlobeval = my.globeval && my.globeval( "1" ) ? my.globeval :
     function ( expr ) { return desperateEval( expr ); };
 
 
