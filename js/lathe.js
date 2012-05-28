@@ -2627,10 +2627,53 @@ my.b64ToBe16chars = function ( b64 ) {
     } ).join( "" );
 };
 
+var b64DigitLookup = my.objAcc( function ( y ) {
+    for ( var i = 0, n = b64digits.length; i < n; i++ )
+        y( "" + b64digits.charCodeAt( i ), i );
+} );
 my.b64ToBytes = function ( b64 ) {
-    return my.acc( function ( y ) {
-        b64ToYieldedBeXs( b64, 8, y );
-    } );
+    // NOTE: We could easily implement this like so, but we're
+    // hand-optimizing it instead.
+//    return my.acc( function ( y ) {
+//        b64ToYieldedBeXs( b64, 8, y );
+//    } );
+    if ( !/^[a-zA-Z01-9+\/]*=?=?$/.test( b64 ) )
+        throw new Error();
+    var b64Len = b64.length;
+    if ( b64Len % 4 !== 0 )
+        throw new Error();
+    var resultLen = (b64Len >> 2) * 3;
+    if ( b64.charAt( b64Len - 2 ) === "=" )
+        resultLen -= 2;
+    else if ( b64.charAt( b64Len - 1 ) === "=" )
+        resultLen -= 1;
+    var midEnd = (b64Len >> 2) * 4;
+    var result = typeof Uint8Array === "undefined" ?
+        new Array( resultLen ) : new Uint8Array( resultLen );
+    var srcI = 0, dstI = 0;
+    while ( srcI < midEnd ) {
+        var midChunk =
+            (b64DigitLookup[ b64.charCodeAt( srcI++ ) ] << 18) |
+            (b64DigitLookup[ b64.charCodeAt( srcI++ ) ] << 12) |
+            (b64DigitLookup[ b64.charCodeAt( srcI++ ) ] << 6) |
+            b64DigitLookup[ b64.charCodeAt( srcI++ ) ];
+        result[ dstI++ ] = midChunk >> 16;
+        result[ dstI++ ] = (midChunk >> 8) & 0xFF;
+        result[ dstI++ ] = midChunk & 0xFF;
+    }
+    if ( dstI < b64Len ) {
+        var endChunk =
+            (b64DigitLookup[ b64.charCodeAt( srcI++ ) ] << 18) |
+            (b64DigitLookup[ b64.charCodeAt( srcI++ ) ] << 12) |
+            ((b64DigitLookup[ b64.charCodeAt( srcI++ ) ] || 0) << 6) |
+            (b64DigitLookup[ b64.charCodeAt( srcI++ ) ] || 0);
+        result[ dstI++ ] = endChunk >> 16;
+        if ( dstI < b64Len )
+            result[ dstI++ ] = (endChunk >> 8) & 0xFF;
+        if ( dstI < b64Len )
+            result[ dstI ] = endChunk & 0xFF;
+    }
+    return result;
 };
 
 my.fp64sToB64 = function ( numArray ) {
