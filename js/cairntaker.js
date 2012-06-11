@@ -380,8 +380,13 @@ function epic( verse ) {
         while ( verse( become, 1 / 0 ) !== 1 / 0 );
     };
     result.runUntil = function ( minProgress, dateMillis ) {
-        while ( 0 < minProgress && Date.now() < dateMillis )
-            minProgress -= verse( become, minProgress );
+        if ( minProgress === 1 / 0 )
+            this.tryToFinish();
+        else
+            while ( 0 < minProgress
+                || (minProgress !== -1 / 0
+                    && Date.now() < dateMillis) )
+                minProgress -= verse( become, minProgress );
     };
     return result;
 }
