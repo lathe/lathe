@@ -61,6 +61,8 @@
 ; NOTE: On Rainbow, (stdin), of all things, produces an
 ; error. When that happens, this utility goes and gets it the JVM way.
 (=fn my.xstdin ()
+  ; NOTE: On Anarki, this function is nullary, but it doesn't matter
+  ; since it's never called.
   (on-err [when jv.jclass!rainbow-functions-IO
             (jv.jvm!rainbow-functions-IO-stdIn)]
     (thunk:stdin)))
