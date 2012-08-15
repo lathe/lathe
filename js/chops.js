@@ -40,9 +40,15 @@
 // Here, we get the global object in Node.js by taking advantage of
 // the fact that it doesn't implement ECMAScript 5's strict mode.
 var root = (function () { return this; })() || topThis;
+// Actually, newer versions of Node don't expose the global object
+// that way either, and they probably don't put the whole file in a
+// local context.
+if ( !((root && typeof root === "object" && root[ "Object" ])
+    || typeof GLOBAL === "undefined") )
+    root = GLOBAL;
 
 var _, $;
-if ( topArgs === void 0 )
+if ( topArgs === void 0 && typeof exports === "undefined" )
     _ = root.rocketnia.lathe, $ = root.rocketnia.chops = {};
 else  // We assume Node.js and a flat directory.
     _ = require( "./lathe" ), $ = exports;

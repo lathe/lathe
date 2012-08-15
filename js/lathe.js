@@ -2260,9 +2260,11 @@ function makePostMessageFrame(
 // postMessage(). Here's an example of a document that works with it:
 //
 // <!DOCTYPE html>
-// <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+// <meta charset="utf-8">
 // <title></title>
-// <script type="text/plain" id="x">Here's some text.
+// <script type="text/plain" id="datahtml">
+// application/x-rocketnia-choppascript
+// Here's some text.
 // 
 // Strings like "<@/script>" and "<@!--" (without the @@ signs) can be
 // troublesome, JS has no standardized multiline string support, and
@@ -2272,12 +2274,16 @@ function makePostMessageFrame(
 // may appear more secure than JSONP, don't get your hopes up. I only
 // intend to use this for communication between multiple origins I
 // control (like local files). For REST APIs, I recommend
-// CORS.</script>
+// CORS.
+// </script>
+// <textarea style="width: 100%; height: 300px;" id="t"></textarea>
 // <script>
-// parent.postMessage( { hash: location.hash, val:
-//     { type: "text/x-rocketnia-choppascript",
-//         text: document.getElementById( "x" ).
-//             textContent.replace( /@(@*)/g, "$1" ) } }, "*" );
+// var m = /^\n([^\n]+)\n((?:[^\n]|\n)*)\n$/.exec(
+//     document.getElementById( "datahtml" ).textContent.replace(
+//         /@(@*)/g, "$1" ) );
+// parent.postMessage( { hash: location.hash,
+//     val: { type: m[ 1 ], text: m[ 2 ] } }, "*" );
+// document.getElementById( "t" ).value = m[ 2 ];
 // </script>
 // </html>
 //
@@ -2286,6 +2292,60 @@ my.fetchFrame = function ( holder, url, opt_then, opt_timeout ) {
         function () { return my.dom( "iframe" ); },
         function ( frame, hash ) { frame.src = url + hash; },
         opt_then, opt_timeout );
+};
+
+// This parses a document in the same form as the example above for
+// fetchFrame(). It finds the first instance of "datahtml" and the
+// first instance of "</" after that, and it cuts out those lines and
+// all the ones surrounding them. Then it removes one @ from all
+// sequences of @ and treats the first line as a type tag describing
+// the remaining text.
+//
+// NOTE: Because of peculiarities of HTML and JavaScript, the DataHtml
+// format is probably not perfect for encoding all kinds of binary or
+// even textual data. For instance, HTML treats all newlines as
+// indistinguishable, and there is no entity escape for carriage
+// return. JavaScript uses UTF-16 code points. Still, this should be
+// sufficient for ASCII source code. (Sorry, speakers of languages
+// with non-ASCII characters.)
+//
+// TODO: Redesign DataHtml to be a more perfect encoding format.
+//
+my.parseDataHtml = function ( string ) {
+    var lines = string.split( /\n/g );
+    var onType, onText;
+    var type, text = [];
+    var ends = false;
+    for ( var i = 0, n = lines.length; i < n; i++ ) {
+        var line = lines[ i ];
+        if ( onText ) {
+            if ( /<\//.test( line ) ) {
+                ends = true;
+                break;
+            }
+            text.push( line.replace( /@(@*)/g, "$1" ) );
+        } else if ( onType ) {
+            if ( /<\//.test( line ) )
+                ret( null );
+            else
+                type = line.replace( /@(@*)/g, "$1" );
+            onText = true;
+        } else if ( /datahtml/.test( line ) ) {
+            onType = true;
+        }
+    }
+    if ( !ends )
+        return null;
+    return { type: type, text: text.join( "\n" ) };
+    
+    // TODO: See if the following is sufficient. It probably isn't as
+    // efficient.
+//    var m =
+//        /^(?:(?!datahtml)[\s\S]*)datahtml[^\n]*\n((?:(?!<\/)[^\n])*)\n((?:(?!<\/)[\s\S])*)\n[^\n]*<\/[\s\S]$/.
+//            test( string );
+//    return m === null ? null : {
+//        type: m[ 1 ].replace( /@(@*)/g, "$1" ),
+//        text: m[ 2 ].replace( /@(@*)/g, "$1" ) };
 };
 
 // TODO: Test this. It probably doesn't work, and it probably isn't
