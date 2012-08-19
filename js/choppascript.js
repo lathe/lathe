@@ -346,10 +346,10 @@ my.runExtensions = function ( extensions ) {
                     visitedStates.push( state );
                 } else {
                     visitedStates.push( { only: state.only,
-                        lead: lead.then_( _.arrMap( lead.groups_,
-                            function ( group ) {
-                                return groups[ "|" + group ] || [];
-                            } ) ) } );
+                        lead: toLead( lead.then_(
+                            _.arrMap( lead.groups_, function ( g ) {
+                                return groups[ "|" + g ] || [];
+                            } ) ) ) } );
                 }
             } else {
                 throw new Error();
@@ -384,25 +384,66 @@ my.getAll = function ( var_args, then ) {
         return then.apply( null, groups );
     } );
 };
+
 my.getOne = function ( var_args ) {
-    // Accepts any number of strings and looks them up.
+    // Accepts any number of strings and looks them up. If a string's
+    // group has exactly one extension, that extension is the result.
+    // Otherwise, an exception is thrown.
+    //
     // TODO: This should be able to get something even if more
     // extensions haven't been ruled out yet. (If an extension does
     // come up, the error will happen then.) Make it so.
+    
     var args = _.arrCut( arguments );
     var then = args.pop();
     return my.getAll.apply( null, args.concat( [
         function ( var_args ) {
         
         return then.apply( null, _.arrMap( arguments,
-            function ( arg ) {
+            function ( extensions, i ) {
             
-            if ( arg.length !== 1 )
-                throw new Error();
-            return arg[ 0 ];
+            var n = extensions.length;
+            if ( n === 1 )
+                return extensions[ 0 ];
+            else
+                throw new Error(
+                    "getOne: Must have 1 extension. Found " +
+                    n + ". Group: " + args[ i ] );
         } ) );
     } ] ) );
 };
+
+my.getOptional = function ( var_args, then ) {
+    // Accepts any number of strings and looks them up. If a string's
+    // group has zero extensions, the result is null. If it has one
+    // extension, that extension is the result. If it has more than
+    // one extension, an exception is thrown.
+    //
+    // TODO: This should be able to get something even if more
+    // extensions haven't been ruled out yet. (If an extension does
+    // come up, the error will happen then.) Make it so.
+    
+    var args = _.arrCut( arguments );
+    var then = args.pop();
+    return my.getAll.apply( null, args.concat( [
+        function ( var_args ) {
+        
+        return then.apply( null, _.arrMap( arguments,
+            function ( extensions, i ) {
+            
+            var n = extensions.length;
+            if ( n === 0 )
+                return null;
+            else if ( n === 1 )
+                return extensions[ 0 ];
+            else
+                throw new Error(
+                    "getOptional: Must have 0 or 1 extensions. " +
+                    "Found " + n + ". Group: " + args[ i ] );
+        } ) );
+    } ] ) );
+};
+
 
 
 } );
