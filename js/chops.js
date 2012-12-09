@@ -29,7 +29,7 @@
 
 // TODO: Document the purpose of chops.js.
 
-//"use strict";
+"use strict";
 
 (function ( topThis, topArgs, body ) { body( topThis, topArgs ); })(
     this, typeof arguments === "undefined" ? void 0 : arguments,
@@ -278,7 +278,7 @@ $.letChopWords = function ( chops, num, opt_then, opt_els ) {
     chops = $.letChopLtrimRegex( chops, /^\s*/ ).rest;
     var words = $.chopTokens( chops, /\s+/g, num );
     if ( num < words.length )
-        return _.classicapply( null, opt_then, words );
+        return _.funcApply( null, opt_then, words );
     else
         return opt_els();
 };
@@ -300,10 +300,47 @@ $.unchops = function ( chops ) {
 };
 
 
-$.parseOpChop = _.rulebook( "parseOpChop" );
-$.parseTextChop = _.rulebook( "parseTextChop" );
-$.normalizeChoppedBlock = _.rulebook( "normalizeChoppedBlock" );
-$.normalizeChoppedDocument = _.rulebook( "normalizeChoppedDocument" );
+function ChopsEnv() {}
+ChopsEnv.prototype.init_ = function ( bindings ) {
+    this.bindings_ = bindings;
+    return this;
+};
+
+$.env = function ( bindings ) {
+    return new ChopsEnv().init_( bindings );
+};
+$.envShadow = function ( parentEnv, bindings ) {
+    return $.env( _.objOwnKeySetOr( bindings, parentEnv.bindings_ ) );
+};
+
+$.parseOpChop = function ( env, op, chops ) {
+    var rep = env.bindings_;
+    if ( !_.hasOwn( rep, op ) )
+        throw new Error(
+            "The op " + _.blahpp( op ) + " doesn't exist." );
+    return _.funcApply( env, rep[ op ], [ chops, env ] );
+};
+
+$.parseTextChop = function ( env, text ) {
+    var rep = env.bindings_;
+    return _.hasOwn( rep, " text" ) ?
+        _.funcApply( env, rep[ " text" ], [ text, env ] ) : text;
+};
+
+$.normalizeChoppedBlock = function ( env, chopResults ) {
+    var rep = env.bindings_;
+    return _.hasOwn( rep, " block" ) ?
+        _.funcApply( env, rep[ " block" ], [ chopResults, env ] ) :
+        chopResults;
+};
+
+$.normalizeChoppedDocument = function ( env, blockResults ) {
+    var rep = env.bindings_;
+    return _.hasOwn( rep, " document" ) ?
+        _.funcApply( env, rep[ " document" ],
+            [ blockResults, env ] ) :
+        blockResults;
+};
 
 $.parseInlineChop = function ( env, chop ) {
     if ( _.isString( chop ) )
@@ -338,7 +375,7 @@ $.letChopLtrimWords = function ( chops, num, opt_then, opt_els ) {
     if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
     var words = $.chopLtrimTokens( chops, /\s+/g, num );
     return words.length <= num ?
-        opt_els() : _.classicapply( null, opt_then, words );
+        opt_els() : _.funcApply( null, opt_then, words );
 };
 */
 $.chopcode = function ( code ) {
@@ -361,53 +398,6 @@ $.parseChopcode = function ( env, code ) {
 $.parseChopup = function ( env, markup ) {
     return $.parseDocumentOfChops( env, $.chopup( markup ) );
 };
-
-
-$.unwrapChopsEnvObj = _.rulebook( "unwrapChopsEnvObj" );
-$.ChopsEnvObj = _.deftype( "ChopsEnvObj", $.unwrapChopsEnvObj );
-
-_.rule( $.parseOpChop, "unwrapChopsEnvObj", function (
-    env, op, chops ) {
-    
-    var relied = _.fcall( $.unwrapChopsEnvObj, env );
-    if ( relied.fail() ) return relied;
-    var rep = relied.val();
-    if ( !(op in rep) )
-        throw new Error(
-            "The op " + _.blahpp( op ) + " doesn't exist." );
-    return _.win( rep[ op ].call( env, chops, env ) );
-} );
-
-_.rule( $.parseTextChop, "unwrapChopsEnvObj", function (
-    env, text ) {
-    
-    var relied = _.fcall( $.unwrapChopsEnvObj, env );
-    if ( relied.fail() ) return relied;
-    var rep = relied.val();
-    return _.win( " text" in rep ?
-        rep[ " text" ].call( env, text, env ) : text );
-} );
-
-_.rule( $.normalizeChoppedBlock, "unwrapChopsEnvObj", function (
-    env, chopResults ) {
-    
-    var relied = _.fcall( $.unwrapChopsEnvObj, env );
-    if ( relied.fail() ) return relied;
-    var rep = relied.val();
-    return _.win( " block" in rep ?
-        rep[ " block" ].call( env, chopResults, env ) : chopResults );
-} );
-
-_.rule( $.normalizeChoppedDocument, "unwrapChopsEnvObj", function (
-    env, blockResults ) {
-    
-    var relied = _.fcall( $.unwrapChopsEnvObj, env );
-    if ( relied.fail() ) return relied;
-    var rep = relied.val();
-    return _.win( " document" in rep ?
-        rep[ " document" ].call( env, blockResults, env ) :
-        blockResults );
-} );
 
 
 

@@ -50,7 +50,7 @@ Among other slight differences, ">-" and ">->" don't bind "next".
 */
 
 
-//"use strict";
+"use strict";
 
 (function ( topThis, topArgs, body ) { body( topThis, topArgs ); })(
     this, typeof arguments === "undefined" ? void 0 : arguments,
@@ -102,7 +102,7 @@ function resplice( elems ) {
 };
 
 
-my.env = $c.ChopsEnvObj.of( {
+my.env = $c.env( {
     // These first few are actually useful.
     " block": function ( chops ) {
         return unsplice( chops ).join( "" );
@@ -136,15 +136,14 @@ my.env = $c.ChopsEnvObj.of( {
     },
     ">-": function ( chops, env ) {
         var bindings = [];
-        var locals = $c.ChopsEnvObj.of(
-            _.shadow( $c.unwrapChopsEnvObj( env ), {
+        var locals = $c.envShadow( env, {
             "<-": function ( chops2, env2 ) {
                 var param = _.gensym();
                 bindings.push( { param: param, val: chops2 } );
                 return param;
             }
-        } ) );
-        return _.foldr(
+        } );
+        return _.arrFoldr(
             bindings, $c.parseInlineChops( locals, chops ),
             function ( binding, body ) {
                 var val = $c.parseInlineChops( env, binding.val );
@@ -158,7 +157,7 @@ my.env = $c.ChopsEnvObj.of( {
     ">->": function ( chops, env ) {
         var words = $c.chopTrimTokens( chops, /\s+/g );
         var body = $c.parseInlineChops( env, words.pop() );
-        return _.foldr( _.pair( words ), body,
+        return _.arrFoldr( _.arrPair( words ), body,
             function ( binding, body ) {
                 var param = binding[ 0 ];
                 var val = $c.parseInlineChops( env, binding[ 1 ] );
@@ -171,13 +170,12 @@ my.env = $c.ChopsEnvObj.of( {
     },
     ">": function ( chops, env ) {
         var words = $c.chopTrimTokens( chops, /\s+/g );
-        return _.foldr(
+        return _.arrFoldr(
             words, $c.parseInlineChops( env, words.pop() ),
             function ( template, next ) {
-                var locals = $c.ChopsEnvObj.of(
-                    _.shadow( $c.unwrapChopsEnvObj( env ), {
+                var locals = $c.envShadow( env, {
                     "next": function () { return resplice( next ); }
-                } ) );
+                } );
                 return resplice(
                     $c.parseInlineChops( locals, template ) );
             } );
@@ -226,9 +224,7 @@ function eachNonArr( x, func ) {
     // TODO: Stop taking up nonconstant stack space.
     function process( item ) {
         if ( _.likeArray( item ) )
-            _.each( item, function ( elem ) {
-                func( elem );
-            } );
+            _.arrEach( item, process );
         else
             func( item )
     }
@@ -244,6 +240,14 @@ LeadSplit.prototype.init = function ( leads ) {
     return this;
 };
 
+function LeadExtendOtherThan() {}
+LeadExtendOtherThan.prototype = new Lead();
+LeadExtendOtherThan.prototype.init = function ( keys, next ) {
+    this.keys_ = keys;
+    this.next_ = next;
+    return this;
+};
+
 function LeadExtendOnly() {}
 LeadExtendOnly.prototype = new Lead();
 LeadExtendOnly.prototype.init = function ( keys, next ) {
@@ -252,19 +256,19 @@ LeadExtendOnly.prototype.init = function ( keys, next ) {
     return this;
 };
 
-function LeadExtend() {}
-LeadExtend.prototype = new Lead();
-LeadExtend.prototype.init = function ( group, extension ) {
-    this.group_ = group;
-    this.extension_ = extension;
-    return this;
-};
-
 function LeadGetAll() {}
 LeadGetAll.prototype = new Lead();
 LeadGetAll.prototype.init = function ( groups, then ) {
     this.groups_ = groups;
     this.then_ = then;
+    return this;
+};
+
+function LeadExtend() {}
+LeadExtend.prototype = new Lead();
+LeadExtend.prototype.init = function ( group, extension ) {
+    this.group_ = group;
+    this.extension_ = extension;
     return this;
 };
 
@@ -278,21 +282,17 @@ function toLead( x ) {
         throw new Error();
 }
 
-function objMask( a, b ) {
-    return _.objAcc( function ( y ) {
-        _.objOwnEach( a, function ( k, v ) {
-            if ( _.hasOwn( b, k ) )
-                y( k, v );
-        } );
-    } );
-}
-
 my.runExtensions = function ( extensions ) {
     var groups = {};
     var states = [];
-    var visitedStates =
-        [ { only: null, lead: toLead( extensions ) } ];
-    var anythingGoes = true;
+    var visitedStates = [ { otherThan: {}, only: null,
+        lead: toLead( extensions ) } ];
+    function stateCanExtend( state, groupName ) {
+        var safeKey = "|" + groupName;
+        return !(_.hasOwn( state.otherThan || {}, safeKey )
+            || (state.only !== null
+                && !_.hasOwn( state.only, safeKey )));
+    }
     while ( visitedStates.length !== 0 ) {
         states = visitedStates;
         visitedStates = [];
@@ -301,56 +301,59 @@ my.runExtensions = function ( extensions ) {
             
             var anythingHappenedThisTime = true;
             
-            // TODO: See if this needs to be more efficient.
-            if ( anythingGoes
-                && _.arrAll( states, function ( state ) {
-                    return state.only !== null;
-                } ) )
-                anythingGoes = false;
-            
             var state = states.shift();
             var lead = state.lead;
             if ( lead instanceof LeadSplit ) {
                 _.arrEach( lead.leads_, function ( lead ) {
-                    visitedStates.push(
-                        { only: state.only, lead: toLead( lead ) } );
+                    visitedStates.push( { otherThan: state.otherThan,
+                        only: state.only, lead: toLead( lead ) } );
+                } );
+            } else if ( lead instanceof LeadExtendOtherThan ) {
+                visitedStates.push( state.otherThan !== null ? {
+                    otherThan: _.objOwnKeySetOr(
+                        state.otherThan, lead.keys_ ),
+                    only: null,
+                    lead: toLead( lead.next_ )
+                } : {
+                    otherThan: null,
+                    only:
+                        _.objOwnKeySetMinus( state.only, lead.keys_ ),
+                    lead: toLead( lead.next_ )
                 } );
             } else if ( lead instanceof LeadExtendOnly ) {
-                visitedStates.push( {
-                    only: state.only === null ? lead.keys_ :
-                        objMask( state.only, lead.keys_ ),
-                    lead: lead.next_ } );
-            } else if ( lead instanceof LeadExtend ) {
-                var safeKey = "|" + lead.group_;
-                if ( !(state.only === null
-                    || _.hasOwn( state.only, safeKey )) )
-                    throw new Error();
-                // TODO: See if this needs to be more efficient.
-                groups[ safeKey ] = (groups[ safeKey ] || []).concat(
-                    [ lead.extension_ ] );
+                visitedStates.push( { otherThan: null,
+                    only: state.otherThan !== null ?
+                        _.objOwnKeySetMinus(
+                            lead.keys_, state.otherThan ) :
+                        _.objOwnKeySetMask( state.only, lead.keys_ ),
+                    lead: toLead( lead.next_ ) } );
             } else if ( lead instanceof LeadGetAll ) {
-                if ( anythingGoes
-                    || _.arrAny( lead.groups_, function ( group ) {
-                        // TODO: See if this needs to be more
-                        // efficient. We could replace anythingGoes
-                        // with a "combinedOnly" variable.
-                        return _.arrAny(
-                            states.concat( visitedStates ),
-                            function ( state ) {
+                var allStates = states.concat( visitedStates );
+                // TODO: See if this needs to be more efficient.
+                if ( _.arrAny( allStates, function ( state ) {
+                        return _.arrAny( lead.groups_,
+                            function ( group ) {
                             
-                            return _.hasOwn(
-                                state.only, "|" + group );
+                            return stateCanExtend( state, group );
                         } );
                     } ) ) {
                     anythingHappenedThisTime = false;
                     visitedStates.push( state );
                 } else {
-                    visitedStates.push( { only: state.only,
+                    visitedStates.push( { otherThan: state.otherThan,
+                        only: state.only,
                         lead: toLead( lead.then_(
                             _.arrMap( lead.groups_, function ( g ) {
                                 return groups[ "|" + g ] || [];
                             } ) ) ) } );
                 }
+            } else if ( lead instanceof LeadExtend ) {
+                var safeKey = "|" + lead.group_;
+                if ( !stateCanExtend( state, lead.group_ ) )
+                    throw new Error();
+                // TODO: See if this needs to be more efficient.
+                groups[ safeKey ] = (groups[ safeKey ] || []).concat(
+                    [ lead.extension_ ] );
             } else {
                 throw new Error();
             }
@@ -362,9 +365,23 @@ my.runExtensions = function ( extensions ) {
     }
     return groups;
 };
+
+my.extendOtherThan = function ( var_args, then ) {
+    var args = _.arrCut( arguments );
+    var then = args.pop();
+    var keys = {};
+    eachNonArr( args, function ( elem ) {
+        if ( !_.isString( elem ) )
+            throw new Error(
+                "extendOtherThan: Not a string: " +
+                JSON.stringify( elem ) );
+        keys[ "|" + elem ] = 1;
+    } );
+    return new LeadExtendOtherThan().init( keys, then );
+};
 my.extendOnly = function ( var_args, then ) {
     var args = _.arrCut( arguments );
-    var then = args.pop()();
+    var then = args.pop();
     var keys = {};
     eachNonArr( args, function ( elem ) {
         if ( !_.isString( elem ) )
@@ -373,16 +390,17 @@ my.extendOnly = function ( var_args, then ) {
     } );
     return new LeadExtendOnly().init( keys, then );
 };
-my.extend = function ( group, extension ) {
-    return new LeadExtend().init( group, extension );
-};
 my.getAll = function ( var_args, then ) {
     // Accepts any number of strings and looks them up.
     var args = _.arrCut( arguments );
     var then = args.pop();
-    return new LeadGetAll().init( args, function ( groups ) {
-        return then.apply( null, groups );
-    } );
+    return my.extendOtherThan( args,
+        new LeadGetAll().init( args, function ( groups ) {
+            return then.apply( null, groups );
+        } ) );
+};
+my.extend = function ( group, extension ) {
+    return new LeadExtend().init( group, extension );
 };
 
 my.getOne = function ( var_args ) {
@@ -428,7 +446,7 @@ my.getOptional = function ( var_args, then ) {
     return my.getAll.apply( null, args.concat( [
         function ( var_args ) {
         
-        return then.apply( null, _.arrMap( arguments,
+        return _.funcApply( null, then, _.arrMap( arguments,
             function ( extensions, i ) {
             
             var n = extensions.length;

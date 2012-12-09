@@ -62,6 +62,36 @@
 //     sense or compile most of the time thanks to the frameworks this
 //     code establishes and uses.
 
+// NOTE: We accompany predicate dispatch utilities with a "TYPE:"
+// comment indicating most of its interface in terms of a type
+// notation.
+//
+// a * b * c -s> d   -- A synchronous procedure with side effects.
+// a * b * c -> d    -- A synchronous pure function.
+// a * b * c -k> d   -- A synchronous, constant-time pure function.
+// a *? b *... c -whatev> b  -- Optional and rest args.
+// () -whatev> b     -- No args.
+// L> a
+//    -- A procedure of type (() -k> a), but which is allowed to be
+//    -- impure while the application is still initializing. This
+//    -- accomplishes late binding.
+// [ element ]       -- An Array.
+// k[ element ]
+//    -- An Array which doesn't change in size or content except when
+//    -- the application is still initializing.
+// Win win           -- A DubiousResult_ instance, any fail allowed.
+// a * b * c -r> d   -- Short for (a * b * c -k> Win d).
+// a * b * c -rb> d  -- Short for k[ a * b * c -r> d ].
+// 2              -- A truthy or falsy value (particularly a boolean).
+// 0                 -- An ignored value (particularly, undefined).
+// D                 -- Anything (dynamic).
+// string            -- A string (typically primitive).
+//
+// These types are mostly a guideline, a documentation aid. For
+// instance, these "pure" functions may look into data structures that
+// are technically mutable, relying on the assumption that the data
+// structures aren't actually mutated in any part of the program.
+
 "use strict";
 
 (function ( topThis, topArgs, body ) {
@@ -90,16 +120,29 @@
     function ( root, my ) {
 
 
-var objectProto = root[ "Object" ].prototype;
+var hasOwnProperty = {}.hasOwnProperty;
+var objectProtoToString = {}.toString;
+var slice = [].slice;
+var Error = root[ "Error" ];
+var functionProtoApply = (function () {}).apply;
 var getPrototypeOf = root[ "Object" ][ "getPrototypeOf" ];
-var slice = root[ "Array" ].prototype[ "slice" ];
-var arrConcat = root[ "Array" ].prototype[ "concat" ];
 var floor = root[ "Math" ][ "floor" ];
 var random = root[ "Math" ][ "random" ];
 var pow = root[ "Math" ][ "pow" ];
 var log = root[ "Math" ][ "log" ];
 var ln2 = root[ "Math" ][ "LN2" ];
-var Error = root[ "Error" ];
+var Function = root[ "Function" ];
+var setTimeout = root[ "setTimeout" ];
+function toJson( x ) {
+    return root[ "JSON" ][ "stringify" ]( x );
+}
+// TODO: See if
+// "var fromCharCode = root[ "String" ][ "fromCharCode" ];" works.
+function fromCharCode( x ) {
+    return root[ "String" ][ "fromCharCode" ]( x );
+}
+
+// These are only available in the browser.
 var document = root[ "document" ];
 function write( x ) {
     return document[ "write" ]( x );
@@ -115,43 +158,94 @@ var document_addEventListener =
 function getElementById( x ) {
     return document[ "getElementById" ]( x );
 }
-var Function = root[ "Function" ];
-var setTimeout = root[ "setTimeout" ];
-function toJson( x ) {
-    return root[ "JSON" ][ "stringify" ]( x );
-}
-// TODO: See if
-// "var fromCharCode = root[ "String" ][ "fromCharCode" ];" works.
-function fromCharCode( x ) {
-    return root[ "String" ][ "fromCharCode" ]( x );
-}
 
-// ===== Miscellaneous utilities. ====================================
+// These are only available in Node.js.
+var process = root[ "process" ];
+var nextTick = process && process[ "nextTick" ];
+
+
+// ===== Platform sniffing. ==========================================
 
 my.usingStrict = (function () { return this === void 0; })();
 
-// This takes any number of arguments and returns the first one (or
-// undefined, if there are no arguments).
-my.idfn = function ( result, var_args ) { return result; };
+
+// ===== Value sniffing. =============================================
 
 my.hasOwn = function ( self, property ) {
-    return objectProto.hasOwnProperty.call( self, property );
+    return hasOwnProperty.call( self, property );
 };
-
-var objectToString = objectProto.toString;
 
 function classTester( clazz ) {
     var expected = "[object " + clazz + "]";
     return function ( x ) {
-        return objectToString.call( x ) === expected;
+        return objectProtoToString.call( x ) === expected;
     };
-};
+}
 
-// NOTE: These works even on things which have a typeof of "boolean",
+// NOTE: These work even on things which have a typeof of "boolean",
 // "number", or "string".
 my.isBoolean = classTester( "Boolean" );
 my.isNumber = classTester( "Number" );
 my.isString = classTester( "String" );
+my.isReallyArray = classTester( "Array" );
+var isFunctionObject = classTester( "Function" );
+
+// TODO: Improve the accuracy of this.
+my.likeArguments = function ( x ) {
+    return my.hasOwn( x, "callee" );
+};
+
+// TODO: Improve the accuracy of likeArguments().
+my.likeArray = function ( x ) {
+    return my.isReallyArray( x ) || my.likeArguments( x );
+};
+
+my.isFunction = function ( x ) {
+    return typeof x === "function" || isFunctionObject( x );
+};
+
+my.given = function ( a ) { return a !== void 0; };
+
+my.sameTwo = function ( a, b ) {
+    // Two values in JavaScript are indistinguishable if they fit
+    // these criteria. The === operator mostly suffices, with two
+    // exceptions: It gives (-0 === 0) even though (1/-0 !== 1/0),
+    // and it gives (NaN !== NaN).
+    return (a === b && (a !== 0 || 1 / a === 1 / b)) ||
+        (a !== a && b !== b);
+};
+
+if ( getPrototypeOf )
+    my.likeObjectLiteral = function ( x ) {
+        if ( x === null ||
+            objectProtoToString.call( x ) !== "[object Object]" )
+            return false;
+        var p = getPrototypeOf( x );
+        return p !== null && typeof p === "object" &&
+            getPrototypeOf( p ) === null;
+    };
+else if ( {}.__proto__ !== void 0 )
+    my.likeObjectLiteral = function ( x ) {
+        if ( x === null ||
+            objectProtoToString.call( x ) !== "[object Object]" )
+            return false;
+        var p = x.__proto__;
+        return p !== null && typeof p === "object" &&
+            p.__proto__ === null;
+    };
+else
+    my.likeObjectLiteral = function ( x ) {
+        return x !== null &&
+            objectProtoToString.call( x ) === "[object Object]" &&
+            x.constructor === {}.constructor;
+    };
+
+
+// ===== Sundries. ===================================================
+
+// This takes any number of arguments and returns the first one (or
+// undefined, if there are no arguments).
+my.idfn = function ( result, var_args ) { return result; };
 
 my.kfn = function ( result ) {
     return function ( var_args ) { return result; };
@@ -161,30 +255,6 @@ my.pluckfn = function ( prop ) {
     return function ( obj ) { return obj[ prop ]; };
 };
 
-my.acc = function ( body ) {
-    var result = [];
-    body( function ( it ) { result.push( it ); } );
-    return result;
-};
-
-my.isReallyArray = classTester( "Array" );
-
-my.likeArguments = function ( x ) {
-    return my.hasOwn( x, "callee" );
-};
-
-my.likeArray = function ( x ) {
-    return my.isReallyArray( x ) || my.likeArguments( x );
-};
-
-var isFunctionObject = classTester( "Function" );
-
-my.isFunction = function ( x ) {
-    return typeof x === "function" || isFunctionObject( x );
-};
-
-my.given = function ( a ) { return a !== void 0; };
-
 my.arrCut = function ( self, opt_start, opt_end ) {
     // NOTE: In IE 8, passing slice a third argument of undefined is
     // different from passing it only two arguments.
@@ -193,7 +263,107 @@ my.arrCut = function ( self, opt_start, opt_end ) {
         slice.call( self, opt_start );
 };
 
-my.anyRepeat = function ( n, body ) {
+my.arrUnbend = function ( args, opt_start ) {
+    args = my.arrCut( args, opt_start );
+    if ( args.length === 0 )
+        throw new Error();
+    return args.concat( my.arrCut( args.pop() ) );
+};
+
+my.funcApply = function ( self, func, var_args ) {
+    return functionProtoApply.call(
+        func, self, my.arrUnbend( arguments, 2 ) );
+};
+
+my.funcCall = function ( func, var_args ) {
+    return my.funcApply( null, func, my.arrCut( arguments, 1 ) );
+};
+
+my.latefn = function ( getFunc ) {
+    return function ( var_args ) {
+        return my.funcApply(
+            this, getFunc(), my.arrCut( arguments ) );
+    };
+};
+
+
+// ===== Asynchronous calculations. ==================================
+
+if ( nextTick !== void 0 )
+    my.defer = function ( then ) {
+        nextTick( function () {
+            then();
+        } );
+    };
+else
+    my.defer = function ( then ) {
+        setTimeout( function () {
+            then();
+        }, 0 );
+    };
+
+my.startPromise = function ( calculate ) {
+    var finishedListeners = [];
+    var promiseResult;
+    calculate( function ( r ) {
+        if ( finishedListeners === null )
+            return;
+        promiseResult = r;
+        finishedListeners.forEach( function ( listener ) {
+            my.defer( function () {
+                listener( r );
+            } );
+        } );
+        finishedListeners = null;
+    } );
+    var promise = {};
+    promise.onceFinished = function ( then ) {
+        if ( finishedListeners === null )
+            my.defer( function () {
+                then( promiseResult );
+            } );
+        else
+            finishedListeners.push( then );
+    };
+    return promise;
+};
+
+my.makeMutex = function () {
+    var unlockPromise = null;
+    var unlockContinuation;
+    var mutex = {};
+    mutex.lock = function ( body, then ) {
+        if ( unlockPromise === null ) {
+            unlockPromise = my.startPromise( function ( then ) {
+                unlockContinuation = then;
+            } );
+            body( function ( bodyResult ) {
+                unlockContinuation( null );
+                unlockPromise = unlockContinuation = null;
+                then( bodyResult );
+            } );
+        } else {
+            unlockPromise.onceFinished( function ( nil ) {
+                mutex.lock( body, then );
+            } );
+        }
+    };
+    return mutex;
+};
+
+my.oncefn = function ( func ) {
+    var done = false;
+    return function ( var_args ) {
+        if ( done ) return void 0;
+        done = true;
+        return my.funcApply( this, func, arguments );
+    };
+};
+
+
+// ===== Primitive collection operations. ============================
+
+my.numAny = function ( n, body ) {
     var result;
     for ( var i = 0; i < n; i++ )
         if ( result = body( i ) )
@@ -201,10 +371,10 @@ my.anyRepeat = function ( n, body ) {
     return false;
 };
 
+// TODO: Rename this to numEach.
 my.repeat = function ( n, body ) {
     for ( var i = 0; i < n; i++ )
         body( i );
-    return false;
 };
 
 my.numMap = function ( num, func ) {
@@ -213,8 +383,14 @@ my.numMap = function ( num, func ) {
     } );
 };
 
+my.acc = function ( body ) {
+    var result = [];
+    body( function ( it ) { result.push( it ); } );
+    return result;
+};
+
 my.arrAny = function ( arr, check ) {
-    return my.anyRepeat( arr.length, function ( i ) {
+    return my.numAny( arr.length, function ( i ) {
         return check( arr[ i ], i );
     } );
 };
@@ -232,6 +408,14 @@ my.arrEach = function ( arr, body ) {
     } );
 };
 
+my.arrFoldl = function ( init, arr, func ) {
+    var result = init;
+    my.arrEach( arr, function ( it ) {
+        result = func( result, it );
+    } );
+    return result;
+};
+
 my.arrKeep = function ( arr, check ) {
     return my.acc( function ( y ) {
         my.arrEach( arr, function ( it ) {
@@ -241,52 +425,60 @@ my.arrKeep = function ( arr, check ) {
     } );
 };
 
-my.arrMap = function ( arr, convert ) {
-    return my.acc( function ( y ) {
-        my.arrEach(
-            arr, function ( it, i ) { y( convert( it, i ) ); } );
+my.arrRem = function ( arr, check ) {
+    return my.arrKeep( arr, function ( it ) {
+        return !check( it );
     } );
 };
 
-my.arrPlus = function ( var_args ) {
-    return arrConcat.apply( [], arguments );
+my.arrMap = function ( arr, convert ) {
+    return my.acc( function ( y ) {
+        my.arrEach( arr, function ( it, i ) {
+            y( convert( it, i ) );
+        } );
+    } );
 };
 
-my.arrMappend = function ( arr, convert ) {
-    return arrConcat.apply( [], my.arrMap( arr, convert ) );
-};
-
-my.arrUnbend = function ( args, opt_start ) {
-    args = my.arrCut( args, opt_start );
-    return args.concat( my.arrCut( args.pop() ) );
-};
-
-my.classicapply = function ( self, func, var_args ) {
-    return func.apply( self, my.arrUnbend( arguments, 2 ) );
-};
-
-my.classiccall = function ( func, var_args ) {
-    return my.classicapply( null, func, my.arrCut( arguments, 1 ) );
-};
-
-my.arrAnyDown = function ( arr, check ) {
+my.arrDownAny = function ( arr, check ) {
     for ( var i = arr.length - 1; 0 <= i; i-- ) {
-        var result = check( arr[ i ] );
+        var result = check( arr[ i ], i );
         if ( result )
             return result;
     }
     return false;
 };
 
-my.arrDown = function ( arr, body ) {
-    my.arrAnyDown(
-        arr, function ( it ) { body( it ); return false; } );
+my.arrDownEach = function ( arr, body ) {
+    my.arrDownAny( arr, function ( it, i ) {
+        body( it, i );
+        return false;
+    } );
 };
 
-my.arrRem = function ( arr, check ) {
-    return my.arrKeep( arr, function ( it ) {
-        return !check( it );
+my.arrFoldr = function ( arr, init, func ) {
+    var result = init;
+    my.arrDownEach( arr, function ( it ) {
+        result = func( it, result );
     } );
+    return result;
+};
+
+my.arrJoin = function ( arr ) {
+    return my.acc( function ( y ) {
+        my.arrEach( arr, function ( innerArr ) {
+            my.arrEach( innerArr, function ( item ) {
+                y( item );
+            } );
+        } );
+    } );
+};
+
+my.arrPlus = function ( var_args ) {
+    return my.arrJoin( arguments );
+};
+
+my.arrMappend = function ( arr, convert ) {
+    return my.arrJoin( my.arrMap( arr, convert ) );
 };
 
 my.arrSetMinus = function ( eq, as, bs ) {
@@ -301,11 +493,319 @@ my.arrSubset = function ( eq, as, bs ) {
     } );
 };
 
-my.sameTwo = function ( a, b ) {
-    return (a === b &&
-        (a !== 0 || 1 / a === 1 / b)) ||  // -0 === 0, but 1/-0 !== 1/0
-        (a !== a && b !== b);             // NaN !== NaN
+my.arrTuple = function ( size, arr ) {
+    if ( arr.length % size !== 0 )
+        throw new Error( "Can't arrTuple into uneven tuples." );
+    return my.acc( function ( y ) {
+        var thisTuple = [];
+        my.arrEach( arr, function ( item ) {
+            thisTuple.push( item );
+            if ( thisTuple.length === size ) {
+                y( thisTuple );
+                thisTuple = [];
+            }
+        } );
+    } );
+    return result;
 };
+
+my.arrPair = function ( arr ) {
+    return my.arrTuple( 2, arr );
+};
+
+function finishWithErrors( thro, ret, errors, var_args ) {
+    if ( errors.length === 1 ) return void thro( errors[ 0 ] );
+    if ( errors.length !== 0 ) return void thro( errors );
+    my.funcApply( null, ret, my.arrCut( arguments, 3 ) );
+}
+
+my.arrMapConcurrent = function ( arr, asyncFunc, then ) {
+    var n = arr.length;
+    if ( n === 0 )
+        return void my.defer( function () {
+            then( [] );
+        } );
+    var results = [];
+    results[ n - 1 ] = void 0;
+    my.arrEach( arr, function ( item, i ) {
+        my.defer( function () {
+            asyncFunc( i, item, my.oncefn( function ( r ) {
+                results[ i ] = r;
+                n--;
+                if ( n === 0 )
+                    then( results );
+            } ) );
+        } );
+    } );
+};
+
+my.arrEachConcurrentExn = function ( arr, asyncFunc, thro, ret ) {
+    my.arrMapConcurrent( arr, function ( i, item, then ) {
+        asyncFunc( i, item, function ( e ) {
+            then( { success: false, val: e } );
+        }, function () {
+            then( { success: true } );
+        } );
+    }, function ( results ) {
+        finishWithErrors( thro, ret, my.acc( function ( y ) {
+            my.objOwnEach( results, function ( k, v ) {
+                if ( !v.success ) y( v.val );
+            } );
+        } ) );
+    } );
+};
+
+my.objOwnAny = function ( obj, func ) {
+    // TODO: See what to do about the IE DontEnum bug, if anything.
+    for ( var key in obj )
+        if ( my.hasOwn( obj, key ) ) {
+            var result = func( key, obj[ key ] );
+            if ( result )
+                return result;
+        }
+    return false;
+};
+
+my.objOwnAll = function ( obj, func ) {
+    return !my.objOwnAny( obj, function ( k, v ) {
+        return !func( k, v );
+    } );
+};
+
+my.objOwnEach = function ( obj, func ) {
+    return my.objOwnAny( obj, function ( k, v ) {
+        func( k, v );
+        return false;
+    } );
+};
+
+my.objOwnKeys = function ( obj ) {
+    return my.acc( function ( y ) {
+        my.objOwnEach( obj, function ( k, v ) { y( k ); } );
+    } );
+};
+
+function informalArgsToObj( args ) {
+    var result = {};
+    for ( var i = 0, n = args.length; i < n; ) {
+        var arg = args[ i ];
+        i++;
+        var v = args[ i ];
+        if ( my.isString( arg ) && i < args.length )
+            i++, result[ arg ] = v;
+        else if ( my.likeObjectLiteral( arg ) )
+            my.objOwnEach( arg, function ( k, v ) {
+                result[ k ] = v;
+            } );
+        else if ( my.likeArray( arg ) && i < args.length )
+            i++, my.arrEach( arg, function ( k ) {
+                result[ k ] = v;
+            } );
+        else
+            throw new Error(
+                "Unrecognized argument to informalArgsToObj()." );
+    }
+    return result;
+}
+
+my.objAcc = function ( body ) {
+    var result = {};
+    body( function ( var_args ) {
+        my.objOwnEach( informalArgsToObj( arguments ),
+            function ( k, v ) {
+            
+            result[ k ] = v;
+        } );
+    } );
+    return result;
+};
+
+// TODO: Rename this to objOwnMap.
+// NOTE: This passes ( v, k ), not ( k, v ).
+my.objMap = function ( obj, func ) {
+    return my.objAcc( function ( y ) {
+        my.objOwnEach( obj, function ( k, v ) {
+            y( k, func( v, k ) );
+        } );
+    } );
+};
+
+// TODO: Rename this to objOwnMappend.
+// NOTE: This passes ( v, k ), not ( k, v ).
+my.objMappend = function ( obj, func ) {
+    return my.objAcc( function ( y ) {
+        my.objOwnEach( obj, function ( k, v ) {
+            y( func( v, k ) );
+        } );
+    } );
+};
+
+// NOTE: This passes ( v, k ), not ( k, v ).
+my.objOwnKeep = function ( obj, func ) {
+    return my.objAcc( function ( y ) {
+        my.objOwnEach( obj, function ( k, v ) {
+            if ( func( v, k ) )
+                y( k, v );
+        } );
+    } );
+};
+
+// NOTE: This passes ( v, k ), not ( k, v ).
+my.objOwnRem = function ( obj, func ) {
+    return my.objOwnKeep( obj, function ( v, k ) {
+        return !func( v, k );
+    } );
+};
+
+// TODO: Rename this to objOwnCopy.
+my.objCopy = function ( obj ) {
+    return my.objOwnKeep( obj, my.kfn( true ) );
+};
+
+my.objOwnKeySetMinus = function ( fullObj, blacklistObj ) {
+    return my.objOwnKeep( fullObj, function ( v, k ) {
+        return !my.hasOwn( blacklistObj, k );
+    } );
+};
+
+my.objOwnKeySetMask = function ( fullObj, whitelistObj ) {
+    return my.objOwnKeep( fullObj, function ( v, k ) {
+        return my.hasOwn( whitelistObj, k );
+    } );
+};
+
+my.objOwnKeySetOr = function ( preferredObj, fallbackObj ) {
+    var result = my.objCopy( preferredObj );
+    my.objOwnEach( fallbackObj, function ( k, v ) {
+        if ( !my.hasOwn( result, k ) )
+            result[ k ] = v;
+    } );
+    return result;
+};
+
+my.objOwnEachConcurrent = function ( obj, asyncFunc, then ) {
+    var n = 0;
+    my.objOwnEach( obj, function ( k, v ) {
+        n++;
+        my.defer( function () {
+            asyncFunc( k, v, my.oncefn( function () {
+                n--;
+                if ( n === 0 )
+                    then();
+            } ) );
+        } );
+    } );
+    if ( n === 0 )
+        return void my.defer( function () {
+            then();
+        } );
+};
+
+my.objOwnMapConcurrent = function ( obj, asyncFunc, then ) {
+    var n = 0;
+    var results = {};
+    my.objOwnEach( obj, function ( k, v ) {
+        n++;
+        my.defer( function () {
+            asyncFunc( k, v, my.oncefn( function ( r ) {
+                results[ k ] = r;
+                n--;
+                if ( n === 0 )
+                    then( results );
+            } ) );
+        } );
+    } );
+    if ( n === 0 )
+        return void my.defer( function () {
+            then( {} );
+        } );
+};
+
+my.objOwnEachConcurrentExn = function ( obj, asyncFunc, thro, ret ) {
+    my.objOwnMapConcurrent( obj, function ( k, v, then ) {
+        asyncFunc( k, v, function ( e ) {
+            then( { success: false, val: e } );
+        }, function () {
+            then( { success: true } );
+        } );
+    }, function ( results ) {
+        finishWithErrors( thro, ret, my.acc( function ( y ) {
+            my.objOwnEach( results, function ( k, v ) {
+                if ( !v.success ) y( v.val );
+            } );
+        } ) );
+    } );
+};
+
+my.objOwnMapConcurrentExn = function ( obj, asyncFunc, thro, ret ) {
+    my.objOwnMapConcurrent( obj, function ( k, v, then ) {
+        asyncFunc( k, v, function ( e ) {
+            then( { success: false, val: e } );
+        }, function ( r ) {
+            then( { success: true, val: r } );
+        } );
+    }, function ( results ) {
+        var errors = [];
+        var successes = {};
+        my.objOwnEach( results, function ( k, v ) {
+            if ( v.success )
+                successes[ k ] = v.val;
+            else
+                errors.push( v.val );
+        } );
+        finishWithErrors( thro, ret, errors, successes );
+    } );
+};
+
+// NOTE: This returns false for my.jsonIso( 0, -0 ) and true for
+// my.jsonIso( 0 / 0, 0 / 0 ). This treats arguments objects as
+// Arrays.
+my.jsonIso = function ( a, b ) {
+    var pairsLeft = [ { a: a, b: b } ];
+    while ( pairsLeft.length !== 0 ) {
+        var pair = pairsLeft.shift();
+        a = pair.a, b = pair.b;
+        if ( my.likeArray( a ) ) {
+            if ( !(my.likeArray( b ) && a.length === b.length) )
+                return false;
+            my.arrEach( a, function ( it, i ) {
+                return pairsLeft.push( { a: it, b: b[ i ] } );
+            } );
+        } else if ( my.isString( a ) ) {
+            if ( !(my.isString( b ) && "" + a === "" + b) )
+                return false;
+        } else if ( my.isNumber( a ) ) {
+            if ( !(my.isNumber( b ) && my.sameTwo( 1 * a, 1 * b )) )
+                return false;
+        } else if ( my.isBoolean( a ) ) {
+            if ( !(my.isBoolean( b ) && !a === !b) )
+                return false;
+        } else if ( a === null ) {
+            if ( b !== null )
+                return false;
+        } else if ( my.likeObjectLiteral( a ) ) {
+            if ( !(
+                my.likeObjectLiteral( b )
+                && my.objOwnAll( a, function ( k, v ) {
+                    return my.hasOwn( b, k );
+                } )
+                && my.objOwnAll( b, function ( k, v ) {
+                    return my.hasOwn( a, k );
+                } )
+            ) )
+                return false;
+            my.objOwnEach( a, function ( k, v ) {
+                pairsLeft.push( { a: v, b: b[ k ] } );
+            } );
+        } else {
+            throw new Error( "Invalid argument to jsonIso()." );
+        }
+    }
+    return true;
+};
+
+
+// ===== Miscellaneous utilities. ====================================
 
 my.alGet = function ( al, k ) {
     for ( var i = 0, n = al.length; i < n; i++ ) {
@@ -341,7 +841,7 @@ my.definer = function ( opt_obj, opt_name, func ) {
         var args = my.arrCut( arguments );
         var obj = my.isName( args[ 1 ] ) ? args.shift() : void 0;
         var name = my.isName( args[ 0 ] ) ? args.shift() : my.noname;
-        var result = my.classicapply( this, func, obj, name, args );
+        var result = my.funcApply( this, func, obj, name, args );
         if ( my.given( obj ) && my.isString( name ) )
             obj[ name ] = result;
         return result;
@@ -351,13 +851,12 @@ my.definer = function ( opt_obj, opt_name, func ) {
     return result;
 };
 
+// TODO: This is global state. Decide how to emphasize and manage this
+// fact.
 var gensymPrefix = "gs" +
     (floor( random() * 1e10 ) + 1e10 + "").substring( 1 ) + "n";
 var gensymSuffix = 0;
 my.gensym = function () { return gensymPrefix + gensymSuffix++; };
-
-
-// ===== Utilities for dealing in object literals and JSON. ==========
 
 
 // This is inspired by Pauan's Object.create() at
@@ -379,136 +878,20 @@ my.shadow = function ( parent, opt_entries ) {
 };
 
 
-if ( getPrototypeOf )
-    my.likeObjectLiteral = function ( x ) {
-        if ( x === null ||
-            objectToString.call( x ) !== "[object Object]" )
-            return false;
-        var p = getPrototypeOf( x );
-        return p !== null && typeof p === "object" &&
-            getPrototypeOf( p ) === null;
-    };
-else if ( {}.__proto__ !== void 0 )
-    my.likeObjectLiteral = function ( x ) {
-        if ( x === null ||
-            objectToString.call( x ) !== "[object Object]" )
-            return false;
-        var p = x.__proto__;
-        return p !== null && typeof p === "object" &&
-            p.__proto__ === null;
-    };
-else
-    my.likeObjectLiteral = function ( x ) {
-        return x !== null &&
-            objectToString.call( x ) === "[object Object]" &&
-            x.constructor === {}.constructor;
-    };
-
-my.objOwnAny = function ( obj, func ) {
-    // TODO: See what to do about the IE DontEnum bug, if anything.
-    for ( var key in obj )
-        if ( my.hasOwn( obj, key ) ) {
-            var result = func( key, obj[ key ] );
-            if ( result )
-                return result;
-        }
-    return false;
-};
-
-my.objOwnAll = function ( obj, func ) {
-    return !my.objOwnAny( obj, function ( k, v ) {
-        return !func( k, v );
-    } );
-};
-
-my.objOwnEach = function ( obj, func ) {
-    return my.objOwnAny( obj, function ( k, v ) {
-        func( k, v );
-        return false;
-    } );
-};
-
-my.objOwnKeys = function ( obj ) {
-    return my.acc( function ( y ) {
-        my.objOwnEach( obj, function ( k, v ) { y( k ); } );
-    } );
-};
-
-my.objAcc = function ( body ) {
-    var result = {};
-    body( function ( var_args ) {
-        for ( var i = 0, n = arguments.length; i < n; ) {
-            var arg = arguments[ i ];
-            i++;
-            var v = arguments[ i ];
-            if ( my.isString( arg ) && i < arguments.length )
-                i++, result[ arg ] = v;
-            else if ( my.likeObjectLiteral( arg ) )
-                my.objOwnEach( arg, function ( k, v ) {
-                    result[ k ] = v;
-                } );
-            else if ( my.likeArray( arg ) && i < arguments.length )
-                i++, my.arrEach( arg, function ( k ) {
-                    result[ k ] = v;
-                } );
-            else
-                throw new Error(
-                    "Unrecognized argument to an objAcc callback." );
-        }
-    } );
-    return result;
-};
-
-function informalArgsToObj( args ) {
-    return my.objAcc( function ( y ) { y.apply( null, args ); } );
+function Opt( bam ) {
+    this.bam = bam;
 }
-
-my.objMap = function ( obj, func ) {
-    return my.objAcc( function ( y ) {
-        my.objOwnEach( obj, function ( k, v ) {
-            y( k, func( v, k ) );
-        } );
-    } );
-};
-
-my.objMappend = function ( obj, func ) {
-    return my.objAcc( function ( y ) {
-        my.objOwnEach( obj, function ( k, v ) {
-            y( func( v, k ) );
-        } );
-    } );
-};
-
-my.objCopy = function ( obj ) {
-    return my.objAcc( function ( y ) {
-        my.objOwnEach( obj, function ( k, v ) { y( k, v ); } );
-    } );
-};
-
-my.Opt = function ( bam ) { this.bam = bam; };
-
-my.opt = function ( opt_result ) {
-    return new my.Opt(
-        my.kfn( my.given( opt_result ) ? opt_result : {} ) );
-};
-
-my.Opt.prototype.or = function ( var_args ) {
+Opt.prototype.or = function ( var_args ) {
     var args = informalArgsToObj( arguments );
     var oldBam = this.bam;
-    return new my.Opt( function () {
-        var result = my.objCopy( oldBam() );
-        my.objOwnEach( args, function ( k, v ) {
-            if ( !my.hasOwn( result, k ) )
-                result[ k ] = v;
-        } );
-        return result;
+    return new Opt( function () {
+        return my.objOwnKeySetOr( oldBam(), args );
     } );
 };
-
-my.Opt.prototype.orf = function ( var_args ) {
+Opt.prototype.orf = function ( var_args ) {
     var args = informalArgsToObj( arguments );
     var oldBam = this.bam;
-    return new my.Opt( function () {
+    return new Opt( function () {
         var result = my.objCopy( oldBam() );
         my.objOwnEach( args, function ( k, v ) {
             if ( !my.hasOwn( result, k ) )
@@ -518,32 +901,11 @@ my.Opt.prototype.orf = function ( var_args ) {
     } );
 };
 
-// NOTE: This returns true for my.jsonIso( 0, -0 ) and false for
-// my.jsonIso( 0 / 0, 0 / 0 ). This treats arguments objects as
-// Arrays.
-my.jsonIso = function ( a, b ) {
-    if ( my.likeArray( a ) )
-        return my.likeArray( b ) && a.length === b.length &&
-            my.arrAll( a, function ( it, i ) {
-                return my.jsonIso( it, b[ i ] );
-            } );
-    if ( my.isString( a ) )
-        return my.isString( b ) && "" + a === "" + b;
-    if ( my.isNumber( a ) )
-        return my.isNumber( b ) && 1 * a === 1 * b;
-    if ( my.isBoolean( a ) )
-        return my.isBoolean( b ) && !a === !b;
-    if ( a === null )
-        return b === null;
-    if ( my.likeObjectLiteral( a ) )
-        return my.likeObjectLiteral( b ) &&
-            my.objOwnAll( a, function ( k, v ) {
-                return my.hasOwn( b, k ) && my.jsonIso( v, b[ k ] );
-            } ) && my.objOwnAll( b, function ( k, v ) {
-                return my.hasOwn( a, k );
-            } );
-    throw new Error( "Invalid argument to jsonIso()." );
+my.opt = function ( opt_result ) {
+    return new Opt(
+        my.kfn( my.given( opt_result ) ? opt_result : {} ) );
 };
+
 
 // TODO: Make this more flexible.
 my.copdate = function ( obj, key, update ) {
@@ -559,8 +921,23 @@ my.copdate = function ( obj, key, update ) {
     return obj;
 };
 
+// Example usage:
+//
+// lathe.namedlet( 0, [], function ( len, acc, next ) { ... } )
+//
+my.namedlet = function () {
+    var init = my.arrCut( arguments );
+    var body = init.pop();
+    function loop( var_args ) {
+        var vals = my.arrCut( arguments );
+        return my.funcApply( null, body, vals.concat( [ loop ] ) );
+    }
+    return loop.apply( null, init );
+};
+
 
 // ===== Debugging. ==================================================
+// TODO: Remove this or scrutinize it.
 
 my.blahlogs = {};
 
@@ -591,6 +968,8 @@ my.blahlogs.elAppend = function ( id ) {
     };
 };
 
+// TODO: This is meant to be used as global state during debugging.
+// Decide how to emphasize and manage this fact.
 my.blahlog = my.blahlogs.docPara;
 
 my.blah = my.definer( function ( obj, name, opt_body, opt_options ) {
@@ -611,161 +990,14 @@ my.blah = my.definer( function ( obj, name, opt_body, opt_options ) {
 
 my.blahfn = my.definer( function ( obj, name, func ) {
     if ( !my.given( name ) ) name = "" + func;
-    return my.sargfn( function () {
-        var self = this, args = my.arrCut( arguments );
-        var sargs = my.sargs();
+    return function ( var_args ) {
+        var self = this, args = arguments;
         my.blahlog( "/= " + name + " " + args );
         return my.blah( name, function () {
-            return my.sapply( self, func, sargs, args );
+            return my.funcApply( self, func, args );
         }, { skipBeginning: true } );
-    } );
-} );
-
-
-// ===== Sargs. ======================================================
-
-// We introduce the concept of a "secret argument," or "sarg" for
-// short, which is essentially a dynamic parameter that only lasts for
-// a single function call, and which a sargfn can use throughout the
-// *lexical* context of the function. It's a lot like giving an extra
-// argument to every function in the language, where most functions
-// ignore the argument and most function calls provide the same
-// default value for the argument.
-//
-// Non-Lathe JavaScript utilities which use Function#apply to forward
-// the arguments of one function to the arguments of another will lose
-// track of sargs. In the context of Lathe, those utilities should
-// instead involve sargfn() and sapply(), as demonstrated here in
-// latefn() and casefn().
-
-var passingSargs = false;
-var currentSargs;
-
-my.isSargfn = function ( func ) {
-    return my.hasOwn( func, "lathe_" ) && func[ "lathe_" ].isSargfn;
-};
-
-my.sargs = function () { return currentSargs; };
-
-my.Sarg = function ( opt_fallback ) {
-    var self = this;
-    this.getValue = function () {
-        var box = my.alGet( my.sargs(), self );
-        return box ? box.val : opt_fallback;
     };
-};
-
-my.sapply = function ( self, func, sargs, var_args ) {
-    var args = my.arrUnbend( arguments, 3 );
-    if ( !my.isSargfn( func ) )
-        return func.apply( self, args );
-    var oldPassing = passingSargs, oldSargs = currentSargs;
-    passingSargs = true, currentSargs = sargs;
-    try { return func.apply( self, args ); }
-    finally { passingSargs = oldPassing, currentSargs = oldSargs; }
-};
-
-my.scall = function ( func, sargs, var_args ) {
-    return my.sapply( null, func, sargs, my.arrCut( arguments, 2 ) );
-};
-
-my.sargfn = my.definer( function ( obj, name, innerFunc ) {
-    function result( var_args ) {
-        var self = this, args = arguments;
-        if ( passingSargs ) {
-            passingSargs = false;
-            try { return innerFunc.apply( self, args ); }
-            finally { passingSargs = true; }
-        }
-        return my.sapply( self, result, [], args );
-    }
-    result[ "lathe_" ] = { isSargfn: true };
-    result.toString = function () { return "[sargfn]"; };
-    return result;
 } );
-
-my.latefn = my.definer( function ( obj, name, getFunc ) {
-    return my.sargfn( function () {
-        return my.sapply( this, getFunc(), my.sargs(), arguments );
-    } );
-} );
-
-
-// ===== Escape continuations. =======================================
-
-my.point = function ( body ) {
-    function EscapeContinuation( value ) { this.value = value; }
-    var stillValid = true;
-    var result;
-    try {
-        result = body( function ( value, fallback ) {
-            if ( !stillValid && fallback )
-                return fallback( value );
-            throw new EscapeContinuation( value );
-        } );
-        stillValid = false;
-    } catch ( e ) {
-        stillValid = false;
-        if ( e instanceof EscapeContinuation )
-            return { raised: true, val: e.value };
-        throw e;
-    }
-    return { returned: true, val: result };
-};
-
-my.tramp = function ( body ) {
-    var result = my.point( function ( raise ) {
-        function trampapply( self, func, var_args ) {
-            return raise(
-                [ self, func, my.arrUnbend( arguments, 2 ) ] );
-        }
-        return body( function ( self, func, var_args ) {
-            return trampapply(
-                self, func, my.arrCut( arguments, 2 ) );
-        }, trampapply );
-    } );
-    if ( result.returned )
-        return result.val;
-    var raised = result.val;
-    return raised[ 1 ].apply( raised[ 0 ], raised[ 2 ] );
-};
-
-
-// Example usage:
-//
-// lathe.tramplet( 0, [],
-//    function ( len, acc, trampnext, next ) { ... } )
-//
-my.tramplet = function () {
-    var init = my.arrCut( arguments );
-    var body = init.pop();
-    function loop( var_args ) {
-        var vals = my.arrCut( arguments );
-        return my.tramp( function ( trampcall, trampapply ) {
-            return body.apply( null, vals.concat( [
-                function ( var_args ) {
-                    return trampapply( null, loop, arguments );
-                },
-                loop
-            ] ) );
-        } );
-    }
-    return loop.apply( null, init );
-};
-
-// Example usage:
-//
-// lathe.namedlet( 0, [], function ( len, acc, next ) { ... } )
-//
-my.namedlet = function () {
-    var init = my.arrCut( arguments );
-    var body = init.pop();
-    function loop( var_args ) {
-        var vals = my.arrCut( arguments );
-        return body.apply( null, vals.concat( [ loop ] ) );
-    }
-    return loop.apply( null, init );
-};
 
 
 // ===== Self-organizing precedence system. ==========================
@@ -777,15 +1009,14 @@ my.namedlet = function () {
 // TODO: Implement lathe.defaultRule( ... ) or something, and provide
 // a batteries-included precedence rule that sorts defaultRules last.
 
-my.TransitiveDag = function ( elems ) {
-    this.nodes = my.map( elems, function ( elem ) {
+function TransitiveDag( elems ) {
+    this.nodes = my.arrMap( elems, function ( elem ) {
         return { elem: elem, befores: [], afters: [] };
     } );
     this.getNode = function ( elem ) {
         var self = this;
         return my.arrAny( self.nodes, function ( node ) {
-            if ( my.sameTwo( elem, node.elem ) )
-                return node;
+            return my.sameTwo( elem, node.elem ) ? node : false;
         } ) || null;
     };
     this.hasEdge = function ( before, after ) {
@@ -795,26 +1026,24 @@ my.TransitiveDag = function ( elems ) {
     };
     this.addEdge = function ( before, after, errorThunk ) {
         var self = this;
-        return my.namedlet( before, after,
-            function ( before, after, next ) {
-                if ( self.hasEdge( before, after ) )
-                    return;
-                if ( self.hasEdge( after, before ) )
-                    errorThunk();
-                // TODO: The Arc version conses. See if we need to
-                // clone these arrays or something to avoid concurrent
-                // modification.
-                var beforeNode = self.getNode( before );
-                var afterNode = self.getNode( after );
-                my.arrEach( beforeNode.befores, function ( it ) {
-                    next( it, after );
-                } );
-                my.arrEach( afterNode.afters, function ( it ) {
-                    next( before, it );
-                } );
-                afterNode.befores.push( before );
-                beforeNode.afters.push( after );
+        var edgesToAdd = [ { before: before, after: after } ];
+        while ( edgesToAdd.length !== 0 ) {
+            var edge = edgesToAdd.shift();
+            if ( this.hasEdge( edge.before, edge.after ) )
+                continue;
+            if ( this.hasEdge( edge.after, edge.before ) )
+                errorThunk();
+            var beforeNode = this.getNode( edge.before );
+            var afterNode = this.getNode( edge.after );
+            afterNode.befores.push( before );
+            beforeNode.afters.push( after );
+            my.arrEach( beforeNode.befores, function ( it ) {
+                edgesToAdd.push( { before: it, after: after } );
             } );
+            my.arrEach( afterNode.afters, function ( it ) {
+                edgesToAdd.push( { before: before, after: it } );
+            } );
+        }
     };
     this.flatten = function () {
         var nodes = this.nodes;
@@ -853,7 +1082,7 @@ my.circularlyOrder = function ( repToComp, comparatorReps ) {
                 } );
         } );
         // promoted recommendation graph, transitive closure
-        var prg = new my.TransitiveDag( comparatorReps );
+        var prg = new TransitiveDag( comparatorReps );
         function alreadyPromoted( before, after ) {
             return prg.hasEdge( before, after );
         }
@@ -886,7 +1115,7 @@ my.circularlyOrder = function ( repToComp, comparatorReps ) {
                 } );
             } );
             var consideredRs = my.arrKeep( urs, function ( ur ) {
-                return ( true
+                return (true
                     && my.arrAny( consideredCs, function ( c ) {
                         return my.sameTwo( c, ur.recommender );
                     } )
@@ -909,7 +1138,7 @@ my.circularlyOrder = function ( repToComp, comparatorReps ) {
             } else {
                 
                 // NOTE: We would say
-                // my.map( consideredRs,
+                // my.arrMap( consideredRs,
                 //     function ( it ) { return it.recommender; } ),
                 // except that that could have duplicates.
                 //
@@ -923,20 +1152,20 @@ my.circularlyOrder = function ( repToComp, comparatorReps ) {
     } );
 };
 
-// TODO: Add "fact" to the Arc version of this comment.
+// TODO: Update the Arc version of this comment.
 //
 // NOTE: We implement this in a sorta spaghetti way just to draw
 // parallels with circularlyOrder(). This should actually be totally
-// consistent with circularlyOrder() if the elements being sorted are
-// seen as giving no recommendations of their own. However, they may
-// in fact be exactly the same values as were used to represent the
-// comparators, so we can't choose any single repToComp function to
-// encompass all the values. Besides, it's nice not to have to
-// circularlyOrder the same things over and over again.
+// consistent with circularlyOrder() if the comparators and the
+// elements being sorted are of types that have no chance of overlap,
+// and if the elements are seen as giving no recommendations of their
+// own. However, that's not necessarily the case, and even if it were,
+// using circularlyOrder for every collection would wastefully re-sort
+// the comparators.
 //
 my.normallyOrder = function ( comparators, elements ) {
     // promoted recommendation graph, transitive closure
-    var prg = new my.TransitiveDag( elements );
+    var prg = new TransitiveDag( elements );
     function alreadyPromoted( before, after ) {
         return prg.hasEdge( before, after );
     }
@@ -961,52 +1190,6 @@ my.normallyOrder = function ( comparators, elements ) {
 };
 
 
-my.orderRules = [];
-my.orderRbToken = {};
-
-my.delOrderRules = function ( check ) {
-    my.orderRules = my.arrRem( my.orderRules, check );
-};
-
-my.addOrderRule = function ( rule ) {
-    my.orderRules.unshift( rule );
-};
-
-my.addUnnamedOrderRule = function ( func ) {
-    my.addOrderRule( { rbToken: my.orderRbToken, impl: func } );
-};
-
-my.addNamedOrderRule = function ( name, func ) {
-    if ( name === my.noname )
-        return my.addUnnamedOrderRule( func );
-    my.delOrderRules( function ( it ) {
-        return my.ruleIsNamed( it, name );
-    } );
-    my.addOrderRule(
-        { rbToken: my.orderRbToken, name: name, impl: func } );
-};
-
-my.orderRule = function ( opt_name, func ) {
-    if ( !my.isName( opt_name ) )
-        my.addUnnamedOrderRule( opt_name );
-    else if ( opt_name === my.noname )
-        my.addUnnamedOrderRule( func );
-    else
-        my.addNamedOrderRule( opt_name, func );
-};
-
-my.orderedRulebooks = [];
-
-my.orderRulebooks = function () {
-    function impl( it ) { return it.impl; }
-    my.orderRules = my.circularlyOrder( impl,  my.orderRules );
-    var impls = my.arrMap( my.orderRules, impl );
-    my.arrEach( my.orderedRulebooks, function ( rb ) {
-        var rbl = rb[ "lathe_" ];
-        rbl.rules = my.normallyOrder( impls, rbl.rules );
-    } );
-};
-
 my.preferfn = function ( var_args ) {
     var tests = my.arrCut( arguments );
     return function ( rules ) {
@@ -1029,639 +1212,445 @@ my.preferfn = function ( var_args ) {
     };
 };
 
-function nonefn( tests ) {
-    return function ( it ) {
-        return !my.arrAny( tests, function ( test ) {
-            return test( it );
-        } );
-    };
-}
 
-// TODO: Port prefer(), preferFirst(), preferLast(), preferNames(),
-// preferNamesFirst(), and preferNamesLast() back to Arc. The Arc
-// 'prefer-names-first is actually our preferNames(); it doesn't
-// establish a preference over anything but the other names given.
+// ===== Predicate dispatch. =========================================
 
-my.prefer = function ( opt_name, var_args ) {
-    if ( my.isName( opt_name ) )
-        my.orderRule( opt_name,
-            my.preferfn.apply( null, my.arrCut( arguments, 1 ) ) );
-    else
-        my.orderRule( my.preferfn.apply( null, arguments ) );
-};
-
-my.preferFirst = function ( opt_name, var_args ) {
-    
-    var tests = my.arrCut( arguments );
-    if ( my.isName( opt_name ) )
-        tests.shift();
-    else
-        opt_name = my.noname;
-    return my.classicapply( null, my.prefer, opt_name,
-        tests.concat( [ nonefn( tests ) ] ) );
-};
-
-my.preferLast = function ( opt_name, var_args ) {
-    
-    var tests = my.arrCut( arguments );
-    if ( my.isName( opt_name ) )
-        tests.shift();
-    else
-        opt_name = my.noname;
-    return my.classicapply( null, my.prefer, opt_name,
-        [ nonefn( tests ) ].concat( tests ) );
-};
-
-
-// These are utilities for making rules with certain names have high
-// or low preference.
-//
-// These were originally posted at
-// http://arclanguage.org/item?id=11784.
-
-function defPreferNames( prefer ) {
-    return function ( opt_orderRuleName, rbToken, var_args ) {
-        var ruleNames = my.arrCut( arguments, 1 );
-        if ( my.isName( opt_orderRuleName ) ) {
-            ruleNames.shift();
-        } else {
-            rbToken = opt_orderRuleName;
-            opt_orderRuleName = my.noname;
-        }
-        rbToken = toRbToken( rbToken );
-        return my.classicapply( null, prefer, opt_orderRuleName,
-            my.arrMap( ruleNames, function ( name ) {
-                return function ( rule ) {
-                    return my.sameTwo( rule.rbToken, rbToken ) &&
-                        rule.name === name;
-                };
-            } ) );
-    };
-}
-
-my.preferNames = defPreferNames( my.prefer );
-my.preferNamesFirst = defPreferNames( my.preferFirst );
-my.preferNamesLast = defPreferNames( my.preferLast );
-
-
-// ===== Failcall. ===================================================
-
-// TODO: Incorporate typo corrections in this text back into Arc.
-// TODO: Rewrite this to account for the fact that failcall() is now
-// fcall() and uses no escape continuations.
-//
-// This simulates a parameter on *every* function call that specifies
-// what to do instead if the function call doesn't make sense. This
-// parameter is called "fail". In order to pass the parameter to a
-// function, you must use failcall(), and in order to make a function
-// that's aware of its fail parameter, you should use failfn().
-//
-// The parameter passed using failcall() and the parameter received by
-// failfn() aren't quite the same. First, failfn() wraps the fail
-// parameter in an escape continuation so that you can call it
-// anywhere in the function and exit the computation.
-//
-// The default fail parameter--the one that's passed if you don't use
-// failcall()--is raiseFailure(), which throws an error. Thus, if you
-// call a failfn's fail parameter (and if you don't, why is it a
-// failfn?), it helps to pass a helpful message describing the nature
-// of the failure. If a computation tries a whole lot of things in
-// succession and still fails, it should fail (or raise an error)
-// containing all the individual failure messages, along with the
-// nature of its own involvement in that process, just so that the
-// error message is as informative as possible. Whatever type you
-// collect the messages in, you should make sure pprintMessage() is
-// extended for that type so that it can be turned into an error
-// message properly.
-//
-// So why fail when you can just call 'err? Suppose your function uses
-// an error of type X to signal an undefined case, but it calls a
-// function that uses an error of type X to signal an undefined case
-// *of its own*. (Maybe this is a recursive call.) You might not want
-// the caller of your function to just try another case--maybe you've
-// done a significant amount of computation for this case already, or
-// maybe you've done I/O--so you need to explicitly wrap up those
-// errors of type X that don't belong to you so that they can't be
-// confused with yours. But what if the troublesome function you
-// called was a higher-order function, and you wanted to raise your
-// error of type X *from inside* a callback? Then you have to jump
-// through an extra hoop to get around your own error-wrapping
-// code--maybe a continuation jump, or maybe another layer of wrapping
-// and unwrapping. With this framework, you instead get a fail
-// parameter which is visible throughout the function's lexical scope,
-// even callbacks it passes, and inner failures don't propagate unless
-// you specifically make it so using a failcall.
-//
-// Why fail when you can just encode success or failure in the return
-// type, like Haskell programmers do with Either? Because then callers
-// to your function have to explicitly unwrap your return value before
-// they use it. Often the undefined cases of a function aren't
-// inherent in its meaning; instead, users can do things that augment
-// the behavior of that function until it's defined in all the cases
-// they need. (This makes less sense in a pure language like Haskell,
-// but consider that a Haskell type class is little but a way for
-// certain functions' meanings to transcend the designer's own uses
-// for them.) Perhaps the *meaning* of the function applies
-// everywhere; then the possibility for a "failure" return value is
-// only significant to an application in the making, and it doesn't
-// have an actual impact on the final program's control flow. This
-// framework lets the control flow be implicit whether or not the
-// program's complete.
-
-// TODO: Implement extension spaces, probably by having some kind of
-// mutable variable like lathe.currentExtensionSpace. Actually,
-// *design* extension spaces first: What happens if someone uses
-// lathe.delRules() in the scope of one extension space and then tries
-// merging that space with another?
 
 // TODO: See if this should inherit from Error.
-my.FailureError = function ( failure ) {
+function FailureError( failure ) {
     this.error_ = new Error();  // for stack trace
     this.failure_ = failure;
-};
+}
 
 // TODO: This can cause side effects or fail, if pprintMessage is set
 // up to do that. See if there's an alternative.
-my.FailureError.prototype.toString = function () {
+FailureError.prototype.toString = function () {
     return my.pprintMessage( this.failure_ );
 };
 
-// This is what to do with failures when not fcalling.
 my.raiseFailure = function ( failure ) {
-    throw new my.FailureError( failure );
-};
-
-my.fcallingSarg = new my.Sarg( false );
-
-my.failapply = function ( self, func, var_args ) {
-    return my.sapply( self, func, [ [ my.fcallingSarg, true ] ],
-        my.arrUnbend( arguments, 2 ) );
-};
-
-my.fcall = function ( func, var_args ) {
-    return my.failapply( null, func, my.arrCut( arguments, 1 ) );
+    throw new FailureError( failure );
 };
 
 
-my.FcallResult_ = function () {};
-my.FcallResult_.prototype.init_ = function ( success, val ) {
+function DubiousResult_() {}
+DubiousResult_.prototype.init_ = function ( success, val ) {
     this.success_ = success;
     this.val_ = val;
     return this;
 };
-my.FcallResult_.prototype.fail = function () {
+DubiousResult_.prototype.failed = function () {
     return !this.success_;
 };
-my.FcallResult_.prototype.val = function () {
+DubiousResult_.prototype.val = function () {
     return this.val_;
 };
 
 my.win = function ( val ) {
-    return new my.FcallResult_().init_( !!"success", val );
+    return new DubiousResult_().init_( !!"success", val );
 };
 my.fail = function ( val ) {
-    return new my.FcallResult_().init_( !"success", val );
+    return new DubiousResult_().init_( !"success", val );
+};
+
+my.getWin = function ( dubiousResult ) {
+    if ( dubiousResult.failed() )
+        my.raiseFailure( dubiousResult.val() );
+    return dubiousResult.val();
 };
 
 
-my.FunctionFailure = function ( func, self, args, complaint ) {
-    this.func = func;
-    this.self = self;
-    this.args = args;
-    this.complaint = complaint;
-};
-
-
-// Make partial functions using this.
-my.failfn = my.definer( function ( obj, name, func ) {
-    var result = my.sargfn( function ( var_args ) {
-        var self = this, args = my.arrCut( arguments );
-        var sargs = my.sargs(), fcalling = my.fcallingSarg.getValue();
-        var result = my.sapply( self, func, sargs, args );
-        if ( result.fail() ) {
-            var failure = new my.FunctionFailure(
-                result, self, args, result.val() );
-            if ( fcalling )
-                return my.fail( failure );
-            my.raiseFailure( failure );
-        } else {
-            return fcalling ? result : result.val();
-        }
-    } );
-    result.toString = function () { return "[failfn " + name + "]"; };
-    return result;
-} );
-
-// TODO: Implement this in Arc.
-my.RulebookFailure = function ( name, self, args, complaints ) {
+function RulebookFailure( name, self, args, complaints ) {
     this.name = name;
     this.self = self;
     this.args = args;
     this.complaints = complaints;
-};
-
-
-// TODO: Redesign the Arc version this way.
-my.casefn = my.definer( function (
-    obj, name, getCases, opt_getImpl ) {
-    
-    if ( !my.given( opt_getImpl ) ) opt_getImpl = my.idfn;
-    return my.sargfn( name, function () {
-        var self = this, args = my.arrCut( arguments );
-        var sargs = my.sargs(), fcalling = my.fcallingSarg.getValue();
-        // NOTE: We're saving stack frames by inlining
-        // my.point( ... ).val and my.arrEach( getCases(), ... ).
-        // NOTE: We're saving stack frames by inlining acc.
-        var complaints = [];
-        var cases = getCases();
-        for ( var i = 0, len = cases.length; i < len; i++ ) {
-            var thisCase = cases[ i ];
-            var result = my.sapply( self, opt_getImpl( thisCase ),
-                my.alCons( my.fcallingSarg, true, sargs ), args );
-            if ( result.fail() )
-                complaints.push( result.val() );
-            else
-                return fcalling ? result : result.val();
-        }
-        var failure =
-            new my.RulebookFailure( name, self, args, complaints );
-        if ( fcalling )
-            return my.fail( failure );
-        else
-            my.raiseFailure( failure );
-    } );
-} );
-
-
-my.getRules = function ( rb ) {
-    return rb[ "lathe_" ].rules;
-};
-
-my.getRuleImpl = function ( rule ) {
-    return rule.impl;
-};
-
-my.ruleIsNamed = function ( rule, name ) {
-    return rule.name === name;
-};
-
-my.unorderedRulebook = my.definer( function ( obj, name ) {
-    var result = my.casefn( name,
-        function () { return my.getRules( result ); },
-        my.getRuleImpl );
-    // Since result() is an sargfn, it already has a lathe_ property.
-    result[ "lathe_" ].rules = [];
-    result[ "lathe_" ].rbToken = {};
-    return result;
-} );
-
-my.rulebook = function ( opt_obj, opt_name ) {
-    var result = my.unorderedRulebook( opt_obj, opt_name );
-    my.orderedRulebooks.push( result );
-    return result;
-};
-
-function toRbToken( rb ) {
-    if ( my.hasOwn( rb, "lathe_" ) )
-        return rb[ "lathe_" ].rbToken;
-    return rb;
 }
 
-my.delRules = function ( rb, check ) {
-    var rbl = rb[ "lathe_" ];
-    rbl.rules = my.arrRem( rbl.rules, check );
+
+my.rbApply = function ( self, rb, var_args ) {
+    var args = my.arrUnbend( arguments, 2 );
+    var complaints = [];
+    for ( var i = 0, n = rb.length; i < n; i++ ) {
+        var thisCase = rb[ i ];
+        var result = my.funcApply( self, thisCase, args );
+        if ( result.failed() )
+            complaints.push( result.val() );
+        else
+            return result;
+    }
+    return my.fail(
+        new RulebookFailure( name, self, args, complaints ) );
 };
 
-my.addRule = function ( rb, rule ) {
-    rb[ "lathe_" ].rules.unshift( rule );
+my.rbCall = function ( rb, var_args ) {
+    return my.rbApply( null, rb, my.arrCut( arguments, 1 ) );
 };
 
-my.addUnnamedRule = function ( rb, func ) {
-    my.addRule( rb, { rbToken: rb[ "lathe_" ].rbToken, impl: func } );
-};
-
-my.addNamedRule = function ( rb, name, func ) {
-    if ( name === my.noname )
-        return my.addUnnamedRule( rb, func );
-    my.delRules( rb, function ( it ) {
-        return my.ruleIsNamed( it, name );
-    } );
-    my.addRule( rb,
-        { rbToken: rb[ "lathe_" ].rbToken, name: name, impl: func } );
-};
-
-my.ruleDefiner = my.definer( function ( obj, name, func ) {
-    return function ( rb, opt_name, var_args ) {
-        var args;
-        if ( my.isName( opt_name ) ) {
-            args = my.arrCut( arguments, 2 );
-        } else {
-            args = my.arrCut( arguments, 1 );
-            opt_name = my.noname;
-        }
-        var result =
-            my.classicapply( this, func, rb, opt_name, args );
-        my.addNamedRule( rb, opt_name, result );
-        return result;
-    };
-} );
-
-// TODO: Switch over to namespaced names, and figure out what to do
-// about this.
-function prefixName( prefix, name ) {
-    return name === my.noname ? name : "" + prefix + ":" + name;
-};
-
-my.rule = my.ruleDefiner( function ( rb, name, func ) {
-    return my.failfn( prefixName( "rule", name ), func );
-} );
-
-my.instanceofRule = my.ruleDefiner( function (
-    rb, name, Type, func ) {
-    
-    return my.failfn( prefixName( "instanceofRule", name ), function (
-        var_args ) {
-        
+my.caseInstanceof = function ( Type, body ) {
+    return function ( var_args ) {
         var first = arguments[ 0 ];
         if ( arguments.length < 1
             || !(typeof first === "object" && first instanceof Type) )
             return my.fail(
                 "The first argument wasn't a(n) " + Type.name + "." );
-        return my.sapply( this, func, my.sargs(), arguments );
-    } );
-} );
-
-my.zapRule = my.ruleDefiner( function ( rb, name, zapper, func ) {
-    return my.failfn( prefixName( "zapRule", name ), function (
-        var_args ) {
-        
-        var sargs = my.sargs();
-        var relied = my.fcall( zapper, arguments[ 0 ] );
-        if ( relied.fail() ) return relied;
-        return my.sapply( this, func, sargs, relied.val(),
-            my.arrCut( arguments, 1 ) );
-    } );
-} );
-
-
-my.pprintMessage = function ( message ) {
-    // If it's an unrecognized type, we just use its toString
-    // appearance.
-    var unrelied = my.fcall( my.pprintMessageRb, message );
-    return unrelied.fail() ? "" + message : unrelied.val();
+        return my.funcApply( this, body, arguments );
+    };
 };
 
-my.pprintMessageRb = my.rulebook( "pprintMessageRb" );
+my.caseZap = function ( zapper, body ) {
+    return function ( var_args ) {
+        if ( arguments.length < 1 )
+            return my.fail(
+                "There were no arguments to a zapPartialfn." );
+        var relied = zapper( arguments[ 0 ] );
+        // TODO: See if we should verify that the result is a
+        // DubiousResult_.
+        if ( relied.failed() ) return relied;
+        return my.funcApply(
+            this, body, relied.val(), my.arrCut( arguments, 1 ) );
+    };
+};
 
-my.rule( my.pprintMessageRb, "string", function ( failure ) {
+
+// TODO: This is meant to be used as global state during debugging.
+// Decide how to emphasize and manage this fact.
+// TYPE: D -rb> () -> string
+my.pprintMessageRb = [];
+
+// TYPE: D -> string
+my.pprintMessage = function ( message ) {
+    var unrelied = my.rbCall( my.pprintMessageRb, message );
+    // If it's an unrecognized type, we just use its toString
+    // appearance.
+    return unrelied.failed() ? "" + message : unrelied.val();
+};
+
+my.pprintMessageRb.push( function ( failure ) {
     if ( !my.isString( failure ) )
         return my.fail( "The failure isn't a string." );
-    return my.win( failure );
-} );
-
-my.instanceofRule(
-    my.pprintMessageRb, "FunctionFailure", my.FunctionFailure,
-    function ( failure ) {
-    
-    return my.win( ""
-        + "/\n"
-        + "Calling function " + failure.func + " on " + failure.self +
-            " with " + failure.args + " failed with this complaint:\n"
-        + my.pprintMessage( failure.complaint ) + "\n"
-        + "\\\n"
-    );
+    return my.win( my.kfn( failure ) );
 } );
 
 // TODO: Fix this case in Arc.
-my.instanceofRule(
-    my.pprintMessageRb, "RulebookFailure", my.RulebookFailure,
+my.pprintMessageRb.push( my.caseInstanceof( RulebookFailure,
     function ( failure ) {
     
-    return my.win( ""
-        + "/\n"
-        + "Calling rulebook " + failure.name + " on " + failure.self +
-            " with " + failure.args +
-            " failed with these complaints:\n"
-        + my.arrMap( failure.complaints,
-            function ( it ) { return my.pprintMessage( it ); } ).
-            join( "\n" )
-        + "\\\n"
-    );
-} );
-
-
-// ===== Rulebook-based types. =======================================
-
-// This defines a constructor which accepts a lathe.likeArray() of
-// implementations for a particular list of rulebooks, which may be
-// defined at the same time. For instance,
-// lathe.deftype( my, "Foo", "bar", my.baz ) defines the rulebook
-// my.bar, and it defines the constructor my.Foo, which can be called
-// as "new my.Foo( [ implOfBar, implOfBaz ] )". The implementations
-// will be passed all the arguments except for the first one, which
-// will always be the object they're on anyway.
-//
-// The constructor has a by() method so as to cut down on parentheses:
-// "my.Foo.by( implOfBar, implOfBaz )". We could have had the
-// constructor accept a plain argument list, but that would only make
-// it difficult to apply the constructor to a dynamic list of
-// arguments. (Any attempt would need to involve something like
-// lathe.newapply(), which relies on the Function constructor.)
-//
-// For even more convenience, the constructor has an of() method so
-// that it's easy to define types whose "innate" rulebooks are
-// actually unwrappers. For example, "my.Foo.of( 1, 2 )" makes a value
-// "foo" such that "my.bar( foo )" is 1 and "my.baz( foo )" is 2. In
-// fact, it's equivalent to
-// "my.Foo.by( lathe.kfn( 1 ), lathe.kfn( 2 ) )".
-//
-my.deftype = my.definer( function ( obj, name, var_args ) {
-    var args = my.arrCut( arguments, 2 );
-    var ruleName = prefixName( "deftype", name );
-    function Result( impl ) { this.impl = impl; }
-    my.arrEach( args, function ( rb, i ) {
-        if ( my.isString( rb ) )
-            rb = my.rulebook( obj, rb );
-        // TODO: This will complain "The first argument wasn't a(n)
-        // Result." Make that more informative.
-        my.instanceofRule( rb, ruleName, Result, function (
-            x, var_args ) {
-            
-            return my.win( my.sapply( this, x.impl[ i ], my.sargs(),
-                my.arrCut( arguments, 1 ) ) );
-        } );
+    return my.win( function () {
+        return (""
+            + "/\n"
+            + "Calling rulebook " + failure.name + " on " +
+                failure.self + " with " + failure.args + " failed " +
+                "with these complaints:\n"
+            + my.arrMap( failure.complaints,
+                function ( it ) { return my.pprintMessage( it ); } ).
+                join( "\n" )
+            + "\\\n");
     } );
-    Result.prototype.toString = function () {
-        return "[deftype " + name + "]";
-    };
-    Result.by = function ( var_args ) {
-        return new Result( my.arrCut( arguments ) );
-    };
-    Result.of = function ( var_args ) {
-        return new Result( my.arrMap( arguments, my.kfn ) );
-    };
-    return Result;
-} );
-
+} ) );
 
 
 // ===== Extensible iteration utilities. =============================
 
+var pd = my.predicateDispatch = {};
 
-my.isRb = my.rulebook( "isRb" );
+// TYPE: (L> D * D -rb> () -> 2) -k> [ D ] -> 2
+pd.is = function ( getIsRb ) {
+    return function ( args ) {
+        if ( args.length === 0 ) return true;
+        args = my.arrCut( args );
+        var first = args.shift();
+        return my.arrAll( args, function ( arg ) {
+            if ( my.sameTwo( first, arg ) ) return true;
+            var unrelied = my.rbCall( getIsRb(), first, arg );
+            return !unrelied.failed() && unrelied.val()();
+        } );
+    };
+};
 
-my.is = function ( var_args ) {
-    var args = my.arrCut( arguments );
-    if ( args.length === 0 ) return true;
-    var first = args.shift();
-    return my.arrAll( args, function ( arg ) {
-        if ( my.sameTwo( first, arg ) ) return true;
-        var unrelied = my.fcall( my.isRb, first, arg );
-        return !unrelied.fail() && unrelied.val();
-    } );
-}
-
-
-my.toCheckRb = my.rulebook( "toCheckRb" );
-
-my.rule( my.toCheckRb, "function", function ( x ) {
-    if ( !(typeof x === "function"
-        || (typeof x === "object" && x instanceof Function)) )
-        return my.fail( "It isn't a function." );
-    return my.win( x );
-} );
-
-my.toCheck = function ( x ) {
-    var unrelied = my.fcall( my.toCheckRb, x );
-    return unrelied.fail() ?
-        function ( y ) { return my.is( x, y ); } : unrelied.val();
+// TYPE:
+// ( (L> D * D -rb> () -> 2)
+// * (L> D -rb> D -s> D)
+// ) -k> D -r> D -s> D
+pd.toCheck = function ( getIsRb, getToCheckRb ) {
+    return function ( x ) {
+        if ( my.isFunction( x ) )
+            return my.win( x );
+        var unrelied = my.rbCall( getToCheckRb(), x );
+        return unrelied.failed() ?
+            my.win( function ( y ) {
+                return pd.is( getIsRb() )( [ x, y ] );
+            } ) :
+            unrelied;
+    };
 };
 
 
-my.ifanyRb = my.rulebook( "ifanyRb" );
+pd.ifanyRb = {};
 
-my.ifany = my.failfn( "ifany", function (
-    coll, check, opt_then, opt_els ) {
-    
-    if ( !my.given( opt_then ) )
-        opt_then = function ( elem, checkResult ) {
-            return { elem: elem, checkResult: checkResult };
-        };
-    if ( !my.given( opt_els ) ) opt_els = my.kfn( null );
-    return my.fcall(
-        my.ifanyRb, coll, my.toCheck( check ), opt_then, opt_els );
-} );
+// TYPE:
+// ( (L> D * D -rb> () -> 2)
+// * (L> D -rb> D -s> D)
+// * (L> D * (D -s> D) * (D * D -s> D) * (() -s> D) -rb> () -s> D)
+// ) -k> D * D *? (D * D -s> D) *? (() -s> D) -r> () -s> D
+pd.ifany = function ( getIsRb, getToCheckRb, getIfanyRb ) {
+    return function ( coll, check, opt_then, opt_els ) {
+        if ( !my.given( opt_then ) )
+            opt_then = function ( elem, checkResult ) {
+                return { elem: elem, checkResult: checkResult };
+            };
+        if ( !my.given( opt_els ) ) opt_els = my.kfn( null );
+        var relied = pd.toCheck( getIsRb(), getToCheckRb() )( check );
+        if ( relied.failed() ) return relied;
+        return my.rbCall(
+            getIfanyRb(), coll, relied.val(), opt_then, opt_els );
+    };
+};
 
-my.any = my.failfn( "any", function ( coll, check ) {
-    var relied = my.fcall( my.ifany, coll, my.toCheck( check ) );
-    if ( relied.fail() ) return relied;
-    var apart = relied.val();
-    return my.win( apart ? apart.checkResult : false );
-} );
+// TYPE:
+// ( (L> D * D -rb> () -> 2)
+// * (L> D -rb> D -s> D)
+// * (L> D * (D -s> D) * (D * D -s> D) * (() -s> D) -rb> () -s> D)
+// ) -k> D * D -r> () -s> D
+pd.any = function ( getIsRb, getToCheckRb, getIfanyRb ) {
+    return function ( coll, check ) {
+        var relied =
+            pd.ifany( getIsRb(), getToCheckRb(), getIfanyRb() )(
+                coll, check );
+        if ( relied.failed() ) return relied;
+        return my.win( function () {
+            var apart = relied.val()();
+            return apart ? apart.checkResult : false;
+        } );
+    };
+};
 
 // TODO: This is a more open-faced implementation of lathe.any(),
 // which might allow for extensions which don't rely so much on the
 // continuation-passing-style lathe.ifany() and therefore put less
 // pressure on the call stack. See if it will be useful.
 /*
-my.anyRb = my.rulebook( "anyRb" );
+pd.anyRb = {};
 
-my.any = my.failfn( "any", function ( coll, check ) {
-    return my.fcall( my.anyRb, coll, my.toCheck( check ) );
-} );
+// TYPE:
+// ( (L> D * D -rb> () -> 2)
+// * (L> D -rb> D -s> D)
+// * (L> D * (D -s> D) -rb> () -s> D)
+// ) -k> D * D -r> () -s> D
+pd.any = function ( getIsRb, getToCheckRb, getAnyRb ) {
+    return function ( coll, check ) {
+        var relied = pd.toCheck( getIsRb(), getToCheckRb() )( check );
+        if ( relied.failed() ) return relied;
+        return my.rbCall( getAnyRb, coll, relied.val() );
+    };
+};
 
-my.rule( my.anyRb, "ifany", function ( coll, check ) {
-    var relied = my.fcall( my.ifany, coll, check );
-    if ( relied.fail() ) return relied;
-    var apart = relied.val();
-    return my.win( apart ? apart.checkResult : false );
-} );
+// TYPE:
+// ( (L> D * D -rb> () -> 2)
+// * (L> D -rb> D -s> D)
+// * (L> D * (D -s> D) * (D * D -s> D) * (() -s> D) -rb> () -s> D)
+// ) -k> D * (D -s> D) -r> () -s> D
+pd.anyRb.ifany = function ( getIsRb, getToCheckRb, getIfanyRb ) {
+    return function ( coll, check ) {
+        var relied =
+            pd.ifany( getIsRb(), getToCheckRb(), getIfanyRb() )(
+                coll, check );
+        if ( relied.failed() ) return relied;
+        return my.win( function () {
+            var apart = relied.val()();
+            return apart ? apart.checkResult : false;
+        } );
+    };
+};
 */
 
 
-my.ifanykeyRb = my.rulebook( "ifanykeyRb" );
+pd.ifanykeyRb = {};
 
-my.ifanykey = my.failfn( "ifanykey", function (
-    coll, check, opt_then, opt_els ) {
-    
-    if ( !my.given( opt_then ) )
-        opt_then = function ( k, v, checkResult ) {
-            return { k: k, v: v, checkResult: checkResult };
-        };
-    if ( !my.given( opt_els ) ) opt_els = my.kfn( null );
-    return my.fcall( my.ifanykeyRb, coll, check, opt_then, opt_els );
-} );
+// TYPE:
+// (L>
+//     D * (D * D -s> D) * (D * D * D -s> D) * (() -s> D)
+//         -rb> () -s> D)
+//     -k> D * (D * D -s> D) *? (D * D * D -s> D) *? (() -s> D)
+//     -r> () -s> D
+pd.ifanykey = function ( getIfanykeyRb ) {
+    return function ( coll, check, opt_then, opt_els ) {
+        if ( !my.given( opt_then ) )
+            opt_then = function ( k, v, checkResult ) {
+                return { k: k, v: v, checkResult: checkResult };
+            };
+        if ( !my.given( opt_els ) ) opt_els = my.kfn( null );
+        return my.rbCall(
+            getIfanykeyRb(), coll, check, opt_then, opt_els );
+    };
+};
 
-my.anykey = my.failfn( "anykey", function ( coll, check ) {
-    var relied = my.fcall( my.ifanykey, coll, check );
-    if ( relied.fail() ) return relied;
-    var apart = relied.val();
-    return my.win( apart ? apart.checkResult : false );
-} );
+// TYPE:
+// (L>
+//     D * (D * D -s> D) * (D * D * D -s> D) * (() -s> D)
+//         -rb> () -s> D)
+//     -k> D * (D * D -s> D) -r> () -s> D
+pd.anykey = function ( getIfanykeyRb ) {
+    return function ( coll, check ) {
+        var relied = pd.ifanykey( getIfanykeyRb() )( coll, check );
+        if ( relied.failed() ) return relied;
+        return my.win( function () {
+            var apart = relied.val()();
+            return apart ? apart.checkResult : false;
+        } );
+    };
+};
 
 
-my.rule( my.ifanyRb, "ifanykey", function ( coll, check, then, els ) {
-    var relied = my.fcall( my.ifanykey, coll,
-        function ( k, v ) { return check( v ); } );
-    if ( relied.fail() ) return relied;
-    var apart = relied.val();
-    return my.win(
-        apart ? then( apart.v, apart.checkResult ) : els() );
-} );
+// TYPE:
+// (L>
+//     D * (D * D -s> D) * (D * D * D -s> D) * (() -s> D)
+//         -rb> () -s> D)
+//     -k> D * (D -s> D) * (D * D -s> D) * (() -s> D)
+//     -r> () -s> D
+pd.ifanyRb.ifanykey = function ( getIfanykeyRb ) {
+    return function ( coll, check, then, els ) {
+        var relied = pd.ifanykey( getIfanykeyRb() )( coll,
+            function ( k, v ) {
+                return check( v );
+            } );
+        if ( relied.failed() ) return relied;
+        return my.win( function () {
+            var apart = relied.val()();
+            return apart ? then( apart.v, apart.checkResult ) : els();
+        } );
+    };
+};
 
 
 // TODO: Fix this in the Penknife draft. (It passes a function of the
 // wrong arity.)
-my.allkey = my.failfn( "allkey", function ( coll, check ) {
-    var relied = my.fcall(
-        my.anykey, function ( k, v ) { return !check( k, v ); } );
-    if ( relied.fail() ) return relied;
-    return my.win( !relied.val() );
-} );
+// TYPE:
+// (L>
+//     D * (D * D -s> D) * (D * D * D -s> D) * (() -s> D)
+//         -rb> () -s> D)
+//     -k> D * (D * D -s> D) -r> () -s> 2
+pd.allkey = function ( getIfanykeyRb ) {
+    return function ( coll, check ) {
+        var relied = pd.anykey( getIfanykeyRb() )( coll,
+            function ( k, v ) {
+                return !check( k, v );
+            } );
+        if ( relied.failed() ) return relied;
+        return my.win( function () {
+            return !relied.val()();
+        } );
+    };
+};
 
-my.all = my.failfn( "all", function ( coll, check ) {
-    check = my.toCheck( check );
-    var relied = my.fcall(
-        my.any, coll, function ( it ) { return !check( it ); } );
-    if ( relied.fail() ) return relied;
-    return my.win( !relied.val() );
-} );
+// TYPE:
+// ( (L> D * D -rb> () -> 2)
+// * (L> D -rb> D -s> D)
+// * (L> D * (D -s> D) * (D * D -s> D) * (() -s> D) -rb> () -s> D)
+// ) -k> D * D -r> () -s> 2
+pd.all = function ( getIsRb, getToCheckRb, getIfanyRb ) {
+    return function ( coll, check ) {
+        var reliedCheck =
+            pd.toCheck( getIsRb(), getToCheckRb() )( check );
+        if ( reliedCheck.failed() ) return reliedCheck;
+        var reliedAny =
+            pd.any( getIsRb(), getToCheckRb(), getIfanyRb() )( coll,
+                function ( x ) {
+                    return !reliedCheck.val()( x );
+                } );
+        if ( reliedAny.failed() ) return reliedAny;
+        return my.win( function () {
+            return !relied.val()();
+        } );
+    };
+};
 
-my.poskey = my.failfn( "poskey", function ( coll, check ) {
-    var relied = my.fcall( my.ifanykey, coll, my.toCheck( check ) );
-    if ( relied.fail() ) return relied;
-    var apart = relied.val();
-    return my.win( apart ? apart.k : void 0 );
-} );
+// TYPE:
+// (L>
+//     D * (D * D -s> D) * (D * D * D -s> D) * (() -s> D)
+//         -rb> () -s> D)
+//     -k> D * (D * D -s> D) -r> () -s> D
+pd.poskey = function ( getIfanykeyRb ) {
+    return function ( coll, check ) {
+        var relied = pd.ifanykey( getIfanykeyRb() )( coll, check );
+        if ( relied.failed() ) return relied;
+        return my.win( function () {
+            var apart = relied.val()();
+            return apart ? apart.k : void 0;
+        } );
+    };
+};
 
-my.pos = my.failfn( "pos", function ( coll, check ) {
-    check = my.toCheck( check );
-    return my.fcall(
-        my.poskey, coll, function ( k, v ) { return check( v ); } );
-} );
+// TYPE:
+// ( (L> D * D -rb> () -> 2)
+// * (L> D -rb> D -s> D)
+// * (L>
+//     D * (D * D -s> D) * (D * D * D -s> D) * (() -s> D)
+//     -rb> () -s> D)
+// ) -k> D * D -r> () -s> D
+pd.pos = function ( getIsRb, getToCheckRb, getIfanykeyRb ) {
+    return function ( coll, check ) {
+        var relied = pd.toCheck( getIsRb(), getToCheckRb() )( check );
+        if ( relied.failed() ) return relied;
+        return pd.poskey( getIfanykeyRb() )( coll, function ( k, v ) {
+            return reliedCheck.val()( v );
+        } );
+    };
+};
 
-my.findkey = my.failfn( "findkey", function ( coll, check ) {
-    var relied = my.fcall( my.ifanykey, coll, my.toCheck( check ) );
-    if ( relied.fail() ) return relied;
-    var apart = relied.val();
-    return my.win( apart ? apart.v : void 0 );
-} );
+// TYPE:
+// (L>
+//     D * (D * D -s> D) * (D * D * D -s> D) * (() -s> D)
+//         -rb> () -s> D)
+//     -k> D * D -r> () -s> D
+pd.findkey = function ( getIfanykeyRb ) {
+    return function ( coll, check ) {
+        var relied = pd.ifanykey( getIfanykeyRb() )( coll, check );
+        if ( relied.failed() ) return relied;
+        return my.win( function () {
+            var apart = relied.val()();
+            return apart ? apart.v : void 0;
+        } );
+    };
+};
 
-my.find = my.failfn( "find", function ( coll, check ) {
-    var relied = my.fcall( my.ifany, coll, my.toCheck( check ) );
-    if ( relied.fail() ) return relied;
-    var apart = relied.val();
-    return my.win( apart ? apart.elem : void 0 );
-} );
+// TYPE:
+// ( (L> D * D -rb> () -> 2)
+// * (L> D -rb> D -s> D)
+// * (L> D * (D -s> D) * (D * D -s> D) * (() -s> D) -rb> () -s> D)
+// ) -k> D * D -r> () -s> D
+pd.find = function ( getIsRb, getToCheckRb, getIfanyRb ) {
+    return function ( coll, check ) {
+        var relied =
+            pd.ifany( getIsRb(), getToCheckRb(), getIfanyRb() )(
+                coll, check );
+        if ( relied.failed() ) return relied;
+        return my.win( function () {
+            var apart = reliedAny.val()();
+            return apart ? apart.elem : void 0;
+        } );
+    };
+};
 
-my.each = my.failfn( "each", function ( coll, body ) {
-    return my.fcall( my.any, coll, function ( elem ) {
-        body( elem );
-        return false;
-    } );
-} );
+// TYPE:
+// ( (L> D * D -rb> () -> 2)
+// * (L> D -rb> D -s> D)
+// * (L> D * (D -s> D) * (D * D -s> D) * (() -s> D) -rb> () -s> D)
+// ) -k> D * (D -> 0) -s> 0
+pd.each = function ( getIsRb, getToCheckRb, getIfanyRb ) {
+    return function ( coll, body ) {
+        my.getWin( pd.any( getIsRb(), getToCheckRb(), getIfanyRb() )(
+            coll, function ( elem ) {
+                body( elem );
+                return false;
+            } ) )();
+    };
+};
 
 
+// TODO: Update these utilities to have explicit parameters like the
+// above.
+/*
 my.asKeyseq = my.rulebook( "asKeyseq" );
 
 my.toKeyseq = my.rulebook( "toKeyseq" );
@@ -1674,7 +1663,7 @@ my.rule( my.toKeyseq, "asKeyseq", function ( x ) {
         hasResult = true;
         result = val;
     } );
-    if ( relied.fail() ) return relied;
+    if ( relied.failed() ) return relied;
     if ( !hasResult ) throw new Error();
     return my.win( result );
 } );
@@ -1715,7 +1704,7 @@ my.toSeqAndBack = my.rulebook( "toSeqAndBack" );
 
 my.asSeq = my.failfn( "asSeq", function ( x, body ) {
     var relied = my.fcall( my.toSeqAndBack, x );
-    if ( relied.fail() ) return relied;
+    if ( relied.failed() ) return relied;
     var andBack = relied.val();
     return my.win( andBack.back( body( andBack.val ) ) );
 } );
@@ -1724,7 +1713,7 @@ my.toSeq = my.rulebook( "toSeq" );
 
 my.rule( my.toSeq, "toSeqAndBack", function ( x ) {
     var relied = my.fcall( my.toSeqAndBack, x );
-    if ( relied.fail() ) return relied;
+    if ( relied.failed() ) return relied;
     return my.win( relied.val().val );
 } );
 
@@ -1848,7 +1837,7 @@ my.eager = my.rulebook( "eager" );
 
 my.rule( my.eager, "keyseq", function ( coll ) {
     var relied = my.fcall( my.iffirstkey, coll );
-    if ( relied.fail() ) return relied;
+    if ( relied.failed() ) return relied;
     var apart = relied.val();
     return my.win( apart ?
         my.keycons( apart.k, apart.v, my.eager( apart.rest ) ) :
@@ -1857,7 +1846,7 @@ my.rule( my.eager, "keyseq", function ( coll ) {
 
 my.rule( my.eager, "seq", function ( coll ) {
     var relied = my.fcall( my.iffirst, coll );
-    if ( relied.fail() ) return relied;
+    if ( relied.failed() ) return relied;
     var apart = relied.val();
     return my.win( apart ?
         my.cons( apart.first, my.eager( apart.rest ) ) : my.nilseq );
@@ -1891,7 +1880,7 @@ my.rule( my.toArray, "each", function ( x ) {
     var result = my.acc( function ( y ) {
         relied = my.fcall( my.each, x, y );
     } );
-    if ( relied.fail() ) return relied;
+    if ( relied.failed() ) return relied;
     return my.win( result );
 } );
 
@@ -1904,7 +1893,7 @@ my.rule( my.foldl, "each", function ( init, coll, func ) {
     var result = init;
     var relied = my.fcall( my.each, coll,
         function ( it ) { result = func( result, it ); } );
-    if ( relied.fail() ) return relied;
+    if ( relied.failed() ) return relied;
     return my.win( result );
 } );
 
@@ -1914,10 +1903,9 @@ my.zapRule( my.foldr, "toArray",
     my.latefn( function () { return my.toArray; } ),
     function ( coll, init, func ) {
     
-    var result = init;
-    my.arrDown(
-        coll, function ( it ) { result = func( it, result ); } );
-    return my.win( result );
+    return my.win( my.arrFoldr( coll, init, function ( a, b ) {
+        return func( a, b );
+    } ) );
 } );
 
 
@@ -1941,7 +1929,7 @@ my.sort = my.failfn( "sort", function ( seq, opt_by ) {
 
 my.tuple = my.failfn( "tuple", function ( size, seq ) {
     var relied = my.fcall( my.toSeqAndBack, seq );
-    if ( relied.fail() ) return relied;
+    if ( relied.failed() ) return relied;
     var andBack = relied.val();
     return my.win( andBack.back( my.namedlet( andBack.val,
         function ( seq, nextTuples ) {
@@ -2028,9 +2016,9 @@ my.rule( my.plus, "binaryPlus", function ( opt_a, opt_b, var_args ) {
         return my.fail( "There aren't at least two arguments." );
     var rest = my.arrCut( arguments, 2 );
     var relied = my.fcall( my.binaryPlus, opt_a, opt_b );
-    if ( relied.fail() ) return relied;
+    if ( relied.failed() ) return relied;
     return my.win(
-        my.classicapply( null, my.plus, relied.val(), rest ) );
+        my.funcApply( null, my.plus, relied.val(), rest ) );
 } );
 
 
@@ -2044,7 +2032,7 @@ my.rule( my.sentall, "foldl", function ( target, elems ) {
 
 my.rule( my.sentall, "seq", function ( target, elems ) {
     var relied = my.fcall( my.iffirst, elems );
-    if ( relied.fail() ) return relied;
+    if ( relied.failed() ) return relied;
     var apart = relied.val();
     return my.win( !apart ? target :
         my.sentall( my.sent( target, apart.first ), apart.rest ) );
@@ -2063,7 +2051,7 @@ my.rule( my.plus, "toPlusAdder", function ( opt_first, var_args ) {
         return my.fail( "There are no arguments." );
     var rest = my.arrCut( arguments, 1 );
     var relied = my.fcall( my.toPlusAdder, opt_first );
-    if ( relied.fail() ) return relied;
+    if ( relied.failed() ) return relied;
     return my.win( my.unbox( my.sentall( relied.val(), rest ) ) );
 } );
 
@@ -2095,7 +2083,7 @@ my.rule( my.binaryPlus, "asSeq", function ( a, b ) {
 
 
 my.mappend = function ( first, coll, func ) {
-    return my.classicapply(
+    return my.funcApply(
         null, my.plus, first, my.toArray( my.map( coll, func ) ) );
 };
 
@@ -2103,7 +2091,7 @@ my.flatmap = my.rulebook( "flatmap" );
 
 my.rule( my.flatmap, "map", function ( first, coll, func ) {
     var relied = my.fcall( my.map, coll, func );
-    if ( relied.fail() ) return relied;
+    if ( relied.failed() ) return relied;
     return my.win( my.flat( relied.val() ) );
 } );
 
@@ -2146,6 +2134,7 @@ my.rule( my.ifanyRb, "likeArray",
     var result = my.arrAny( coll, check );
     return my.win( result ? then( result ) : els() );
 } );
+*/
 
 
 // ===== DOM utilities. ==============================================
@@ -2481,6 +2470,8 @@ my.evalJsInFrame = function ( holder, code, opt_then, opt_timeout ) {
 // TODO: Figure out if typed arrays make it possible to distinguish
 // between NaNs.
 
+// TODO: This is global state. Decide how to emphasize and manage this
+// fact.
 var pow2cache = {};
 function pow2( exp ) {
     return pow2cache[ exp ] || (pow2cache[ exp ] = pow( 2, exp ));
@@ -2752,46 +2743,51 @@ my.b64ToFp64s = function ( b64 ) {
 //
 // TODO: Continuously prune this section down.
 
-// Example monad usage?
-//
-// return lathe.mappend( monadX, function ( x ) {
-//    ...
-// return lathe.mappend( monadY, function ( y ) {
-//    ...
-// return lathe.box( z );
-// } ); } );
 
 
+// TODO: This is meant to be used as global state during debugging.
+// Decide how to emphasize and manage this fact.
 // TODO: Add more rules to this.
-my.blahpp = my.rulebook( "blahpp" );
-my.rule( my.blahpp, "string", function ( x ) {
+// TYPE: D -rb> () -> string
+my.blahppRb = [];
+
+// TYPE: D -> string
+my.blahpp = function ( x ) {
+    return my.getWin( my.rbCall( my.blahppRb, x ) )();
+};
+
+my.blahppRb.push( function ( x ) {
     if ( !my.isString( x ) )
         return my.fail( "It isn't a string." );
-    return my.win( "\"" + my.map( x.split( /\\/ ), function ( part ) {
-        return part.replace( /\"/g, "\\\"" ).replace( /\n/g, "\\n" ).
-            replace( /\r/g, "\\r" ).replace( /\t/g, "\\t" ).
-            replace( /\x08/g, "\\b" ).replace( /\f/g, "\\f" ).
-            replace( /\0/g, "\\0" ).replace( /\v/g, "\\v" ).
-            replace( /[^\u0020-\u008F]/g, function ( cha ) {
-                var code =
-                    cha.charCodeAt( 0 ).toString( 16 ).toUpperCase();
-                return "\\u" +
-                    ("0000" + code).substring( 4 - code.length );
-            } );
-    } ).join( "\\\\" ) + "\"" );
+    return my.win( function () {
+        return "\"" + my.arrMap( x.split( /\\/ ), function ( part ) {
+            return part.replace( /\"/g, "\\\"" ).replace( /\n/g, "\\n" ).
+                replace( /\r/g, "\\r" ).replace( /\t/g, "\\t" ).
+                replace( /\x08/g, "\\b" ).replace( /\f/g, "\\f" ).
+                replace( /\0/g, "\\0" ).replace( /\v/g, "\\v" ).
+                replace( /[^\u0020-\u008F]/g, function ( cha ) {
+                    var code =
+                        cha.charCodeAt( 0 ).toString( 16 ).toUpperCase();
+                    return "\\u" +
+                        ("0000" + code).substring( 4 - code.length );
+                } );
+        } ).join( "\\\\" ) + "\"";
+    } );
 } );
-my.rule( my.blahpp, "likeArray", function ( x ) {
+
+my.blahppRb.push( function ( x ) {
     if ( !my.likeArray( x ) )
         return my.fail( "It isn't likeArray." );
-    if ( x.length === 0 )
-        return my.win( "[]" );
-    return my.win( "[ " +
-        my.map( my.arrCut( x ), my.blahpp ).join( ", " ) + " ]" );
+    return my.win( function () {
+        return x.length === 0 ? "[]" :
+            "[ " + my.arrMap( x, my.blahpp ).join( ", " ) + " ]";
+    } );
 } );
-my.rule( my.blahpp, "undefined", function ( x ) {
+
+my.blahppRb.push( function ( x ) {
     if ( x !== void 0 )
         return my.fail( "It isn't undefined." );
-    return my.win( "void 0" );
+    return my.win( my.kfn( "void 0" ) );
 } );
 
 // This, followDeclarationSync(), is a simplified version of
@@ -2857,8 +2853,8 @@ my.followDeclarationSync = function ( rootLead ) {
                 
                 if ( "clue" in patch )
                     leaf[ "clue" ] = patch[ "clue" ];
-                leaf[ "branches" ] = (patch[ "leads" ] || []).map(
-                    function ( lead, i ) {
+                leaf[ "branches" ] = my.arrMap(
+                    patch[ "leads" ] || [], function ( lead, i ) {
                     
                     var leaf = { "lead": lead,
                         "path": path.concat( [ i ] ) };
@@ -2937,7 +2933,7 @@ function followDeclarationStep(
                 
                 if ( "clue" in patch )
                     leaf[ "clue" ] = patch[ "clue" ];
-                leaf[ "leads" ] = (patch[ "leads" ] || []).map(
+                leaf[ "leads" ] = my.arrMap( patch[ "leads" ] || [],
                     function ( lead, i ) {
                     
                     var leaf = { "lead": lead,
@@ -3034,46 +3030,6 @@ my.iterateDeclarations = function (
 };
 
 
-
-// ===== Optimization rules. =========================================
-//
-// TODO: Remove these, if appropriate. The fact that utilities like
-// iffirst() and ifany() no longer rely on tail calls means that these
-// might be unnecessary now.
-
-/*
-// TODO: See if this is necessary. (It didn't seem to help without
-// map's optimization too.)
-my.rule( my.anyRb, "likeArray", function ( coll, check ) {
-    if ( !my.likeArray( coll ) )
-        return my.fail( "It isn't likeArray." );
-    return my.win( my.arrAny( coll, check ) );
-} );
-
-my.preferNamesFirst( "anyRb/likeArray is an optimization",
-    my.anyRb, "likeArray" );
-*/
-
-my.rule( my.map, "likeArray", function ( coll, convert ) {
-    if ( !my.likeArray( coll ) )
-        return my.fail( "It isn't likeArray." );
-    return my.win( my.arrMap( coll, convert ) );
-} );
-
-my.preferNamesFirst( "map/likeArray is an optimization",
-    my.map, "likeArray" );
-
-
-// ===== Finishing up. ===============================================
-
-// Your applications will need to call this whenever they want
-// rulebooks to be sorted too. This is usually after all the rules
-// have been defined, but it could also make sense to do in between,
-// if certain rules are used to *define* (not just call) later ones.
-//
-my.orderRulebooks();
-
-
 } );
 
 
@@ -3119,7 +3075,7 @@ my.funclet = function ( var_args ) {
     if ( code.length !== vals.length + 1 )
         throw new Error(
             "Can't funclet an even number of arguments." );
-    return Function.apply( null, code ).apply( null, vals );
+    return my.funcApply( null, Function.apply( null, code ), vals );
 };
 
 my.newapply = function ( Ctor, var_args ) {
