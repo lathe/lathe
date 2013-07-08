@@ -2215,6 +2215,32 @@ my.dom = function ( el, var_args ) {
     return my.domInDoc( document, el, my.arrCut( arguments, 1 ) );
 };
 
+my.setFrameSrcdoc = function ( el, srcdoc ) {
+    // This has been tested with the following browsers, under 64-bit
+    // Windows 7:
+    //
+    // Firefox 20.0.1
+    // Opera 12.15
+    // IE 10.0.9200.16540
+    // Chrome 26.0.1410.64 m
+    
+    // This only works in Chrome.
+//    el.setAttribute( "srcdoc", srcdoc );
+    
+    // This only works in Firefox and Opera. In Chrome, the document
+    // itself loads, but it doesn't have permission to load external
+    // stylesheets or JS code (at least if the parent frame is being
+    // accessed from a file: URL).
+//    el.src = "data:text/html," + encodeURIComponent( srcdoc );
+    
+    // This works in all four of the browsers.
+    el.src = "about:blank";
+    var doc = el.contentDocument;
+    doc.open();
+    doc.write( srcdoc );
+    doc.close();
+};
+
 function makePostMessageFrame(
     holder, create, init, opt_then, opt_timeout ) {
     
@@ -2269,7 +2295,7 @@ function makePostMessageFrame(
 // <script>
 // var m = /^\n([^\n]+)\n((?:[^\n]|\n)*)\n$/.exec(
 //     document.getElementById( "datahtml" ).textContent.replace(
-//         /@(@*)/g, "$1" ) );
+//         /<@(@*[\/!])/g, "<$1" ) );
 // parent.postMessage( { hash: location.hash,
 //     val: { type: m[ 1 ], text: m[ 2 ] } }, "*" );
 // document.getElementById( "t" ).value = m[ 2 ];
@@ -2287,7 +2313,8 @@ my.fetchFrame = function ( holder, url, opt_then, opt_timeout ) {
 // fetchFrame(). It finds the first instance of "datahtml" and the
 // first instance of "</" after that, and it cuts out those lines and
 // all the ones surrounding them. Then it removes one @ from all
-// sequences of @ and treats the first line as a type tag describing
+// sequences of <@@@! or <@@@/ (where @@@ stands in for any nonzero
+// sequence of @) and treats the first line as a type tag describing
 // the remaining text.
 //
 // NOTE: Because of peculiarities of HTML and JavaScript, the DataHtml
@@ -2312,12 +2339,12 @@ my.parseDataHtml = function ( string ) {
                 ends = true;
                 break;
             }
-            text.push( line.replace( /@(@*)/g, "$1" ) );
+            text.push( line.replace( /<@(@*[\/!])/g, "<$1" ) );
         } else if ( onType ) {
             if ( /<\//.test( line ) )
                 ret( null );
             else
-                type = line.replace( /@(@*)/g, "$1" );
+                type = line.replace( /<@(@*[\/!])/g, "<$1" );
             onText = true;
         } else if ( /datahtml/.test( line ) ) {
             onType = true;
@@ -2333,8 +2360,37 @@ my.parseDataHtml = function ( string ) {
 //        /^(?:(?!datahtml)[\s\S]*)datahtml[^\n]*\n((?:(?!<\/)[^\n])*)\n((?:(?!<\/)[\s\S])*)\n[^\n]*<\/[\s\S]$/.
 //            test( string );
 //    return m === null ? null : {
-//        type: m[ 1 ].replace( /@(@*)/g, "$1" ),
-//        text: m[ 2 ].replace( /@(@*)/g, "$1" ) };
+//        type: m[ 1 ].replace( /<@(@*[\/!])/g, "<$1" ),
+//        text: m[ 2 ].replace( /<@(@*[\/!])/g, "<$1" ) };
+};
+
+// TODO: Check for characters that can't be represented in HTML, such
+// such as carriage return.
+my.renderDataHtml = function ( type, text ) {
+    if ( /\n/.test( type ) )
+        return null;
+    function escape( data ) {
+        return data.replace( /<(@*[\/!])/g, "<@$1" );
+    }
+    return (
+"<" + "!DOCTYPE html>\n" +
+"<meta charset=\"utf-8\">\n" +
+"<title><" + "/title>\n" +
+"<script type=\"text/plain\" id=\"datahtml\">\n" +
+escape( type ) + "\n" +
+escape( text ) + "\n" +
+"<" + "/script>\n" +
+"<textarea style=\"width: 100%; height: 300px\" id=\"t\"" +
+    "><" + "/textarea>\n" +
+"<script>\n" +
+"var m = /^\\n([^\\n]+)\\n((?:[^\\n]|\\n)*)\\n$/.exec(\n" +
+"    document.getElementById( \"datahtml\" ).textContent.replace(\n" +
+"        /<@(@*[\\/!])/g, \"<$1\" ) );\n" +
+"parent.postMessage( { hash: location.hash,\n" +
+"    val: { type: m[ 1 ], text: m[ 2 ] } }, \"*\" );\n" +
+"document.getElementById( \"t\" ).value = m[ 2 ];\n" +
+"<" + "/script>\n" +
+"<" + "/html>\n");
 };
 
 // TODO: Test this. It probably doesn't work, and it probably isn't
@@ -3092,7 +3148,11 @@ my.newcall = function ( Ctor, var_args ) {
 };
 
 
-var ENTER_KEY = 13;
+var KEYS = {
+    enter: 13,
+    up: 38,
+    down: 40
+};
 var NO_CAPTURE = false;
 
 function keyCode( event ) {
@@ -3110,16 +3170,123 @@ function preventDefault( event ) {
 // TODO: See if this leaks memory with its treatment of DOM nodes.
 my.blahrepl = function ( elem ) {
     
+    // TODO: The rules we're using for navigating the command history
+    // are idiosyncratic. Take a look at how other command prompts
+    // behave, and see if we can improve upon our technique.
+    var commandHistoryCounts = {};
+    var commandHistory = [];
+    var commandHistoryLimit = 10;
+    function pushCommand( cmd ) {
+        // Called directly when a command has been submitted. Called
+        // indirectly when a modified command has been navigated away
+        // from.
+        
+        // If the command is trivial, don't bother remembering it.
+        if ( cmd === "" )
+            return false;
+        // If the command is identical to the previous one, don't
+        // bother remembering it.
+        if ( commandHistory.length !== 0 &&
+            commandHistory[ commandHistory.length - 1 ] === cmd )
+            return false;
+        
+        var safeKey = "|" + cmd;
+        
+        // Remember the command.
+        commandHistoryCounts[ safeKey ] =
+            (commandHistoryCounts[ safeKey ] || 0) + 1;
+        commandHistory.push( cmd );
+        
+        // Prune away the next history entry, which will often be the
+        // oldest due to our circular handling of history.
+        //
+        // TODO: See if we should keep track of another command list
+        // that sorts commands by age, so that we can always remove
+        // the oldest here.
+        //
+        if ( commandHistoryLimit < commandHistory.length ) {
+            var safeAbandonedCmd = "|" + commandHistory.shift();
+            if ( 0 == --commandHistoryCounts[ safeAbandonedCmd ] )
+                delete commandHistoryCounts[ safeAbandonedCmd ];
+        }
+        return true;
+    }
+    function pushNewCommand( cmd ) {
+        // Called when a command has been navigated away from.
+        
+        // If the command is modified, make a history entry for it.
+        if ( commandHistoryCounts[ "|" + cmd ] === void 0 )
+            return pushCommand( cmd );
+        return false;
+    }
+    function replaceWithPrevious( cmd ) {
+        // Called when navigating to the previous entry.
+        
+        // If there is no history yet, don't bother remembering this
+        // command. Just leave it alone.
+        if ( commandHistory.length === 0 )
+            return cmd;
+        
+        // Rotate the history backward by one, while inserting this
+        // command into the history if it's new. The command we rotate
+        // past is the one we return.
+        if ( pushNewCommand( cmd ) )
+            commandHistory.unshift( commandHistory.pop() );
+        var replacement;
+        commandHistory.unshift( replacement = commandHistory.pop() );
+        
+        // Actually, if the replacement command is identical to the
+        // one it's replacing, try rotating again. This makes a
+        // difference when we navigate one way and then turn around.
+        if ( replacement === cmd )
+            commandHistory.unshift(
+                replacement = commandHistory.pop() );
+        
+        return replacement;
+    }
+    function replaceWithNext( cmd ) {
+        // Called when navigating to the previous entry.
+        
+        // If there is no history yet, don't bother remembering this
+        // command. Just leave it alone.
+        if ( commandHistory.length === 0 )
+            return cmd;
+        
+        // Rotate the history forward by one, while inserting this
+        // command into the history if it's new. The command we rotate
+        // past is the one we return.
+        pushNewCommand( cmd );
+        var replacement;
+        commandHistory.push( replacement = commandHistory.shift() );
+        
+        // Actually, if the replacement command is identical to the
+        // one it's replacing, try rotating again. This makes a
+        // difference when we navigate one way and then turn around.
+        if ( replacement === cmd )
+            commandHistory.push(
+                replacement = commandHistory.shift() );
+        
+        return replacement;
+    }
+    
     var scrollback = my.dom( "textarea",
         { "class": "scrollback", "readonly": "readonly" } );
     var prompt = my.dom( "textarea", { "class": "prompt",
         "keydown": function ( event ) {
-            if ( keyCode( event ) === ENTER_KEY )
+            var key = keyCode( event );
+            if ( key === KEYS.enter
+                || key === KEYS.up
+                || key === KEYS.down )
                 preventDefault( event );
         },
         "keyup": function ( event ) {
-            if ( keyCode( event ) === ENTER_KEY )
+            var key = keyCode( event );
+            if ( key === KEYS.enter )
                 doEval();
+            else if ( key === KEYS.up )
+                doArrowUp();
+            else if ( key === KEYS.down )
+                doArrowDown();
         } } );
     
     my.appendDom( elem, scrollback, prompt,
@@ -3151,7 +3318,14 @@ my.blahrepl = function ( elem ) {
         
         scrollback.scrollTop = scrollback.scrollHeight;
         
+        pushCommand( prompt.value );
         prompt.value = "";
+    }
+    function doArrowUp() {
+        prompt.value = replaceWithPrevious( prompt.value );
+    }
+    function doArrowDown() {
+        prompt.value = replaceWithNext( prompt.value );
     }
 };
 
