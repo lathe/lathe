@@ -29,7 +29,7 @@
 
 // TODO: Document the purpose of chops.js.
 
-//"use strict";
+"use strict";
 
 (function ( topThis, topArgs, body ) { body( topThis, topArgs ); })(
     this, typeof arguments === "undefined" ? void 0 : arguments,
@@ -40,9 +40,15 @@
 // Here, we get the global object in Node.js by taking advantage of
 // the fact that it doesn't implement ECMAScript 5's strict mode.
 var root = (function () { return this; })() || topThis;
+// Actually, newer versions of Node don't expose the global object
+// that way either, and they probably don't put the whole file in a
+// local context.
+if ( !((root && typeof root === "object" && root[ "Object" ])
+    || typeof GLOBAL === "undefined") )
+    root = GLOBAL;
 
 var _, $;
-if ( topArgs === void 0 )
+if ( topArgs === void 0 && typeof exports === "undefined" )
     _ = root.rocketnia.lathe, $ = root.rocketnia.chops = {};
 else  // We assume Node.js and a flat directory.
     _ = require( "./lathe" ), $ = exports;
@@ -193,7 +199,13 @@ $.chopSplit = function ( chops, delim, limit ) {
 $.chopTokens = function ( chops, regex, opt_limit ) {
     if ( !_.given( opt_limit ) ) opt_limit = 1 / 0;  // IEEE Infinity
     return _.acc( function ( y ) {
-        $.chopBetweenRegex( chops, regex, opt_limit, y, _.idfn );
+        var n = 0;
+        $.chopBetweenRegex( chops, regex, opt_limit, function ( no ) {
+            n++;
+            y( no );
+        }, _.idfn );
+        if ( n === opt_limit )
+            y( [] );
     } );
 };
 
@@ -215,18 +227,6 @@ $.chopTrimTokens = function ( chops, regex, opt_limit ) {
 $.chopParas = function ( chops ) {
     return $.chopTrimTokens(
         $.letChopRtrimRegex( chops, /\n*$/ ).rest, /\n\n+/g );
-};
-
-$.letChopWords = function ( chops, num, opt_then, opt_els ) {
-    if ( !_.given( opt_then ) )
-        opt_then =
-            function ( var_args ) { return _.arrCut( arguments ); };
-    if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
-    var words = $.chopTokens( chops, /\s+/g, num );
-    if ( words.length <= num )
-        return opt_els();
-    else
-        return _.classicapply( null, opt_then, words );
 };
 
 $.letChopLtrimRegex = function ( chops, regex, opt_then, opt_els ) {
@@ -270,6 +270,19 @@ $.letChopRtrimRegex = function ( chops, regex, opt_then, opt_els ) {
             newLast === "" ? [] : [ newLast ] ) );
 };
 
+$.letChopWords = function ( chops, num, opt_then, opt_els ) {
+    if ( !_.given( opt_then ) )
+        opt_then =
+            function ( var_args ) { return _.arrCut( arguments ); };
+    if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
+    chops = $.letChopLtrimRegex( chops, /^\s*/ ).rest;
+    var words = $.chopTokens( chops, /\s+/g, num );
+    if ( num < words.length )
+        return _.funcApply( null, opt_then, words );
+    else
+        return opt_els();
+};
+
 $.unchop = function ( chop ) {
     return _.acc( function ( y ) {
         _.namedlet( chop, function ( chop, next ) {
@@ -287,10 +300,47 @@ $.unchops = function ( chops ) {
 };
 
 
-_.rulebook( $, "parseOpChop" );
-_.rulebook( $, "parseTextChop" );
-_.rulebook( $, "normalizeChoppedBlock" );
-_.rulebook( $, "normalizeChoppedDocument" );
+function ChopsEnv() {}
+ChopsEnv.prototype.init_ = function ( bindings ) {
+    this.bindings_ = bindings;
+    return this;
+};
+
+$.env = function ( bindings ) {
+    return new ChopsEnv().init_( bindings );
+};
+$.envShadow = function ( parentEnv, bindings ) {
+    return $.env( _.objOwnKeySetOr( bindings, parentEnv.bindings_ ) );
+};
+
+$.parseOpChop = function ( env, op, chops ) {
+    var rep = env.bindings_;
+    if ( !_.hasOwn( rep, op ) )
+        throw new Error(
+            "The op " + _.blahpp( op ) + " doesn't exist." );
+    return _.funcApply( env, rep[ op ], [ chops, env ] );
+};
+
+$.parseTextChop = function ( env, text ) {
+    var rep = env.bindings_;
+    return _.hasOwn( rep, " text" ) ?
+        _.funcApply( env, rep[ " text" ], [ text, env ] ) : text;
+};
+
+$.normalizeChoppedBlock = function ( env, chopResults ) {
+    var rep = env.bindings_;
+    return _.hasOwn( rep, " block" ) ?
+        _.funcApply( env, rep[ " block" ], [ chopResults, env ] ) :
+        chopResults;
+};
+
+$.normalizeChoppedDocument = function ( env, blockResults ) {
+    var rep = env.bindings_;
+    return _.hasOwn( rep, " document" ) ?
+        _.funcApply( env, rep[ " document" ],
+            [ blockResults, env ] ) :
+        blockResults;
+};
 
 $.parseInlineChop = function ( env, chop ) {
     if ( _.isString( chop ) )
@@ -325,7 +375,7 @@ $.letChopLtrimWords = function ( chops, num, opt_then, opt_els ) {
     if ( !_.given( opt_els ) ) opt_els = _.kfn( null );
     var words = $.chopLtrimTokens( chops, /\s+/g, num );
     return words.length <= num ?
-        opt_els() : _.classicapply( null, opt_then, words );
+        opt_els() : _.funcApply( null, opt_then, words );
 };
 */
 $.chopcode = function ( code ) {
@@ -350,41 +400,132 @@ $.parseChopup = function ( env, markup ) {
 };
 
 
-_.deftype( $, "ChopsEnvObj", "unwrapChopsEnvObj" );
 
-_.rule( $.parseOpChop, "unwrapChopsEnvObj", function (
-    fail, env, op, chops ) {
-    
-    return _.tapply( env,
-        _.rely( fail, $.unwrapChopsEnvObj, env )[ op ],
-        [ chops, env ] );
-} );
+// ===== Character stream reader =====================================
+//
+// Sometimes it's useful to be able to pull one chunk of data from an
+// ongoing character stream and process it on its own. With Chops
+// syntax, the obvious way to chunk the stream is as a sequence of
+// words (bracket-balanced strings separated by whitespace).
+//
+// Everybody knows JavaScript doesn't have streams, right? Well,
+// everybody's lying to you. :-p All these stream-reading utilities
+// need is a pair of asynchronous operations, one for peeking at the
+// next character and one for reading it. It's not hard to implement
+// these in terms of DOM events or any other kind of asynchronous IO,
+// as appropriate to the application. It's especially easy to
+// implement them in terms of cursors on strings... not that that gets
+// us anywhere!
+//
+// TODO: Document this stuff in more detail. In particular, document
+// how peekc and readc are expected to behave.
+// TODO: Test this stuff.
 
-_.rule( $.parseTextChop, "unwrapChopsEnvObj", function (
-    fail, env, text ) {
-    
-    var rep = _.rely( fail, $.unwrapChopsEnvObj, env );
-    return " text" in rep ?
-        _.tapply( env, rep[ " text" ], [ text, env ] ) : text;
-} );
+function readWhile( peekc, readc, test, soFar, conj, then ) {
+    var thisSync = true;
+    var done = false;
+    while ( thisSync && !done ) {
+        done = true;
+        if ( !peekc( function ( e, c ) {
+            if ( e ) return void then( e );
+            if ( c === null || test( c ) ) {
+                then( null, soFar );
+            } else {
+                if ( !readc( function ( e, c ) {
+                    if ( e ) return void then( e );
+                    soFar = conj( soFar, c );
+                    done = false;
+                    if ( !thisSync )
+                        readWhile( peekc, readc, test, soFar, conj,
+                            then );
+                } ) )
+                    thisSync = false;
+            }
+        } ) )
+            thisSync = false;
+    }
+    return thisSync;
+}
 
-_.rule( $.normalizeChoppedBlock, "unwrapChopsEnvObj", function (
-    fail, env, chopResults ) {
-    
-    var rep = _.rely( fail, $.unwrapChopsEnvObj, env );
-    return " block" in rep ?
-        _.tapply( env, rep[ " block" ], [ chopResults, env ] ) :
-        chopResults;
-} );
+$.readWhite = function ( peekc, readc, then ) {
+    return readWhile( peekc, readc,
+        function ( c ) { return /[ \t\r\n]/.test( c ); },
+        null, function ( soFar, c ) { return null; }, then );
+};
 
-_.rule( $.normalizeChoppedDocument, "unwrapChopsEnvObj", function (
-    fail, env, blockResults ) {
+$.readChopsWhileC = function (
+    peekc, readc, test, soFar, conj, then ) {
     
-    var rep = _.rely( fail, $.unwrapChopsEnvObj, env );
-    return " document" in rep ?
-        _.tapply( env, rep[ " document" ], [ blockResults, env ] ) :
-        blockResults;
-} );
+    var thisSync = true;
+    var done = false;
+    while ( thisSync && !done ) {
+        done = true;
+        if ( !peekc( function ( e, c ) {
+            if ( e ) return void then( e );
+            if ( c === "[" ) {
+                if ( !readc( function ( e, c ) {
+                    if ( e ) return void then( e );
+                    if ( !$.readChopsWhileC( peekc, readc,
+                        function ( c ) { return c !== "]"; },
+                        [], function ( soFar, chop ) {
+                            soFar.push( chop );
+                            return soFar;
+                        },
+                        function ( e, chops ) {
+                            if ( !readc( function ( e, c ) {
+                                if ( e ) return void then( e );
+                                soFar = conj( soFar, chops );
+                                done = false;
+                                if ( !thisSync )
+                                    $.readChopsWhileC( peekc, readc,
+                                        test, conj( soFar, chops ),
+                                        conj, then );
+                            } ) )
+                                thisSync = false;
+                        } ) )
+                        thisSync = false;
+                } ) )
+                    thisSync = false;
+            } else if ( c !== null && test( c ) ) {
+                if ( !readWhile( peekc, readc,
+                    function ( c ) { return c !== "[" && test( c ); },
+                    [], function ( soFar, c ) {
+                        soFar.push( c );
+                        return soFar;
+                    },
+                    function ( e, string ) {
+                        if ( e ) return void then( e );
+                        soFar = conj( soFar, string.join( "" ) );
+                        done = false;
+                        if ( !thisSync )
+                            $.readChopsWhileC( peekc, readc, test,
+                                soFar, conj, then );
+                    } ) )
+                    thisSync = false;
+            } else {
+                then( null, soFar );
+            }
+        } ) )
+            thisSync = false;
+    }
+    return thisSync;
+};
+
+$.readChopsWord = function ( peekc, readc, then ) {
+    var thisSync = true;
+    if ( !$.readWhite( peekc, readc, function ( e, nul ) {
+        if ( e ) return void then( e );
+        if ( !$.readChopsWhileC( peekc, readc,
+            function ( c ) { return /[^ \t\r\n]/.test( c ); },
+            [], function ( soFar, chop ) {
+                soFar.push( chop );
+                return soFar;
+            }, then ) )
+            thisSync = false;
+    } ) )
+        thisSync = false;
+    return thisSync;
+};
 
 
 } );
