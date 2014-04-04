@@ -54,19 +54,19 @@ it
 
 <script type="text/plain" id="monad-test">
 
-[> [just thisWill( [next] ); ]
-   [just function ( err, a ) { return becomeSome( [next] ); } ]
-   [just function ( err, b ) { return horriblyNested( [next] ); } ]
-   [just function ( err ) { return code( a, b ); } ]]
+[>> [just thisWill( [next] ); ]
+    [just function ( err, a ) { return becomeSome( [next] ); } ]
+    [just function ( err, b ) { return horriblyNested( [next] ); } ]
+    [just function ( err ) { return code( a, b ); } ]]
 
 </script>
 
 <script type="text/plain" id="monad-fn-test">
 
-[> [just again( [next] ); ]
-   [fn err a = thisIs( [next] ) ]
-   [fn err b = horriblyNested( [next] ) ]
-   [fn err: onceWereDoneWithIt( a, b ); ]]
+[>> [just again( [next] ); ]
+    [fn err a = thisIs( [next] ) ]
+    [fn err b = horriblyNested( [next] ) ]
+    [fn err: onceWereDoneWithIt( a, b ); ]]
 
 </script>
 

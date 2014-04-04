@@ -111,6 +111,9 @@ my.env = $c.env( {
         return splice(
             "[", unsplice( $c.parseInlineChops( env, chops ) ), "]" );
     },
+    "pct": function ( chops, env ) { return "%"; },
+    "<": function ( chops, env ) { return "["; },
+    ">": function ( chops, env ) { return "]"; },
     "just": function ( chops, env ) {
         return resplice( $c.parseInlineChops( env, chops ) );
     },
@@ -168,7 +171,7 @@ my.env = $c.env( {
                         "} ))" );
             } );
     },
-    ">": function ( chops, env ) {
+    ">>": function ( chops, env ) {
         var words = $c.chopTrimTokens( chops, /\s+/g );
         return _.arrFoldr(
             words, $c.parseInlineChops( env, words.pop() ),
