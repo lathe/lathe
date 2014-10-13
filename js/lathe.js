@@ -463,6 +463,22 @@ my.arrFoldr = function ( arr, init, func ) {
     return result;
 };
 
+my.arrMin = function ( arr, compare ) {
+    return my.arrFoldl( null, arr, function ( result, candidate ) {
+        return result === null ||
+            compare( candidate, result.val ) < 0 ?
+            { val: candidate } : result;
+    } );
+};
+
+my.arrMax = function ( arr, compare ) {
+    return my.arrFoldl( null, arr, function ( result, candidate ) {
+        return result === null ||
+            compare( result.val, candidate ) < 0 ?
+            { val: candidate } : result;
+    } );
+};
+
 my.arrJoin = function ( arr ) {
     return my.acc( function ( y ) {
         my.arrEach( arr, function ( innerArr ) {
