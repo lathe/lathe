@@ -2833,15 +2833,19 @@ my.blahppRb.push( function ( x ) {
         return my.fail( "It isn't a string." );
     return my.win( function () {
         return "\"" + my.arrMap( x.split( /\\/ ), function ( part ) {
-            return part.replace( /\"/g, "\\\"" ).replace( /\n/g, "\\n" ).
+            return part.
+                replace( /\"/g, "\\\"" ).replace( /\n/g, "\\n" ).
                 replace( /\r/g, "\\r" ).replace( /\t/g, "\\t" ).
                 replace( /\x08/g, "\\b" ).replace( /\f/g, "\\f" ).
                 replace( /\0/g, "\\0" ).replace( /\v/g, "\\v" ).
-                replace( /[^\u0020-\u008F]/g, function ( cha ) {
+                replace( /[^\u0020-\u007E]/g, function ( cha ) {
                     var code =
-                        cha.charCodeAt( 0 ).toString( 16 ).toUpperCase();
-                    return "\\u" +
-                        ("0000" + code).substring( 4 - code.length );
+                        cha.charCodeAt( 0 ).toString( 16 ).
+                            toUpperCase();
+                    var n = code.length;
+                    return n <= 2 ?
+                        "\\x" + ("00" + code).substr( n ) :
+                        "\\u" + ("0000" + code).substr( n );
                 } );
         } ).join( "\\\\" ) + "\"";
     } );
