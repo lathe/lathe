@@ -133,9 +133,6 @@ var log = root[ "Math" ][ "log" ];
 var ln2 = root[ "Math" ][ "LN2" ];
 var Function = root[ "Function" ];
 var setTimeout = root[ "setTimeout" ];
-function toJson( x ) {
-    return root[ "JSON" ][ "stringify" ]( x );
-}
 // TODO: See if
 // "var fromCharCode = root[ "String" ][ "fromCharCode" ];" works.
 function fromCharCode( x ) {
@@ -535,23 +532,33 @@ function finishWithErrors( thro, ret, errors, var_args ) {
     my.funcApply( null, ret, my.arrCut( arguments, 3 ) );
 }
 
-my.arrMapConcurrent = function ( arr, asyncFunc, then ) {
+my.arrEachConcurrent = function ( arr, asyncFunc, then ) {
     var n = arr.length;
-    if ( n === 0 )
-        return void my.defer( function () {
-            then( [] );
-        } );
-    var results = [];
-    results[ n - 1 ] = void 0;
     my.arrEach( arr, function ( item, i ) {
         my.defer( function () {
-            asyncFunc( i, item, my.oncefn( function ( r ) {
-                results[ i ] = r;
+            asyncFunc( i, item, my.oncefn( function () {
                 n--;
                 if ( n === 0 )
-                    then( results );
+                    then();
             } ) );
         } );
+    } );
+    if ( n === 0 )
+        return void my.defer( function () {
+            then();
+        } );
+};
+
+my.arrMapConcurrent = function ( arr, asyncFunc, then ) {
+    var results = [];
+    results[ arr.length - 1 ] = void 0;
+    my.arrEachConcurrent( arr, function ( i, item, then ) {
+        asyncFunc( i, item, my.oncefn( function ( r ) {
+            results[ i ] = r;
+            then();
+        } ) );
+    }, function () {
+        then( results );
     } );
 };
 
@@ -718,23 +725,15 @@ my.objOwnEachConcurrent = function ( obj, asyncFunc, then ) {
 };
 
 my.objOwnMapConcurrent = function ( obj, asyncFunc, then ) {
-    var n = 0;
     var results = {};
-    my.objOwnEach( obj, function ( k, v ) {
-        n++;
-        my.defer( function () {
-            asyncFunc( k, v, my.oncefn( function ( r ) {
-                results[ k ] = r;
-                n--;
-                if ( n === 0 )
-                    then( results );
-            } ) );
-        } );
+    my.objOwnEachConcurrent( obj, function ( k, v, then ) {
+        asyncFunc( k, v, my.oncefn( function ( r ) {
+            results[ i ] = r;
+            then();
+        } ) );
+    }, function () {
+        then( results );
     } );
-    if ( n === 0 )
-        return void my.defer( function () {
-            then( {} );
-        } );
 };
 
 my.objOwnEachConcurrentExn = function ( obj, asyncFunc, thro, ret ) {
@@ -2153,7 +2152,180 @@ my.rule( my.ifanyRb, "likeArray",
 */
 
 
+// ===== Unicode utilities. ==========================================
+
+my.getUnicodeScalarAtCodeUnitIndex = function (
+    string, codeUnitIndex ) {
+    
+    function inRange( min, pastMax ) {
+        return function ( n ) {
+            return min <= n && n < pastMax;
+        };
+    }
+    var isHead = inRange( 0xD800, 0xDC00 );
+    var isTrail = inRange( 0xDC00, 0xE000 );
+    var replacement = {
+        isReplaced: true,
+        scalar: 0xFFFD,
+        string: "\uFFFD"
+    };
+    var n = string.length;
+    if ( n <= codeUnitIndex )
+        throw new Error();
+    var firstCodeUnit = string.charCodeAt( codeUnitIndex );
+    if ( isHead( firstCodeUnit ) ) {
+        if ( n <= codeUnitIndex + 1 )
+            return replacement;
+        var secondCodeUnit = string.charCodeAt( codeUnitIndex + 1 );
+        if ( isHead( secondCodeUnit ) ) {
+            return replacement;
+        } else if ( isTrail( secondCodeUnit ) ) {
+            return {
+                isReplaced: false,
+                scalar: 0x10000 +
+                    ((firstCodeUnit - 0xD800) << 10) +
+                    (secondCodeUnit - 0xDC00),
+                string: string.charAt( codeUnitIndex ) +
+                    string.charAt( codeUnitIndex + 1 )
+            };
+        } else {
+            return replacement;
+        }
+    } else if ( isTrail( firstCodeUnit ) ) {
+        return replacement;
+    } else {
+        return {
+            isReplaced: false,
+            scalar: firstCodeUnit,
+            string: string.charAt( codeUnitIndex )
+        };
+    }
+};
+
+my.anyUnicodeScalar = function ( string, func ) {
+    for ( var i = 0, n = string.length; i < n; ) {
+        var scalarInfo =
+            my.getUnicodeScalarAtCodeUnitIndex( string, i );
+        var result = func( scalarInfo );
+        if ( result )
+            return result;
+        i += scalarInfo.string.length;
+    }
+    return false;
+};
+
+my.eachUnicodeScalar = function ( string, func ) {
+    my.anyUnicodeScalar( string, function ( scalarInfo ) {
+        func( scalarInfo );
+        return false;
+    } );
+};
+
+my.isValidUnicode = function ( string ) {
+    return !my.anyUnicodeScalar( string, function ( scalarInfo ) {
+        return scalarInfo.isReplaced;
+    } );
+};
+
+my.unicodeScalarToString = function ( scalar ) {
+    function inRange( min, pastMax ) {
+        return function ( n ) {
+            return min <= n && n < pastMax;
+        };
+    }
+    var isHead = inRange( 0xD800, 0xDC00 );
+    var isTrail = inRange( 0xDC00, 0xE000 );
+    if ( !(0 <= scalar && scalar < 0x110000
+        && !isHead( scalar ) && !isTrail( scalar )) )
+        return null;
+    if ( scalar < 0x10000 )
+        return String.fromCharCode( scalar );
+    return String.fromCharCode(
+        0xD800 + ((scalar - 0x10000) >>> 10),
+        0xE000 + ((scalar - 0x10000) & 0x3FF)
+    );
+};
+
+
 // ===== DOM utilities. ==============================================
+
+function jsStrContentAllowingQuotes( string ) {
+    return string.
+        replace( /\\/g, "\\\\" ).replace( /\n/g, "\\n" ).
+        replace( /\r/g, "\\r" ).replace( /\t/g, "\\t" ).
+        replace( /\x08/g, "\\b" ).replace( /\f/g, "\\f" ).
+        replace( /\0/g, "\\0" ).replace( /\v/g, "\\v" ).
+        replace( /[^\u0020-\u007E]/g, function ( c ) {
+            var code = c.charCodeAt( 0 ).toString( 16 ).toUpperCase();
+            var n = code.length;
+            return n <= 2 ?
+                "\\x" + ("00" + code).substr( n ) :
+                "\\u" + ("0000" + code).substr( n );
+        } );
+}
+
+function jsStrDoubleQuoted( string ) {
+    return "\"" +
+        jsStrContentAllowingQuotes( string ).replace( /"/g, "\\\"" ) +
+        "\"";
+}
+
+function jsStrSingleQuoted( string ) {
+    return "'" +
+        jsStrContentAllowingQuotes( string ).replace( /'/g, "\\'" ) +
+        "'";
+}
+
+my.jsStr = function ( string ) {
+    var doubleQuoteCount = (string.match( /\"/g ) || []).length;
+    var singleQuoteCount = (string.match( /'/g ) || []).length;
+    return singleQuoteCount < doubleQuoteCount ?
+        jsStrSingleQuoted( string ) :
+        // We use double quotes by default.
+        jsStrDoubleQuoted( string );
+};
+
+function cssStrContentAllowingQuotes( string ) {
+    var result = "";
+    my.eachUnicodeScalar( string, function ( scalarInfo ) {
+        var string = scalarInfo.string;
+        var scalar = scalarInfo.scalar;
+        if ( string === "\\" ) {
+            result += "\\\\";
+        } else if ( 0x0020 <= scalar && scalar <= 0x007E ) {
+            result += string;
+        } else {
+            var code = scalar.toString( 16 ).toUpperCase();
+            return "\\" + code + (code.length < 6 ? " " : "");
+        }
+    } );
+    return result;
+}
+
+function cssStrDoubleQuoted( string ) {
+    return "\"" +
+        cssStrContentAllowingQuotes( string ).
+            replace( /"/g, "\\\"" ) +
+        "\"";
+}
+
+function cssStrSingleQuoted( string ) {
+    return "'" +
+        cssStrContentAllowingQuotes( string ).replace( /'/g, "\\'" ) +
+        "'";
+}
+
+// NOTE: If the input string is not valid Unicode, this will treat it
+// as though it contained U+FFFD REPLACEMENT CHARACTER in appropriate
+// places.
+my.cssStr = function ( string ) {
+    var doubleQuoteCount = (string.match( /\"/g ) || []).length;
+    var singleQuoteCount = (string.match( /'/g ) || []).length;
+    return singleQuoteCount < doubleQuoteCount ?
+        cssStrSingleQuoted( string ) :
+        // We use double quotes by default.
+        cssStrDoubleQuoted( string );
+};
 
 my.el = function ( domElementId ) {
     return getElementById( domElementId );
@@ -2441,14 +2613,23 @@ my.evalSyncJsInFrame = function (
         },
         function ( frame, hash ) {
             var doc = frame.contentDocument;
+            
             // TODO: See if the code still needs to be sanitized (for
             // instance, to remove "</" and "<!").
+            //
+            // TODO: Change this from eval( ... ) to
+            // Function( ... )(). This will require a corresponding
+            // change to the clients of this utility.
+            //
             my.appendDom( doc.body, my.domInDoc( doc, "script",
                 { "type": "text/javascript" },
-                "parent.postMessage( {" +
-                "    hash: " + toJson( hash ) + ", " +
-                "    val: eval( " + toJson( code ) + " ) }, \"*\" );"
+                "\n" +
+                "parent.postMessage( {\n" +
+                "    hash: " + my.jsStr( hash ) + ",\n" +
+                "    val: eval( " + my.jsStr( code ) + " )\n" +
+                "}, \"*\" );\n"
             ) );
+            
             // TODO: Somehow disable the iframe from having
             // same-origin privileges with us.
         },
@@ -2468,16 +2649,26 @@ my.evalJsInFrame = function ( holder, code, opt_then, opt_timeout ) {
         },
         function ( frame, hash ) {
             var doc = frame.contentDocument;
+            
             // TODO: See if the code still needs to be sanitized (for
             // instance, to remove "</" and "<!").
+            //
+            // TODO: Change this from eval( ... ) to
+            // Function( ... )(). This will require a corresponding
+            // change to the clients of this utility.
+            //
             my.appendDom( doc.body, my.domInDoc( doc, "script",
                 { "type": "text/javascript" },
-                "eval( " + toJson( code ) + " )( function ( val ) {" +
-                "    parent.postMessage( {" +
-                "        hash: " + toJson( hash ) + ", " +
-                "        val: val }, \"*\" );" +
-                "} );"
+                "\n" +
+                "eval( " + my.jsStr( code ) + " )( " +
+                    "function ( val ) {\n" +
+                    
+                "    parent.postMessage( {\n" +
+                "        hash: " + my.jsStr( hash ) + ",\n" +
+                "        val: val }, \"*\" );\n" +
+                "} );\n"
             ) );
+            
             // TODO: Somehow disable the iframe from having
             // same-origin privileges with us.
         },
@@ -2832,22 +3023,7 @@ my.blahppRb.push( function ( x ) {
     if ( !my.isString( x ) )
         return my.fail( "It isn't a string." );
     return my.win( function () {
-        return "\"" + my.arrMap( x.split( /\\/ ), function ( part ) {
-            return part.
-                replace( /\"/g, "\\\"" ).replace( /\n/g, "\\n" ).
-                replace( /\r/g, "\\r" ).replace( /\t/g, "\\t" ).
-                replace( /\x08/g, "\\b" ).replace( /\f/g, "\\f" ).
-                replace( /\0/g, "\\0" ).replace( /\v/g, "\\v" ).
-                replace( /[^\u0020-\u007E]/g, function ( cha ) {
-                    var code =
-                        cha.charCodeAt( 0 ).toString( 16 ).
-                            toUpperCase();
-                    var n = code.length;
-                    return n <= 2 ?
-                        "\\x" + ("00" + code).substr( n ) :
-                        "\\u" + ("0000" + code).substr( n );
-                } );
-        } ).join( "\\\\" ) + "\"";
+        return my.jsStr( x );
     } );
 } );
 
