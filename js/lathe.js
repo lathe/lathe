@@ -1104,7 +1104,7 @@ my.circularlyOrder = function ( repToComp, comparatorReps ) {
         function addRec( before, after ) {
             prg.addEdge( before, after, function () {
                 throw new Error( "Can't circularlyOrder." );
-            } )
+            } );
         }
         var ucs = comparatorReps;  // unpromoted comparatorReps
         var pcs = [];              // promoted comparatorReps
@@ -1187,7 +1187,7 @@ my.normallyOrder = function ( comparators, elements ) {
     function addRec( before, after ) {
         prg.addEdge( before, after, function () {
             throw new Error( "Can't normallyOrder." );
-        } )
+        } );
     }
     function promoteRecs( recs ) {
         my.each( recs, function ( rec ) {
