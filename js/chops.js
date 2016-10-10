@@ -43,9 +43,16 @@ var root = (function () { return this; })() || topThis;
 // Actually, newer versions of Node don't expose the global object
 // that way either, and they probably don't put the whole file in a
 // local context.
-if ( !((root && typeof root === "object" && root[ "Object" ])
-    || typeof GLOBAL === "undefined") )
-    root = GLOBAL;
+//
+// The newest versions use a variable called "global". We were using
+// "GLOBAL" for a while, but that's been deprecated. (I'm not sure
+// whether "global" existed at the time.)
+if ( !(root && typeof root === "object" && root[ "Object" ]) ) {
+    if ( typeof global !== "undefined" )
+        root = global;
+    else if ( typeof GLOBAL !== "undefined" )
+        root = GLOBAL;
+}
 
 var _, $;
 if ( topArgs === void 0 && typeof exports === "undefined" )
