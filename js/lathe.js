@@ -735,7 +735,7 @@ my.objOwnMapConcurrent = function ( obj, asyncFunc, then ) {
     var results = {};
     my.objOwnEachConcurrent( obj, function ( k, v, then ) {
         asyncFunc( k, v, my.oncefn( function ( r ) {
-            results[ i ] = r;
+            results[ k ] = r;
             then();
         } ) );
     }, function () {
