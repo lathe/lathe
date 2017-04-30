@@ -7,9 +7,9 @@
 
 #lang racket
 (require racket/stxparam)
-(require "utils-part-2.rkt")
-(require (for-syntax "utils-part-2.rkt"))
-(provide (all-from-out "utils-part-2.rkt"))
+(require "private/utils-part-2.rkt")
+(require (for-syntax "private/utils-part-2.rkt"))
+(provide (all-from-out "private/utils-part-2.rkt"))
 (provide (all-defined-out))
 
 (define-syntax-rule (zap! func place args ...)
