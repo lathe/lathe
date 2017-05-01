@@ -49,7 +49,7 @@ things.
 
 First, get the Arc language by following the instructions at [https://arclanguage.github.io/](https://arclanguage.github.io/).
 There are many versions of Arc, and Lathe is designed to work with
-several:
+eight of them:
 
 * [Anarki and Anarki Stable](https://arclanguage.github.io/), which
   are community-maintained versions of Arc.
@@ -66,9 +66,6 @@ several:
   project](https://github.com/arclanguage/arc-nu). The arc/nu project
   is Pauan's heavily refactored fork of ar.
 
-These have worked with Lathe in the past, but they are untested with
-Lathe at the moment, so they may not work:
-
 * [Jarc](http://jarc.sourceforge.net/), JD Brennan's JVM
   implementation of Arc, which omits continuation support and has
   syntaxes for easy interaction with other JVM code, making it fit in
@@ -77,8 +74,8 @@ Lathe at the moment, so they may not work:
 * [Rainbow](https://github.com/conanite/rainbow), Conan Dalton's JVM
   implementation of Arc, optimized for speed.
 
-* [Rainbow.js](https://github.com/conanite/rainbow), my own port of
-  Rainbow to JavaScript.
+* [Rainbow.js](https://github.com/arclanguage/rainbow-js), my own port
+  of Rainbow to JavaScript.
 
 To load the core Lathe libraries, first copy the Lathe code into
 lib/lathe/ or some other foler relative to your Arc directory, and

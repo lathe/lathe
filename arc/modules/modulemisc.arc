@@ -99,7 +99,9 @@
 
 ; NOTE: arc/nu expands a!b to (a (#<box:quote> b)).
 (def isa-quote (x)
-  (in x 'quote (!0:!1:ssexpand 'a!b)))
+  ; NOTE: In Jarc 21, !0 uses the symbol |0|.
+  ; NOTE: Ar parses a.b:c as (a b:c).
+  (in x 'quote (get.0 (get.1 (ssexpand 'a!b)))))
 
 (def safe-deglobalize (var)
   (zap expand var)
