@@ -38,8 +38,16 @@
         (throw:split str (+ i 1))))
     (split str 0)))
 
+(= subst-for
+  (case (subst "a" "b" "b") "a"
+    subst
+    
+    ; Anarki switched the meaning of 'subst.
+    (fn (new old source)
+      (subst old new source))))
+
 (def normalize-path (path)
-  (zap [subst "/" "\\" _] path)
+  (zap [subst-for "/" "\\" _] path)
   (caselet len-path len.path 0
     ""
     (apply + ""         ; would be "(string", except fails on Rainbow

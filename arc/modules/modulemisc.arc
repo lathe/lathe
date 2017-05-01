@@ -139,12 +139,22 @@
              ,@body)
          (= (global ',name) ,g-old-val)))))
 
+(= read-with-eof
+  (case (read (instring "") 'foo) foo
+    read
+    
+    ; Anarki removed the 'eof parameter from 'read.
+    (fn ((o stream (stdin)) (o given-eof eof))
+      (let result (read stream)
+        (if (is result eof)
+          given-eof
+          result)))))
 
 ; This is like 'load, but it returns the result of the final
 ; expression.
 (def loadval (file)
   (with (stream infile.file eof (uniq))
     (let result nil
-      (whiler expr (read stream eof) eof
+      (whiler expr (read-with-eof stream eof) eof
         (= result eval.expr))
       result)))

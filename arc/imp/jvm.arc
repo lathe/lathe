@@ -252,7 +252,7 @@
   (=fn my.jclass (name)
     (when (isa name 'sym) (zap string name))
     (if (isa name 'string)
-      (do (zap [subst "." "-" _] name)
+      (do (zap [subst-for "." "-" _] name)
           (errsafe ('java.lang.Class.forName name)))
         (my.ajava name 'java-lang-Class)
       name
@@ -262,7 +262,7 @@
   (=fn my.jclass (name)
     (when (isa name 'sym) (zap string name))
     (if (isa name 'string)
-      (do (zap [subst "." "-" _] name)
+      (do (zap [subst-for "." "-" _] name)
           (errsafe:java-class name))
         (my.ajava name 'java-lang-Class)
       name
