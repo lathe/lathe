@@ -97,6 +97,10 @@
       ; thanks to the quote.
       (fn (_) (eval `(= ,,g-name (',thunk._)))))))
 
+; NOTE: arc/nu expands a!b to (a (#<box:quote> b)).
+(def isa-quote (x)
+  (in x 'quote (!0:!1:ssexpand 'a!b)))
+
 (def safe-deglobalize (var)
   (zap expand var)
   (if anormalsym.var
@@ -110,7 +114,8 @@
                   cdr-var     cdr.var
                   _           (unless single.cdr-var throw.nil)
                   cadr-var    car.cdr-var
-                  _           (unless (caris cadr-var 'quote) throw.nil)
+                  _           (unless (isa-quote car.cadr-var)
+                                throw.nil)
                   cdadr-var   cdr.cadr-var
                   _           (unless single.cdadr-var throw.nil)
                   cadadr-var  car.cdadr-var

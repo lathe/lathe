@@ -88,7 +88,7 @@
             (wipe global.global-name))
           global-name)
         (let (op . params) what
-          (case op quote
+          (if isa-quote.op
             (let (name . more) params
               (when more
                 (err:+ "A (quote ...) expression with more than one "

@@ -59,10 +59,15 @@ several:
 
 * [ar](https://github.com/awwx/ar), Andrew Wilcox's fork of Arc 3.1
   which makes Arc use Racket's mutable cons cells instead of unsafely
-  mutating the immutable ones.
+  mutating the immutable ones. To use ar with Lathe, load the
+  "strings" library that comes with ar before loading Lathe.
 
-* [arc-nu](https://github.com/arclanguage/arc-nu), Pauan's fork of ar
-  which is heavily refactored.
+* The "arc/3.1" language of [the arc/nu
+  project](https://github.com/arclanguage/arc-nu). The arc/nu project
+  is Pauan's heavily refactored fork of ar.
+
+These have worked with Lathe in the past, but they are untested with
+Lathe at the moment, so they may not work:
 
 * [Jarc](http://jarc.sourceforge.net/), JD Brennan's JVM
   implementation of Arc, which omits continuation support and has
@@ -72,7 +77,7 @@ several:
 * [Rainbow](https://github.com/conanite/rainbow), Conan Dalton's JVM
   implementation of Arc, optimized for speed.
 
-* [Rainbow.js](https://github.com/conanite/rainbow), my port of
+* [Rainbow.js](https://github.com/conanite/rainbow), my own port of
   Rainbow to JavaScript.
 
 To load the core Lathe libraries, first copy the Lathe code into
