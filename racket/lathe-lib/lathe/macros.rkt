@@ -113,6 +113,10 @@
   #/done #/yep result]
   [(qexp-call op body) (env env op body)])
 
+; These are essentially De Morgan indices.
+(struct esc-index-delegate (index-to-delegate) #:prefab)
+(struct esc-index-capture () #:prefab)
+
 (define (core-env done bind) #/lambda (env op body) #/match op
   [(op-id)
   #/bind (interpret done bind (core-env done bind) body)
@@ -130,19 +134,21 @@
                #/bind (interpret done bind (core-env done bind) body)
                #/match-lambda
                  [(esc i body)
-                 #/done #/esc (+ 1 i)
+                 #/done #/esc (esc-index-delegate i)
                  #/qexp-call (op-close-paren) body]
                  [(yep body)
-                 #/done #/esc 0 #/qexp-literal #/done body]]
+                 #/done #/esc (esc-index-capture)
+                 #/qexp-literal #/done body]]
                [op (env env2 op body)])
              body)
     #/match-lambda
       [ (esc i body) #/match i
-        [0
+        [(esc-index-capture)
         #/bind (interpret done bind env #/qexp-call inner-op body)
         #/lambda (body)
         #/done body]
-        [i #/done #/esc (- i 1) body]]
+        [(esc-index-delegate i) #/done #/esc i body]
+        [i (error "Expected an escape index that op-open-paren could capture or delegate")]]
       [(yep body) (error "Unmatched op-open-paren")]]]
   [(op-nest)
   #/bind (qexp-bind-esc done bind body #/lambda (leaf)
