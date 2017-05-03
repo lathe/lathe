@@ -76,9 +76,7 @@
 (define (qexp-bind done bind qexp func) #/match qexp
   [(qexp-literal val) #/bind val func]
   [(qexp-call op body)
-  #/bind (qexp-bind done bind body #/lambda (qexp)
-         #/qexp-bind done bind body func)
-  #/lambda (body)
+  #/bind (qexp-bind done bind body func) #/lambda (body)
   #/done #/qexp-call op body]
   [qexp (error "Expected a qexp that was a qexp-literal or a qexp-call")])
 
