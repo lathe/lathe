@@ -150,18 +150,23 @@
 
 
 
+(define (env-with-self-quoting done bind self-quoting-op? env)
+#/lambda (env2 op body)
+  (if (self-quoting-op? op)
+    (bind (qexp-bind-esc done bind body #/lambda (leaf)
+          #/bind (interpret done bind env2 leaf) #/match-lambda
+            [(esc i leaf) #/done #/esc i #/qexp-literal #/done leaf]
+            [(ret leaf) #/done #/ret #/qexp-literal #/done leaf])
+    #/match-lambda
+      [(esc i body) #/done #/esc i #/qexp-call op body]
+      [(ret body) #/done #/ret #/qexp-call op body])
+ #/env env2 op body))
+
 (struct op-nest () #:prefab)
-(define (env-with-op-nest done bind env) #/lambda (env2 op body)
-#/match op
-  [(op-nest)
-  #/bind (qexp-bind-esc done bind body #/lambda (leaf)
-         #/bind (interpret done bind env2 leaf) #/match-lambda
-           [(esc i leaf) #/done #/esc i #/qexp-literal #/done leaf]
-           [(ret leaf) #/done #/ret #/qexp-literal #/done leaf])
-  #/match-lambda
-    [(esc i body) #/done #/esc i #/qexp-call (op-nest) body]
-    [(ret body) #/done #/ret #/qexp-call (op-nest) body]]
-  [op (env env2 op body)])
+(define (env-with-op-nest done bind env)
+  (env-with-self-quoting done bind
+    (lambda (op) #/match op [(op-nest) #t] [op #f])
+    env))
 
 (struct op-double () #:prefab)
 
@@ -229,7 +234,8 @@
     #/qexp-call (op-nest)
     #/qexp-call (op-nest) #/qexp-literal #/done
     #/qexp-call (op-nest) #/qexp-literal #/done
-    #/qexp-literal #/done 1)))
+    #/qexp-literal #/done 1))
+)
 
 
 (struct lists-and-rest (lists rest) #:prefab)
