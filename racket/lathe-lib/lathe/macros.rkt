@@ -76,18 +76,38 @@
 (define (qexp-bind done bind qexp func) #/match qexp
   [(qexp-literal val) #/bind val func]
   [(qexp-call op body)
-  #/bind (qexp-bind done bind body func) #/lambda (body)
-  #/done #/qexp-call op body]
+  #/bind (qexp-bind done bind body #/lambda (leaf)
+         #/qexp-bind done bind leaf func)
+  #/lambda (body)
+  #/done #/qexp-call op #/qexp-literal #/done body]
+  [qexp (error "Expected a qexp that was a qexp-literal or a qexp-call")])
+(define (qexp-map done bind qexp func) #/match qexp
+  [(qexp-literal val) #/qexp-literal #/bind val func]
+  [(qexp-call op body)
+  #/qexp-call op
+  #/qexp-map done bind body #/lambda (leaf)
+    (done #/qexp-map done bind leaf func)]
   [qexp (error "Expected a qexp that was a qexp-literal or a qexp-call")])
 
 (w- done monad-maybe-done bind monad-maybe-bind
   (writeln #/equal? (qexp-done monad-maybe-done 1)
     (done #/qexp-literal #/done 1))
   (writeln #/equal?
-    (bind (qexp-done monad-maybe-done 1) #/lambda (one)
-    #/qexp-bind done bind (qexp-call (op-id) one) #/lambda (x)
+    (bind (qexp-done done 1) #/lambda (one)
+    #/qexp-bind done bind
+      (qexp-call (op-id) #/qexp-literal #/done one)
+    #/lambda (x)
     #/qexp-done done #/* 2 x)
-    (done #/qexp-call (op-id) #/qexp-literal #/done 2)))
+    (done #/qexp-call (op-id) #/qexp-literal #/done
+    #/qexp-literal #/done 2))
+  (writeln #/equal?
+    (bind (qexp-done done 1) #/lambda (one)
+    #/done #/qexp-map done bind
+      (qexp-call (op-id) #/qexp-literal #/done one)
+    #/lambda (x)
+      (done #/* 2 x))
+    (done #/qexp-call (op-id) #/qexp-literal #/done
+    #/qexp-literal #/done 2)))
 
 (struct esc (level body) #:prefab)
 (struct ret (val) #:prefab)
