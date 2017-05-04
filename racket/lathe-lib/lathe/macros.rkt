@@ -174,16 +174,6 @@
   env (env-with-op-nest done bind #/core-env done bind)
   env (lambda (env2 op body) #/match op
         
-        [(op-nest)
-        #/bind (qexp-bind-esc done bind body #/lambda (leaf)
-               #/bind (interpret done bind env2 leaf) #/match-lambda
-                 [(esc i leaf)
-                 #/done #/esc i #/qexp-literal #/done leaf]
-                 [(ret leaf) #/done #/ret #/qexp-literal #/done leaf])
-        #/match-lambda
-          [(esc i body) #/done #/esc i #/qexp-call (op-nest) body]
-          [(ret body) #/done #/ret #/qexp-call (op-nest) body]]
-        
         [(op-double)
         #/bind (interpret done bind (core-env done bind) body)
         #/match-lambda
@@ -235,6 +225,172 @@
     #/qexp-call (op-nest) #/qexp-literal #/done
     #/qexp-call (op-nest) #/qexp-literal #/done
     #/qexp-literal #/done 1))
+)
+
+(w- done monad-list-done bind monad-list-bind
+  env (env-with-op-nest done bind #/core-env done bind)
+  env (lambda (env2 op body) #/match op
+        
+        [(op-double)
+        #/bind (interpret done bind (core-env done bind) body)
+        #/match-lambda
+          [(esc i body) (done #/esc i #/qexp-call (op-double) body)]
+          [(ret body)
+          #/qexp-bind done bind body #/lambda (leaf)
+          #/qexp-done done #/* 2 leaf]]
+        
+        [op (env env2 op body)])
+  (writeln #/equal?
+    (interpret done bind env
+    #/qexp-call (op-double) #/qexp-literal #/list
+      (qexp-literal #/done 3)
+      (qexp-literal #/done 4))
+    (list
+      (qexp-literal #/done 6)
+      (qexp-literal #/done 8)))
+  (writeln #/equal?
+    (interpret done bind env
+    #/qexp-call (op-id) #/qexp-literal #/list
+      (qexp-call (op-id) #/qexp-literal #/list
+        (qexp-literal #/done 1)
+        (qexp-literal #/done 2))
+      (qexp-call (op-id) #/qexp-literal #/list
+        (qexp-literal #/done 3)
+        (qexp-literal #/done 4)))
+    (list
+      (ret 1)
+      (ret 2)
+      (ret 3)
+      (ret 4)))
+  (writeln #/equal?
+    (interpret done bind env
+    #/qexp-call (op-nest) #/qexp-literal #/list
+      (qexp-call (op-nest) #/qexp-literal #/list
+        (qexp-literal #/done 1)
+        (qexp-literal #/done 2))
+      (qexp-call (op-nest) #/qexp-literal #/list
+        (qexp-literal #/done 3)
+        (qexp-literal #/done 4)))
+    (for/list ([i (in-range 1 (+ 1 4))])
+      (ret
+      #/qexp-call (op-nest) #/qexp-literal #/list
+      #/qexp-call (op-nest) #/qexp-literal #/list i))
+    ; TODO: I think what we want is more like this:
+    #;(done #/ret
+    #/qexp-call (op-nest) #/qexp-literal #/list
+      (qexp-call (op-nest) #/qexp-literal #/list
+        1
+        2)
+      (qexp-call (op-nest) #/qexp-literal #/list
+        3
+        4))
+  )
+  (writeln #/equal?
+    (interpret done bind env
+    #/qexp-call (op-nest)
+    #/qexp-call (op-nest) #/qexp-literal #/list
+      ; TODO: Figure out why this list of 3 elements is turning into 9
+      ; times the results (i.e. being looped over twice).
+      (qexp-call (op-nest) #/qexp-literal #/list
+        (qexp-literal #/list
+          (qexp-literal #/done 1)
+          (qexp-literal #/done 2))
+        (qexp-literal #/list
+          (qexp-literal #/done 3)
+          (qexp-literal #/done 4)))
+      (qexp-call (op-nest) #/qexp-literal #/list
+        (qexp-literal #/list
+          (qexp-literal #/done 5)
+          (qexp-literal #/done 6))
+        (qexp-literal #/list
+          (qexp-literal #/done 7)
+          (qexp-literal #/done 8)))
+      (qexp-call (op-nest) #/qexp-literal #/list
+        (qexp-literal #/list
+          (qexp-literal #/done 9)
+          (qexp-literal #/done 10))
+        (qexp-literal #/list
+          (qexp-literal #/done 11)
+          (qexp-literal #/done 12))))
+    (apply append #/for/list ([_ (in-range 3)])
+    #/for/list ([i (in-range 1 (+ 1 12))])
+      (ret
+      #/qexp-call (op-nest)
+      #/qexp-call (op-nest) #/qexp-literal #/done
+      #/qexp-call (op-nest) #/qexp-literal #/done
+      #/qexp-literal #/done i))
+    ; TODO: I think what we want is more like this:
+    #;(done #/ret
+    #/qexp-call (op-nest)
+    #/qexp-call (op-nest) #/qexp-literal #/list
+      (qexp-call (op-nest) #/qexp-literal #/list
+        (qexp-literal #/list
+          1
+          2)
+        (qexp-literal #/list
+          3
+          4))
+      (qexp-call (op-nest) #/qexp-literal #/list
+        (qexp-literal #/list
+          5
+          6)
+        (qexp-literal #/list
+          7
+          8))
+      (qexp-call (op-nest) #/qexp-literal #/list
+        (qexp-literal #/list
+          9
+          10)
+        (qexp-literal #/list
+          11
+          12)))
+  )
+  (writeln #/equal?
+    (interpret done bind env
+    #/qexp-call (op-open-paren (op-nest)) #/qexp-literal #/done
+    #/qexp-call (op-open-paren (op-nest)) #/qexp-literal #/done
+    #/qexp-call (op-close-paren) #/qexp-literal #/list
+      (qexp-call (op-open-paren (op-nest)) #/qexp-literal #/done
+      #/qexp-call (op-close-paren) #/qexp-literal #/list
+        (qexp-call (op-close-paren) #/qexp-literal #/list
+          (qexp-literal #/done 1)
+          (qexp-literal #/done 2))
+        (qexp-call (op-close-paren) #/qexp-literal #/list
+          (qexp-literal #/done 3)
+          (qexp-literal #/done 4)))
+      (qexp-call (op-open-paren (op-nest)) #/qexp-literal #/done
+      #/qexp-call (op-close-paren) #/qexp-literal #/list
+        (qexp-call (op-close-paren) #/qexp-literal #/list
+          (qexp-literal #/done 5)
+          (qexp-literal #/done 6))
+        (qexp-call (op-close-paren) #/qexp-literal #/list
+          (qexp-literal #/done 7)
+          (qexp-literal #/done 8))))
+    (for/list ([i (in-range 1 (+ 1 8))])
+      (ret
+      #/qexp-call (op-nest)
+      #/qexp-call (op-nest) #/qexp-literal #/done
+      #/qexp-call (op-nest) #/qexp-literal #/done
+      #/qexp-literal #/done i))
+    ; TODO: I think what we want is more like this:
+    #;(done #/ret
+    #/qexp-call (op-nest)
+    #/qexp-call (op-nest) #/qexp-literal #/list
+      (qexp-call (op-nest) #/qexp-literal #/list
+        (qexp-literal #/list
+          1
+          2)
+        (qexp-literal #/list
+          3
+          4))
+      (qexp-call (op-nest) #/qexp-literal #/list
+        (qexp-literal #/list
+          5
+          6)
+        (qexp-literal #/list
+          7
+          8)))
+  )
 )
 
 
