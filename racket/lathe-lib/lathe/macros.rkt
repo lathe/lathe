@@ -1,4 +1,4 @@
-#lang parendown racket
+#lang parendown errortrace racket
 
 (require "main.rkt")
 
@@ -76,10 +76,9 @@
 (define (qexp-bind done bind qexp func) #/match qexp
   [(qexp-literal val) #/bind val func]
   [(qexp-call op body)
-  #/bind (qexp-bind done bind body #/lambda (leaf)
-         #/qexp-bind done bind leaf func)
-  #/lambda (body)
-  #/done #/qexp-call op #/qexp-literal #/done body]
+  #/done #/qexp-call op #/qexp-literal
+  #/qexp-bind done bind body #/lambda (leaf)
+  #/qexp-bind done bind leaf func]
   [qexp (error "Expected a qexp that was a qexp-literal or a qexp-call")])
 (define (qexp-map done bind qexp func) #/match qexp
   [(qexp-literal val) #/qexp-literal #/bind val func]
@@ -99,88 +98,99 @@
     #/lambda (x)
     #/qexp-done done #/* 2 x)
     (done #/qexp-call (op-id) #/qexp-literal #/done
-    #/qexp-literal #/done 2))
-  (writeln #/equal?
-    (bind (qexp-done done 1) #/lambda (one)
-    #/done #/qexp-map done bind
-      (qexp-call (op-id) #/qexp-literal #/done one)
-    #/lambda (x)
-      (done #/* 2 x))
-    (done #/qexp-call (op-id) #/qexp-literal #/done
     #/qexp-literal #/done 2)))
 
 (struct esc (level body) #:prefab)
 (struct ret (val) #:prefab)
 
-(define (qexp-bind-esc done bind qexp func) #/match qexp
-  [(qexp-literal val) #/bind val func]
-  [(qexp-call op body)
-  #/bind (qexp-bind-esc done bind body #/lambda (qexp)
-         #/qexp-bind-esc done bind body func)
-  #/match-lambda
-    [(esc i body) #/done #/esc i #/qexp-call op body]
-    [(ret body) #/done #/ret #/qexp-call op body]]
-  [qexp (error "Expected a qexp that was a qexp-literal or a qexp-call")])
+(define (esc-done done) #/lambda (val)
+  (ret #/done val))
+(define (esc-bind bind) #/lambda (effects then) #/match effects
+  [(esc i body) (esc i body)]
+  [(ret val) (ret #/bind val then)])
 
-(define (interpret done bind env qexp) #/match qexp
-  [(qexp-literal result)
-  #/bind result #/lambda (result)
-  #/done #/ret result]
+(define (interpret done env qexp) #/match qexp
+  [(qexp-literal result) #/ret result]
   [(qexp-call op body) (env env op body)])
 
 ; These are essentially De Morgan indices.
 (struct esc-index-delegate (index-to-delegate) #:prefab)
 (struct esc-index-capture () #:prefab)
 
+(define (monad-id-done val)
+  val)
+(define (monad-id-bind effects func)
+  (func effects))
+
+(define (interpret-core done bind qexp)
+  (match (interpret done (core-env done bind) qexp)
+    [ (esc i body)
+      (error "Internal error: Escaped from the core environment.")]
+    [(ret qexp)
+    #/bind qexp #/match-lambda
+      [ (qexp-call op expr)
+        (error "Internal error: Got stuck in the core environment.")]
+      [ (qexp-literal val) #/match val
+        [ (esc i val)
+          (error "Internal error: Escaped from the core environment.")]
+        [(ret val) val]]]))
+
 (define (core-env done bind) #/lambda (env op body) #/match op
   [(op-id)
-  #/bind (interpret done bind (core-env done bind) body)
-  #/match-lambda
-    [(esc i body) (done #/esc i #/qexp-call (op-id) body)]
-    [(ret body) (interpret done bind env body)]]
+    (display "blah1 ") (writeln body)
+  #/ret
+  #/bind (interpret-core done bind body) #/lambda (body)
+    (display "blah2 ") (writeln body)
+    (define result #/interpret done env body)
+    (display "blah3 ") (writeln result)
+  #/done  result #;
+  #/interpret done env body]
   [(op-open-paren inner-op)
-  #/bind (interpret done bind (core-env done bind) body)
-  #/match-lambda
-    [(esc i body) (done #/esc i #/qexp-call (op-open-paren op) body)]
-    [(ret body)
-    #/bind (interpret done bind
-             (lambda (env2 op body) #/match op
-               [(op-close-paren)
-               #/bind (interpret done bind (core-env done bind) body)
-               #/match-lambda
-                 [(esc i body)
-                 #/done #/esc (esc-index-delegate i)
-                 #/qexp-call (op-close-paren) body]
-                 [(ret body)
-                 #/done #/esc (esc-index-capture)
-                 #/qexp-literal #/done body]]
-               [op (env env2 op body)])
-             body)
-    #/match-lambda
-      [ (esc i body) #/match i
-        [(esc-index-capture)
-        #/bind (interpret done bind env #/qexp-call inner-op body)
-        #/lambda (body)
-        #/done body]
-        [(esc-index-delegate i) #/done #/esc i body]
-        [i (error "Expected an escape index that op-open-paren could capture or delegate")]]
-      [(ret body) (error "Unmatched op-open-paren")]]]
+  #/interpret done env #/qexp-call inner-op
+  #/bind (interpret-core done bind body) #/lambda (body)
+  #/bind
+    (interpret
+      (lambda (env2 op body) #/match op
+        [(op-close-paren)
+        #/bind (interpret done env body) #/lambda (body)
+        #/qexp-map (esc-done done) (esc-bind bind) body
+        #/lambda (leaf)
+          (done #/esc (list) leaf)]
+        [op (env env2 op body)])
+      body)
+  #/lambda (body)
+  #/qexp-bind (esc-done done) (esc-bind bind) body #/match-lambda
+    [ (esc (list) body) #/match body
+      [(esc i body) (esc i body)]
+      [(ret body) (ret #/qexp-literal #/done body)]
+      [i (error "Expected an escape index that op-open-paren could capture or delegate")]]
+    [(ret body) (error "Unmatched op-open-paren")]]
   [(op-close-paren) (error "Unmatched op-close-paren")]
   [op (error "Encountered an unrecognized op")])
 
 
 
+(define (qexp-bind-esc done bind qexp func) #/match qexp
+  [(qexp-literal val)
+  #/qexp-literal #/bind val 
+  #/bind val #/lambda (val)
+  #/func val]
+  [(qexp-call op body)
+  #/match (qexp-bind-esc done bind body #/lambda (qexp)
+          #/qexp-bind-esc done bind body func)
+    [(esc i body) #/esc i #/qexp-call op body]
+    [(ret body)
+    #/ret
+    #/bind body #/lambda (body)
+    #/done #/qexp-call op body]]
+  [qexp (error "Expected a qexp that was a qexp-literal or a qexp-call")])
+
 (define (env-with-self-quoting done bind self-quoting-op? env)
 #/lambda (env2 op body)
   (if (self-quoting-op? op)
-    (bind (qexp-bind-esc done bind body #/lambda (leaf)
-          #/bind (interpret done bind env2 leaf) #/match-lambda
-            [(esc i leaf) #/done #/esc i #/qexp-literal #/done leaf]
-            [(ret leaf) #/done #/ret #/qexp-literal #/done leaf])
-    #/match-lambda
-      [(esc i body) #/done #/esc i #/qexp-call op body]
-      [(ret body) #/done #/ret #/qexp-call op body])
- #/env env2 op body))
+    (qexp-bind-esc done bind (qexp-call op body) #/lambda (leaf)
+    #/interpret done env2 leaf)
+  #/env env2 op body))
 
 (struct op-nest () #:prefab)
 (define (env-with-op-nest done bind env)
@@ -195,44 +205,44 @@
   env (lambda (env2 op body) #/match op
         
         [(op-double)
-        #/bind (interpret done bind (core-env done bind) body)
-        #/match-lambda
-          [(esc i body) (done #/esc i #/qexp-call (op-double) body)]
-          [(ret body)
-          #/qexp-bind done bind body #/lambda (leaf)
-          #/qexp-done done #/* 2 leaf]]
+        #/ret
+        #/bind (interpret-core done bind body) #/lambda (body)
+        #/done #/qexp-map done bind body #/lambda (leaf)
+          (done #/* 2 leaf)]
         
         [op (env env2 op body)])
   (writeln #/equal?
-    (interpret done bind env
+    (interpret done env
     #/qexp-call (op-double) #/qexp-literal #/done
     #/qexp-literal #/done 3)
-    (done #/qexp-literal #/done 6))
-  (writeln #/equal?
-    (interpret done bind env
+    (ret #/done #/qexp-literal #/done 6))
+  (writeln #/list
+    (interpret done env
     #/qexp-call (op-id) #/qexp-literal #/done
     #/qexp-call (op-id) #/qexp-literal #/done #/qexp-literal #/done 1)
-    (done #/ret 1))
+    (ret #/done 1))
+  (displayln "blah0")
   (writeln #/equal?
-    (interpret done bind env
+    (interpret done env
     #/qexp-call (op-nest) #/qexp-literal #/done
     #/qexp-call (op-nest) #/qexp-literal #/done #/qexp-literal #/done 1)
-    (done #/ret
+    (ret #/done
     #/qexp-call (op-nest) #/qexp-literal #/done
     #/qexp-call (op-nest) #/qexp-literal #/done 1))
+  (displayln "blah1")
   (writeln #/equal?
-    (interpret done bind env
+    (writeln #/interpret done env
     #/qexp-call (op-nest)
     #/qexp-call (op-nest) #/qexp-literal #/done
     #/qexp-call (op-nest) #/qexp-literal #/done
     #/qexp-literal #/done #/qexp-literal #/done 1)
-    (done #/ret
+    (writeln #/ret #/done
     #/qexp-call (op-nest)
     #/qexp-call (op-nest) #/qexp-literal #/done
     #/qexp-call (op-nest) #/qexp-literal #/done
     #/qexp-literal #/done 1))
   (writeln #/equal?
-    (interpret done bind env
+    (interpret done env
     #/qexp-call (op-open-paren (op-nest)) #/qexp-literal #/done
     #/qexp-call (op-open-paren (op-nest)) #/qexp-literal #/done
     #/qexp-call (op-close-paren) #/qexp-literal #/done
@@ -240,7 +250,7 @@
     #/qexp-call (op-close-paren) #/qexp-literal #/done
     #/qexp-call (op-close-paren) #/qexp-literal #/done
     #/qexp-literal #/done 1)
-    (done #/ret
+    (ret #/done
     #/qexp-call (op-nest)
     #/qexp-call (op-nest) #/qexp-literal #/done
     #/qexp-call (op-nest) #/qexp-literal #/done
@@ -252,16 +262,14 @@
   env (lambda (env2 op body) #/match op
         
         [(op-double)
-        #/bind (interpret done bind (core-env done bind) body)
-        #/match-lambda
-          [(esc i body) (done #/esc i #/qexp-call (op-double) body)]
-          [(ret body)
-          #/qexp-bind done bind body #/lambda (leaf)
-          #/qexp-done done #/* 2 leaf]]
+        #/ret
+        #/bind (interpret-core done bind body) #/lambda (body)
+        #/done #/qexp-map done bind body #/lambda (leaf)
+          (done #/* 2 leaf)]
         
         [op (env env2 op body)])
   (writeln #/equal?
-    (interpret done bind env
+    (interpret done env
     #/qexp-call (op-double) #/qexp-literal #/list
       (qexp-literal #/done 3)
       (qexp-literal #/done 4))
@@ -269,7 +277,7 @@
       (qexp-literal #/done 6)
       (qexp-literal #/done 8)))
   (writeln #/equal?
-    (interpret done bind env
+    (interpret done env
     #/qexp-call (op-id) #/qexp-literal #/list
       (qexp-call (op-id) #/qexp-literal #/list
         (qexp-literal #/done 1)
@@ -277,13 +285,13 @@
       (qexp-call (op-id) #/qexp-literal #/list
         (qexp-literal #/done 3)
         (qexp-literal #/done 4)))
-    (list
-      (ret 1)
-      (ret 2)
-      (ret 3)
-      (ret 4)))
+    (ret #/list
+      1
+      2
+      3
+      4))
   (writeln #/equal?
-    (interpret done bind env
+    (interpret done env
     #/qexp-call (op-nest) #/qexp-literal #/list
       (qexp-call (op-nest) #/qexp-literal #/list
         (qexp-literal #/done 1)
@@ -306,7 +314,7 @@
         4))
   )
   (writeln #/equal?
-    (interpret done bind env
+    (interpret done env
     #/qexp-call (op-nest)
     #/qexp-call (op-nest) #/qexp-literal #/list
       ; TODO: Figure out why this list of 3 elements is turning into 9
@@ -366,7 +374,7 @@
           12)))
   )
   (writeln #/equal?
-    (interpret done bind env
+    (interpret done env
     #/qexp-call (op-open-paren (op-nest)) #/qexp-literal #/done
     #/qexp-call (op-open-paren (op-nest)) #/qexp-literal #/done
     #/qexp-call (op-close-paren) #/qexp-literal #/list
@@ -424,7 +432,7 @@
 
 (define (flat-qexp->nested-qexp done bind flat-qexp)
   (some-val #/run-monad-maybe
-  #/interpret monad-maybe-done monad-maybe-bind
+  #/interpret monad-maybe-done
     (env-with-op-nest done bind #/core-env done bind)
     flat-qexp))
 
