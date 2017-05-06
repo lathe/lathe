@@ -10,6 +10,44 @@
 
 import Data.Void
 
+{-
+
+class (Monad atree, Monad btree) =>
+  Interpretable env esc err op atree aleaf btree bleaf where
+  
+  toMacroCall ::
+    atree aleaf' -> Either aleaf' (op, atree (atree aleaf'))
+  interpretLeaf :: aleaf -> bleaf
+  idOp ::
+    env -> atree (atree aleaf) ->
+      btree (Either bleaf (esc, atree aleaf))
+  unwrapEnv ::
+    env -> env -> op -> atree (atree aleaf) ->
+      btree (Either bleaf (esc, atree aleaf))
+  wrapEnv ::
+    (env -> op -> atree (atree aleaf) ->
+      btree (Either bleaf (esc, atree aleaf))
+    ) ->
+      env
+  
+  interpret ::
+    env -> atree aleaf ->
+      btree (Either bleaf (esc, atree aleaf))
+  interpret env expr = case toMacroCall expr of
+    Left aleaf -> return (Left (interpretLeaf aleaf))
+    Right (op, body) -> unwrapEnv env env op body
+  
+  unwrapEnv (wrapEnv unwrappedEnv) ~ unwrappedEnv
+  wrapEnv (unwrapEnv wrappedEnv) ~ wrappedEnv
+  idOp env body ~ case toMacroCall body of
+    Left following -> case toMacroCall following of
+      Left leaf -> return (Left (interpretLeaf leaf))
+      Right (op, following')
+        return (Right (esc, following'))
+    Right _ -> TODO
+
+-}
+
 
 {-
 
@@ -91,7 +129,7 @@ data CoreOp = OpId
 
 
 callEnv ::
-  (Monad m) =>
+  (Functor m) =>
   Env m esc err a b lit -> a -> Expr m a (m (Expr m a lit)) ->
     Expr m (Either err b) (Either (esc, Expr m a lit) lit)
 callEnv env@(Env envFunc) op expr = envFunc env op expr
@@ -102,7 +140,7 @@ callEnv env@(Env envFunc) op expr = envFunc env op expr
 -- to represent the result of parsing a closing parenthesis or an
 -- unquote operation.
 interpret ::
-  (Monad m) => Env m esc err a b lit -> Expr m a lit ->
+  (Functor m) => Env m esc err a b lit -> Expr m a lit ->
     Expr m (Either err b) (Either (esc, Expr m a lit) lit)
 interpret env expr = case expr of
   Literal lit -> Literal (Right lit)
@@ -110,7 +148,7 @@ interpret env expr = case expr of
 
 
 coreEnv ::
-  (Monad m) =>
+  (Functor m) =>
   (forall a. m a -> Maybe a) ->
   Env m esc String (Either CoreOp a) a lit ->
   (Either CoreOp a) ->
@@ -127,20 +165,21 @@ coreEnv getOneAndOnly env op body = case op of
       Call err body' -> resultIfIncorrectUsage err
       Literal lit -> case getOneAndOnly lit of
         Nothing -> resultIfIncorrectUsage
-          "Called OpId with more than one argument"
+          "Called OpId with a number of arguments other than one"
         Just lit' -> interpret env lit'
     where
       resultIfIncorrectUsage err = Call (Left err) $
         exprMapLiteral (fmap $ interpret env) $ exprMapOp Left $
           coreInterpret getOneAndOnly body
 
-exprMapLiteral :: (Monad m) => (a -> b) -> Expr m op a -> Expr m op b
+exprMapLiteral ::
+  (Functor m) => (a -> b) -> Expr m op a -> Expr m op b
 exprMapLiteral func expr = case expr of
   Literal a -> Literal (func a)
   Call op body ->
     Call op $ exprMapLiteral (fmap (exprMapLiteral func)) body
 
-exprMapOp :: (Monad m) => (a ->b) -> Expr m a lit -> Expr m b lit
+exprMapOp :: (Functor m) => (a -> b) -> Expr m a lit -> Expr m b lit
 exprMapOp func expr = case expr of
   Literal lit -> Literal lit
   Call op body ->
@@ -148,7 +187,7 @@ exprMapOp func expr = case expr of
       exprMapOp func body
 
 coreInterpret ::
-  (Monad m) =>
+  (Functor m) =>
   (forall a. m a -> Maybe a) ->
   Expr m (Either CoreOp a) lit ->
     Expr m String lit
@@ -168,9 +207,26 @@ coreInterpret getOneAndOnly expr = case expr of
 
 -- This is a possible alternative to `coreInterpret` for cases where
 -- even the core operators are not invited.
-enforceLiteral :: (Monad m) => Expr m a lit -> Expr m String lit
+enforceLiteral :: (Functor m) => Expr m a lit -> Expr m String lit
 enforceLiteral expr = case expr of
   Literal lit -> Literal lit
   Call op body ->
     Call "Encountered an operator where none was expected" $
       exprMapLiteral (fmap enforceLiteral) $ enforceLiteral body
+
+data ExprAsFunctor m lit a = ExprAsFunctor (Expr m a lit)
+instance (Functor m) => Functor (ExprAsFunctor m lit) where
+  fmap func (ExprAsFunctor expr) = ExprAsFunctor $ exprMapOp func expr
+
+exprAsFunctorGetOneAndOnly ::
+  (forall a. m a -> Maybe a) ->
+    (forall a. ExprAsFunctor m lit a -> Maybe a)
+exprAsFunctorGetOneAndOnly getOneAndOnly (ExprAsFunctor expr) =
+  case expr of
+    Literal lit -> Nothing
+    Call op body -> case body of
+      Call op' body' -> Nothing
+      Literal body' -> getOneAndOnly body' >>= \body'' ->
+        case body'' of
+          Call op''' body''' -> Nothing
+          Literal lit -> Just op
