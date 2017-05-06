@@ -127,6 +127,8 @@ data Env m esc err a b lit =
 
 data CoreOp = OpId
 
+class (Functor m) => SyntaxMaterial m where
+  getOneAndOnly :: m a -> Maybe a
 
 callEnv ::
   (Functor m) =>
@@ -148,20 +150,19 @@ interpret env expr = case expr of
 
 
 coreEnv ::
-  (Functor m) =>
-  (forall a. m a -> Maybe a) ->
+  (SyntaxMaterial m) =>
   Env m esc String (Either CoreOp a) a lit ->
   (Either CoreOp a) ->
   Expr m (Either CoreOp a) (m (Expr m (Either CoreOp a) lit)) ->
     Expr m (Either String a)
       (Either (esc, Expr m (Either CoreOp a) lit) lit)
-coreEnv getOneAndOnly env op body = case op of
+coreEnv env op body = case op of
   Right op' -> interpret env (Call (Right op') body)
   Left op' -> case op' of
     -- The idea of `coreInterpret` is that it's okay to make calls to
     -- whitespace-like operations like `OpId` itself inside the `OpId`
     -- region, but any other content doesn't make sense there.
-    OpId -> case coreInterpret getOneAndOnly body of
+    OpId -> case coreInterpret body of
       Call err body' -> resultIfIncorrectUsage err
       Literal lit -> case getOneAndOnly lit of
         Nothing -> resultIfIncorrectUsage
@@ -170,7 +171,7 @@ coreEnv getOneAndOnly env op body = case op of
     where
       resultIfIncorrectUsage err = Call (Left err) $
         exprMapLiteral (fmap $ interpret env) $ exprMapOp Left $
-          coreInterpret getOneAndOnly body
+          coreInterpret body
 
 exprMapLiteral ::
   (Functor m) => (a -> b) -> Expr m op a -> Expr m op b
@@ -187,11 +188,10 @@ exprMapOp func expr = case expr of
       exprMapOp func body
 
 coreInterpret ::
-  (Functor m) =>
-  (forall a. m a -> Maybe a) ->
+  (SyntaxMaterial m) =>
   Expr m (Either CoreOp a) lit ->
     Expr m String lit
-coreInterpret getOneAndOnly expr = case expr of
+coreInterpret expr = case expr of
   Literal lit -> Literal lit
   Call op body ->
     exprMapLiteral
@@ -203,7 +203,7 @@ coreInterpret getOneAndOnly expr = case expr of
         Left err -> err
         Right op' ->
           "Encountered a non-core operator where a core operator was expected") $
-    callEnv (Env $ coreEnv getOneAndOnly) op body
+    callEnv (Env coreEnv) op body
 
 -- This is a possible alternative to `coreInterpret` for cases where
 -- even the core operators are not invited.
@@ -230,3 +230,6 @@ exprAsFunctorGetOneAndOnly getOneAndOnly (ExprAsFunctor expr) =
         case body'' of
           Call op''' body''' -> Nothing
           Literal lit -> Just op
+
+instance (SyntaxMaterial m) => SyntaxMaterial (ExprAsFunctor m lit) where
+  getOneAndOnly = exprAsFunctorGetOneAndOnly getOneAndOnly
