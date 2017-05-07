@@ -187,10 +187,8 @@ exprMapOp func expr = case expr of
     Call (func op) $ exprMapLiteral (fmap (exprMapOp func)) $
       exprMapOp func body
 
-coreInterpret ::
-  (SyntaxMaterial m) =>
-  Expr m (Either CoreOp a) lit ->
-    Expr m String lit
+coreInterpret :: (SyntaxMaterial m) =>
+  Expr m (Either CoreOp a) lit -> Expr m String lit
 coreInterpret expr = case expr of
   Literal lit -> Literal lit
   Call op body ->
@@ -231,5 +229,6 @@ exprAsFunctorGetOneAndOnly getOneAndOnly (ExprAsFunctor expr) =
           Call op''' body''' -> Nothing
           Literal lit -> Just op
 
-instance (SyntaxMaterial m) => SyntaxMaterial (ExprAsFunctor m lit) where
+instance (SyntaxMaterial m) => SyntaxMaterial (ExprAsFunctor m lit)
+where
   getOneAndOnly = exprAsFunctorGetOneAndOnly getOneAndOnly
