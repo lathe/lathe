@@ -6,7 +6,7 @@
 
 --{-# LANGUAGE RankNTypes, TypeOperators, FlexibleInstances #-}
 
---import Data.Void
+import Data.Void
 --import Data.Functor.Identity
 --import Data.Functor.Compose
 --import Data.Functor.Const
@@ -226,6 +226,36 @@ nestedListsAsQQExpr nestedLists =
 deNestedListsAsQQExpr :: QQExpr ((,) a) () -> [SExpr [] a]
 deNestedListsAsQQExpr qqExpr =
   let (list, ()) = deImproperNestedListsAsQQExpr qqExpr in list
+
+
+
+newtype Env f g = Env {
+  callEnv ::
+    Env f g ->
+    QQExpr f Void ->
+      Maybe (QQExpr g (Either String (Env f g, QQExpr f Void)))
+}
+
+data OpParen f a
+  = OpParenOpen a
+  | OpParenClose a
+  | OpParenOther (f a)
+
+simpleEnv ::
+  (Env f g ->
+    f (QQExpr f Void) ->
+      Maybe (QQExpr g (Either String (Env f g, QQExpr f Void)))
+  ) -> Env f g
+simpleEnv func = Env $ \env expr -> case expr of
+  QQExprLiteral lit -> Nothing
+  QQExprQQ body -> Nothing
+  QQExprList list -> func env list
+
+coreEnv :: Env (OpParen f) g
+coreEnv = simpleEnv $ \env call -> case call of
+  OpParenOpen call' -> Just $ undefined  -- TODO
+  OpParenClose call' -> Just $ undefined  -- TODO
+  _ -> Nothing
 
 
 
