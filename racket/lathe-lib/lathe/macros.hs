@@ -83,36 +83,63 @@ instance (Functor f) => Functor (QQExpr f) where
   fmap = liftM
 
 
--- This is one half of the main thing we're trying to show: That
--- `QQExpr` corresponds to the special case of `SExpr` where any
--- parens occurring are balanced.
+-- This is the algorithm that justifies the data types we're using: A
+-- `QQExpr` corresponds to the special case of `SExpr` where all
+-- parens within are balanced. This correspondence is witnessed by
+-- the total function `flattenQQ` and its partial function inverse
+-- `nudgeBestQQ`.
+
 flattenQQ :: (Functor f) => QQExpr f lit -> SExpr (ParensAdded f) lit
 flattenQQ qqExpr = case qqExpr of
   QQExprLiteral lit -> SExprLiteral lit
   QQExprList list -> SExprList $ ParenOther $ fmap flattenQQ list
-  QQExprQQ body -> SExprList $ ParenOpen $ loop body
+  QQExprQQ body ->
+    SExprList $ ParenOpen $ flattenQQ body >>=
+    (SExprList . ParenClose . flattenQQ)
+
+nudgeNestQQ ::
+  (Functor f) =>
+  SExpr (ParensAdded f) lit -> QQExpr f (Either String lit)
+nudgeNestQQ sExpr = flip fmap (loop sExpr) $ \litOrEsc ->
+  case litOrEsc of
+    Left lit -> lit
+    Right esc -> Left "Encountered an unmatched closing paren"
   where
     loop ::
       (Functor f) =>
-      QQExpr f (QQExpr f lit) -> SExpr (ParensAdded f) lit
-    loop body = case body of
-      QQExprLiteral unquote ->
-        SExprList $ ParenClose $ flattenQQ unquote
-      QQExprList list -> SExprList $ ParenOther $ fmap loop list
-      QQExprQQ body -> loop2 $ flattenQQ body
-    loop2 ::
-      (Functor f) =>
-      SExpr (ParensAdded f) (QQExpr f (QQExpr f lit)) ->
-        SExpr (ParensAdded f) lit
-    loop2 expr = case expr of
-      SExprLiteral unquote -> loop unquote
-      SExprList list -> SExprList $ fmap loop2 list
+      SExpr (ParensAdded f) lit ->
+        QQExpr f
+          (Either (Either String lit) (SExpr (ParensAdded f) lit))
+    loop sExpr = case sExpr of
+      SExprLiteral lit -> QQExprLiteral $ Left $ Right lit
+      SExprList list -> case list of
+        ParenOpen list' ->
+          QQExprQQ $ flip fmap (loop list') $ \errOrLitOrEsc ->
+            case errOrLitOrEsc of
+              Left errOrLit -> QQExprLiteral $ Left $ Left $
+                case errOrLit of
+                  Left err -> err
+                  Right lit ->
+                    "Encountered an unmatched opening paren"
+              Right esc -> loop esc
+        ParenClose list' -> QQExprLiteral $ Right list'
+        ParenOther list' -> QQExprList $ fmap loop list'
 
--- Here's the obvious inclusion from `SExpr` into `QQExpr`. Together
--- with `flattenQQ`, this means we can flatten something over and
--- over. This would mean flattening a different kind of paren at each
--- stage, like first flattening quasiquote/unquote into s-expressions,
--- and then flattening s-expression parens into text.
+insistNestQQ ::
+  (Functor f) => SExpr (ParensAdded f) lit -> QQExpr f lit
+insistNestQQ sExpr = flip fmap (nudgeNestQQ sExpr) $ \errOrLit ->
+  case errOrLit of
+    Left err -> error err
+    Right lit -> lit
+
+
+-- Here's the obvious inclusion from `SExpr` into `QQExpr`, along with
+-- its partial function inverse. Together with `flattenQQ` and
+-- `nudgeNestQQ`, these functions mean we can nestle or flatten
+-- something over and over. For instance, we could flatten a
+-- quasiquote/unquote structure into an s-expression and then flatten
+-- that s-expression into text.
+
 qqExprOfSExpr :: (Functor f) => SExpr f lit -> QQExpr f lit
 qqExprOfSExpr sExpr = case sExpr of
   SExprLiteral lit -> QQExprLiteral lit
@@ -125,18 +152,12 @@ nudgeSExprFromQQExpr qqExpr = case qqExpr of
   QQExprList list -> SExprList $ fmap nudgeSExprFromQQExpr list
   QQExprQQ body -> SExprLiteral Nothing
 
-forceSExprFromQQExpr :: (Functor f) => QQExpr f lit -> SExpr f lit
-forceSExprFromQQExpr qqExpr =
+insistSExprFromQQExpr :: (Functor f) => QQExpr f lit -> SExpr f lit
+insistSExprFromQQExpr qqExpr =
   nudgeSExprFromQQExpr qqExpr >>= \litOrErr -> case litOrErr of
-    Nothing -> error "Tried to forceSExprFromQQExpr a QQExprQQ"
+    Nothing -> error "Tried to insistSExprFromQQExpr a QQExprQQ"
     Just lit -> return lit
 
--- TODO: Implement the (error-prone) converse of `flattenQQ`, so that
--- we can use it with `nudgeSExprFromQQExpr`/`forceSExprFromQQExpr` to
--- start with text and build up to higher degrees of nesting. The
--- attempts at `matchParens`, below, might help with that. To start,
--- let's just make it a Haskell error to try to convert this way when
--- the parens are unbalanced.
 
 
 -- The form of `SExpr` and `QQExpr` is the most familiar when
@@ -209,7 +230,7 @@ deNestedListsAsQQExpr qqExpr =
 
 
 -- TODO: Remove the following once we've implemented something like
--- `matchParens` and something like `coreEnv`.
+-- `coreEnv`.
 
 {-
 data Expr m a = Expr a (Maybe (m (Expr m a)))
