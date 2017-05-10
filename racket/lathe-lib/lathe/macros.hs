@@ -13,6 +13,53 @@ import Data.Functor.Const
 import Data.Functor.Sum
 
 
+-- TODO: Reformulate the rest of the file in terms of a generalization
+-- of `SSExpr` and `QQExpr` here. That way we won't have as much
+-- trouble representing matching parens. (Change the name of `SSExpr`
+-- too. The only reasons there's a second S there is for similarity
+-- with `QQExpr` and because `SExpr` was already taken elsewhere in
+-- the file.
+data Paren = ParenOpen | ParenClose
+data SSExpr lit = SSExprLiteral lit | SSExprList [SSExpr lit]
+data QQExpr lit = QQExprLiteral lit | QQExprList [QQExpr lit] | QQExprQQ (QQExpr (Either lit (QQExpr lit)))
+flattenQQ :: QQExpr lit -> SSExpr (Either Paren lit)
+flattenQQ qqExpr = case qqExpr of
+  QQExprLiteral lit -> SSExprLiteral $ Right lit
+  QQExprList list -> SSExprList $ fmap flattenQQ list
+  QQExprQQ body ->
+    SSExprList [SSExprLiteral $ Left ParenOpen, loop body]
+  where
+    loop ::
+      QQExpr (Either lit (QQExpr lit)) -> SSExpr (Either Paren lit)
+    loop body = case body of
+      QQExprLiteral litOrUnquote -> case litOrUnquote of
+        Left lit -> SSExprLiteral $ Right lit
+        Right unquote ->
+          SSExprList
+            [SSExprLiteral $ Left ParenClose, flattenQQ unquote]
+      QQExprList list -> SSExprList $ fmap loop list
+      QQExprQQ body -> loop2 $ flattenQQ body
+    loop2 ::
+      SSExpr
+        (Either Paren
+          (Either (Either lit (QQExpr lit))
+            (QQExpr (Either lit (QQExpr lit))))) ->
+        SSExpr (Either Paren lit)
+    loop2 expr = case expr of
+      SSExprLiteral parenOrLitOrUnquoteOrDoubleUnquote ->
+        case parenOrLitOrUnquoteOrDoubleUnquote of
+          Left paren -> SSExprLiteral $ Left paren
+          Right litOrUnquoteOrDoubleUnquote ->
+            case litOrUnquoteOrDoubleUnquote of
+              Left litOrUnquote -> case litOrUnquote of
+                Left lit -> SSExprLiteral $ Right lit
+                Right unquote -> flattenQQ unquote
+              Right doubleUnquote -> loop doubleUnquote
+      SSExprList list -> SSExprList $ fmap loop2 list
+
+
+
+
 data Expr m a = Expr a (Maybe (m (Expr m a)))
 
 instance (Functor m) => Functor (Expr m) where
@@ -48,8 +95,6 @@ exprFromSExpr (SExpr a list) =
 sExprFromExpr :: Expr (Expr (Expr (Const Void))) a -> SExpr a
 sExprFromExpr (Expr a expr) =
   SExpr a $ fmap sExprFromExpr $ listFromExpr expr
-
-data Paren = ParenOpen | ParenClose
 
 matchParens1 :: [Paren] -> ([SExpr ()], Maybe String)
 matchParens1 list = case list of
