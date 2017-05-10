@@ -4,62 +4,200 @@
 -- It's just a scratch area to help guide the design of macros.rkt.
 
 
-{-# LANGUAGE RankNTypes, TypeOperators, FlexibleInstances #-}
+--{-# LANGUAGE RankNTypes, TypeOperators, FlexibleInstances #-}
 
-import Data.Void
-import Data.Functor.Identity
-import Data.Functor.Compose
-import Data.Functor.Const
-import Data.Functor.Sum
+--import Data.Void
+--import Data.Functor.Identity
+--import Data.Functor.Compose
+--import Data.Functor.Const
+--import Data.Functor.Sum
+import Control.Monad (ap, liftM)
 
 
--- TODO: Reformulate the rest of the file in terms of a generalization
--- of `SSExpr` and `QQExpr` here. That way we won't have as much
--- trouble representing matching parens. (Change the name of `SSExpr`
--- too. The only reasons there's a second S there is for similarity
--- with `QQExpr` and because `SExpr` was already taken elsewhere in
--- the file.
-data Paren = ParenOpen | ParenClose
-data SSExpr lit = SSExprLiteral lit | SSExprList [SSExpr lit]
-data QQExpr lit = QQExprLiteral lit | QQExprList [QQExpr lit] | QQExprQQ (QQExpr (Either lit (QQExpr lit)))
-flattenQQ :: QQExpr lit -> SSExpr (Either Paren lit)
+-- We aim to generalize the two concepts of balanced parentheses and
+-- balanced quasiquote/unquote operations.
+--
+-- We define two main types, `SExpr` and `QQExpr`. Our goal with
+-- `QQExpr` is to represent a data structure where quasiquote and
+-- unquote are balanced by construction, while `SExpr` is the
+-- corresponding freeform representation where the operations may or
+-- may not be balanced.
+--
+-- Since we're generalizing, we simply refer to the generalized
+-- quasiquotation and unquotation operations as opening and closing
+-- parens, repsectively. Just as nested quasiquotations have more
+-- nesting structure than nested lists, which have more nesting
+-- structure than flat text, we'll be able to extrapolate upward to
+-- even higher degrees of nesting.
+--
+-- The point of all this is so that we can design a macro system where
+-- symbols like "quasiquote", "unquote", "(", and ")" are within the
+-- realm of what users can define, and so that they're defined in ways
+-- that are analogous to each other, leading to a language with fewer
+-- hardcoded symbols and gotchas.
+
+data SExpr f lit
+  = SExprLiteral lit
+  | SExprList (f (SExpr f lit))
+
+data QQExpr f lit
+  = QQExprLiteral lit
+  | QQExprList (f (QQExpr f lit))
+  | QQExprQQ (QQExpr f (QQExpr f lit))
+
+
+data ParensAdded f a = ParenOpen a | ParenClose a | ParenOther (f a)
+
+
+-- We define a few type class instances related to those types.
+
+instance (Functor f) => Functor (ParensAdded f) where
+  fmap func parensAdded = case parensAdded of
+    ParenOpen rest -> ParenOpen $ func rest
+    ParenClose rest -> ParenClose $ func rest
+    ParenOther rest -> ParenOther $ fmap func rest
+
+-- TODO: See if we'll ever use this.
+instance (Functor f) => Monad (SExpr f) where
+  return = SExprLiteral
+  effects >>= func = case effects of
+    SExprLiteral lit -> func lit
+    SExprList list -> SExprList $ fmap (>>= func) list
+instance (Functor f) => Applicative (SExpr f) where
+  pure = return
+  (<*>) = ap
+instance (Functor f) => Functor (SExpr f) where
+  fmap = liftM
+
+-- TODO: See if we'll ever use this.
+instance (Functor f) => Monad (QQExpr f) where
+  return = QQExprLiteral
+  effects >>= func = case effects of
+    QQExprLiteral lit -> func lit
+    QQExprList list -> QQExprList $ fmap (>>= func) list
+    QQExprQQ body -> body >>= \unquote -> unquote >>= func
+instance (Functor f) => Applicative (QQExpr f) where
+  pure = return
+  (<*>) = ap
+instance (Functor f) => Functor (QQExpr f) where
+  fmap = liftM
+
+
+-- This is one half of the main thing we're trying to show: That
+-- `QQExpr` corresponds to the special case of `SExpr` where any
+-- parens occurring are balanced.
+flattenQQ :: (Functor f) => QQExpr f lit -> SExpr (ParensAdded f) lit
 flattenQQ qqExpr = case qqExpr of
-  QQExprLiteral lit -> SSExprLiteral $ Right lit
-  QQExprList list -> SSExprList $ fmap flattenQQ list
-  QQExprQQ body ->
-    SSExprList [SSExprLiteral $ Left ParenOpen, loop body]
+  QQExprLiteral lit -> SExprLiteral lit
+  QQExprList list -> SExprList $ ParenOther $ fmap flattenQQ list
+  QQExprQQ body -> SExprList $ ParenOpen $ loop body
   where
     loop ::
-      QQExpr (Either lit (QQExpr lit)) -> SSExpr (Either Paren lit)
+      (Functor f) =>
+      QQExpr f (QQExpr f lit) -> SExpr (ParensAdded f) lit
     loop body = case body of
-      QQExprLiteral litOrUnquote -> case litOrUnquote of
-        Left lit -> SSExprLiteral $ Right lit
-        Right unquote ->
-          SSExprList
-            [SSExprLiteral $ Left ParenClose, flattenQQ unquote]
-      QQExprList list -> SSExprList $ fmap loop list
+      QQExprLiteral unquote ->
+        SExprList $ ParenClose $ flattenQQ unquote
+      QQExprList list -> SExprList $ ParenOther $ fmap loop list
       QQExprQQ body -> loop2 $ flattenQQ body
     loop2 ::
-      SSExpr
-        (Either Paren
-          (Either (Either lit (QQExpr lit))
-            (QQExpr (Either lit (QQExpr lit))))) ->
-        SSExpr (Either Paren lit)
+      (Functor f) =>
+      SExpr (ParensAdded f) (QQExpr f (QQExpr f lit)) ->
+        SExpr (ParensAdded f) lit
     loop2 expr = case expr of
-      SSExprLiteral parenOrLitOrUnquoteOrDoubleUnquote ->
-        case parenOrLitOrUnquoteOrDoubleUnquote of
-          Left paren -> SSExprLiteral $ Left paren
-          Right litOrUnquoteOrDoubleUnquote ->
-            case litOrUnquoteOrDoubleUnquote of
-              Left litOrUnquote -> case litOrUnquote of
-                Left lit -> SSExprLiteral $ Right lit
-                Right unquote -> flattenQQ unquote
-              Right doubleUnquote -> loop doubleUnquote
-      SSExprList list -> SSExprList $ fmap loop2 list
+      SExprLiteral unquote -> loop unquote
+      SExprList list -> SExprList $ fmap loop2 list
+
+-- Here's the obvious inclusion from `SExpr` into `QQExpr`. Together
+-- with `flattenQQ`, this means we can flatten something over and
+-- over. This would mean flattening a different kind of paren at each
+-- stage, like first flattening quasiquote/unquote into s-expressions,
+-- and then flattening s-expression parens into text.
+qqExprOfSExpr :: (Functor f) => SExpr f lit -> QQExpr f lit
+qqExprOfSExpr sExpr = case sExpr of
+  SExprLiteral lit -> QQExprLiteral lit
+  SExprList list -> QQExprList $ fmap qqExprOfSExpr list
+
+-- TODO: Implement the (error-prone) converses of `flattenQQ` and
+-- `qqExprOfSExpr`, so that we can start with text and build up to
+-- higher degrees of nesting. The attempts at `matchParens`, below,
+-- might help with that. To start, let's just make it a Haskell error
+-- to try to convert this way when the parens are unbalanced.
+
+
+-- The form of `SExpr` and `QQExpr` is the most familiar when
+-- `SExprList` and `QQExprList` refer to actual lists (and hence
+-- `SExpr` refers to actual s-expressions), but we can use other
+-- functors for `f`.
+--
+-- If we use the functor (Compose [] (Sum (Const a) Identity)), then
+-- our s-expressions can contain literal values of type `a`. We can
+-- put symbols or other atoms into our s-exprssions that way, making
+-- them even more familiar from the Lisp s-expression tradition.
+--
+-- If we use the functor ((,) a), then `SExpr` is isomorphic to a
+-- list, and `QQExpr` is isomorphic to a list of s-expressions, as we
+-- show using the coercions below. So the same algorithm we used for
+-- flattening quasiquote/unquote can be used to flatten an
+-- s-expression into a list with parens in it. So naming the
+-- quasiquote/unquote operations "ParenOpen" and "ParenClosed" was
+-- well justified.
+
+improperListAsSExpr :: ([a], end) -> SExpr ((,) a) end
+improperListAsSExpr (list, end) = case list of
+  [] -> SExprLiteral end
+  x:xs -> SExprList (x, improperListAsSExpr (xs, end))
+
+deImproperListAsSExpr :: SExpr ((,) a) end -> ([a], end)
+deImproperListAsSExpr expr = case expr of
+  SExprLiteral end -> ([], end)
+  SExprList (x, xs) ->
+    let (xs', end) = deImproperListAsSExpr xs in (x:xs', end)
+
+listAsSExpr :: [a] -> SExpr ((,) a) ()
+listAsSExpr list = improperListAsSExpr (list, ())
+
+deListAsSExpr :: SExpr ((,) a) () -> [a]
+deListAsSExpr expr =
+  let (list, ()) = deImproperListAsSExpr expr in list
+
+improperNestedListsAsQQExpr ::
+  ([SExpr [] a], end) -> QQExpr ((,) a) end
+improperNestedListsAsQQExpr (nestedLists, end) = case nestedLists of
+  [] -> QQExprLiteral end
+  x:xs ->
+    let xs' = improperNestedListsAsQQExpr (xs, end) in
+    case x of
+      SExprLiteral x' -> QQExprList (x', xs')
+      SExprList list ->
+        QQExprQQ $ improperNestedListsAsQQExpr (list, xs')
+
+deImproperNestedListsAsQQExpr ::
+  QQExpr ((,) a) end -> ([SExpr [] a], end)
+deImproperNestedListsAsQQExpr qqExpr = case qqExpr of
+  QQExprLiteral end -> ([], end)
+  QQExprList (x, xs) ->
+    let (xs', end) = deImproperNestedListsAsQQExpr xs in
+    (SExprLiteral x : xs', end)
+  QQExprQQ body ->
+    let (list, unquote) = deImproperNestedListsAsQQExpr body in
+    let (xs, end) = deImproperNestedListsAsQQExpr unquote in
+    (SExprList list : xs, end)
+
+nestedListsAsQQExpr :: [SExpr [] a] -> QQExpr ((,) a) ()
+nestedListsAsQQExpr nestedLists =
+  improperNestedListsAsQQExpr (nestedLists, ())
+
+deNestedListsAsQQExpr :: QQExpr ((,) a) () -> [SExpr [] a]
+deNestedListsAsQQExpr qqExpr =
+  let (list, ()) = deImproperNestedListsAsQQExpr qqExpr in list
 
 
 
+-- TODO: Remove the following once we've implemented something like
+-- `matchParens` and something like `coreEnv`.
 
+{-
 data Expr m a = Expr a (Maybe (m (Expr m a)))
 
 instance (Functor m) => Functor (Expr m) where
@@ -280,12 +418,12 @@ matchParens prependTree expr = case expr of
       parseParenOpen prependTree list = case list of
         Nothing ->
           Just $ Left $ Left "Encountered an unmatched ParenOpen"
-        -- TODO: The `parseParenOpen` function originally writen for a
-        -- `list` parameter of type (Maybe (Expr (Expr m) Paren)), and
-        -- we haven't updated it yet. This seems like another case
-        -- (aside from `prependTree`) where if only `m` were
-        -- (Const Void), we would have a straightforward
-        -- implementation here.
+        -- TODO: The `parseParenOpen` function was originally writen
+        -- for a `list` parameter of type
+        -- (Maybe (Expr (Expr m) Paren)), and we haven't updated it
+        -- yet. This seems like another case (aside from
+        -- `prependTree`) where if only `m` were (Const Void), we
+        -- would have a straightforward implementation here.
         Just (Expr paren parens) -> case undefined paren of  -- TODO
           ParenClose -> case parens of
             -- The parse escapes with an empty list.
@@ -465,7 +603,7 @@ instance (Functor m) => SyntaxMaterial (Expr m) where
 
 instance SyntaxMaterial Maybe where
   getOneAndOnly = id
-
+-}
 -- TODO: Update the following old notes to explain the `Expr` data
 -- type we define above.
 
