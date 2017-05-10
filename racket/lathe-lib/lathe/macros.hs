@@ -118,11 +118,25 @@ qqExprOfSExpr sExpr = case sExpr of
   SExprLiteral lit -> QQExprLiteral lit
   SExprList list -> QQExprList $ fmap qqExprOfSExpr list
 
--- TODO: Implement the (error-prone) converses of `flattenQQ` and
--- `qqExprOfSExpr`, so that we can start with text and build up to
--- higher degrees of nesting. The attempts at `matchParens`, below,
--- might help with that. To start, let's just make it a Haskell error
--- to try to convert this way when the parens are unbalanced.
+nudgeSExprFromQQExpr ::
+  (Functor f) => QQExpr f lit -> SExpr f (Maybe lit)
+nudgeSExprFromQQExpr qqExpr = case qqExpr of
+  QQExprLiteral lit -> SExprLiteral $ Just lit
+  QQExprList list -> SExprList $ fmap nudgeSExprFromQQExpr list
+  QQExprQQ body -> SExprLiteral Nothing
+
+forceSExprFromQQExpr :: (Functor f) => QQExpr f lit -> SExpr f lit
+forceSExprFromQQExpr qqExpr =
+  nudgeSExprFromQQExpr qqExpr >>= \litOrErr -> case litOrErr of
+    Nothing -> error "Tried to forceSExprFromQQExpr a QQExprQQ"
+    Just lit -> return lit
+
+-- TODO: Implement the (error-prone) converse of `flattenQQ`, so that
+-- we can use it with `nudgeSExprFromQQExpr`/`forceSExprFromQQExpr` to
+-- start with text and build up to higher degrees of nesting. The
+-- attempts at `matchParens`, below, might help with that. To start,
+-- let's just make it a Haskell error to try to convert this way when
+-- the parens are unbalanced.
 
 
 -- The form of `SExpr` and `QQExpr` is the most familiar when
