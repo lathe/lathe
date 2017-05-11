@@ -258,9 +258,9 @@ newtype Env esc f g = Env {
 -- what parts of the environment have been peeked at as well. We might
 -- be able to make a little bit of headway on this if we use type
 -- quantifiers, but it's likely this will be much more
--- straightoforward to enforce if we make peeking a side effect (hence
--- treating expressions not as pure data structures but as imperative
--- streams).
+-- straightoforward to enforce if we make peeking a side effect (so
+-- we'll want to treat expressions not as pure data structures but as
+-- imperative streams).
 --
 interpret ::
   Env esc f g -> QQExpr f Void -> Maybe (QQExpr g (EnvEsc esc f g))
