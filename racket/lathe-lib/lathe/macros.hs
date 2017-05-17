@@ -4,10 +4,13 @@
 -- It's just a scratch area to help guide the design of macros.rkt.
 
 
-{-# LANGUAGE ExistentialQuantification, Rank2Types #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
-import Data.Void
+import Data.Void (Void, absurd)
 import Control.Monad (ap, liftM)
+
 
 
 -- We aim to generalize the two concepts of balanced parentheses and
@@ -233,8 +236,8 @@ data EnvEsc esc f g
   | forall esc' f' g'. EnvEscSubexpr
       esc
       (Env esc' f' g')
-      (QQExpr f' Void)
-      (QQExpr g' (EnvEsc esc' f' g') -> QQExpr g (EnvEsc esc f g))
+      (QQExpr f' (EnvEsc () f' g'))
+      (QQExpr g' Void -> QQExpr g (EnvEsc esc f g))
 
 newtype Env esc f g = Env {
   callEnv ::
@@ -246,8 +249,8 @@ processEsc ::
   (forall esc' f' g'.
     esc ->
     Env esc' f' g' ->
-    QQExpr f' Void ->
-    (QQExpr g' (EnvEsc esc' f' g') -> QQExpr g (EnvEsc esc'' f g)) ->
+    QQExpr f' (EnvEsc () f' g') ->
+    (QQExpr g' Void -> QQExpr g (EnvEsc esc'' f g)) ->
     EnvEsc esc'' f g) ->
   EnvEsc esc f g ->
     EnvEsc esc'' f g
@@ -266,7 +269,9 @@ processEsc onSubexpr esc = case esc of
 -- result of parsing a closing parenthesis/unquote or to invoke the
 -- macroexpander in a trampolined way, so that we can potentially
 -- cache and recompute different areas of the syntax without starting
--- from scratch each time.
+-- from scratch each time. The expression parameter to `EnvEscSubexpr`
+-- includes (EnvEsc () ...) so that it can use a () escape to
+-- trampoline to the macroexpander like this.
 --
 -- TODO: We don't currently implement a cache like that. Should we? If
 -- we could somehow guarantee that one macroexpansion step didnt't
@@ -283,11 +288,6 @@ processEsc onSubexpr esc = case esc of
 interpret ::
   Env esc f g -> QQExpr f Void -> Maybe (QQExpr g (EnvEsc esc f g))
 interpret env expr = callEnv env env expr
-
-data OpParen f a
-  = OpParenOpen a
-  | OpParenClose a
-  | OpParenOther (f a)
 
 callSimpleEnv ::
   (Env esc f g ->
@@ -329,8 +329,8 @@ qualifyEnv ::
   (forall esc' f' g'.
     esc ->
     Env esc' f' g' ->
-    QQExpr f' Void ->
-    (QQExpr g' (EnvEsc esc' f' g') -> QQExpr g (EnvEsc esc'' f g)) ->
+    QQExpr f' (EnvEsc () f' g') ->
+    (QQExpr g' Void -> QQExpr g (EnvEsc esc'' f g)) ->
     EnvEsc esc'' f g) ->
   Env esc f g ->
     Env esc'' f g
@@ -357,25 +357,77 @@ upEscEnv = qualifyEnv downEscEnv $ \esc env expr func -> case esc of
   -- (Just Nothing).
   Just esc' -> EnvEscSubexpr (Just (Just esc')) env expr func
 
+data OpParen f a
+  = OpParenOpen
+      -- TODO: Figure out what kind of operation can actually be
+      -- expressed with this signature. What this is supposed to
+      -- represent is an operation that takes an interval enclosed by
+      -- the parens (`QQExpr f`), some following syntax for which that
+      -- bracketed section could itself be an opening bracket
+      -- (`QQExpr (OpParen f)`), and finally a section that's off
+      -- limits which the operator must ignore (`lit`). The operator
+      -- returns a possible parenthesis (`OpParen f`) followed by
+      -- instructions on how to parse whatever fragment following the
+      -- parens has not been consumed (`EnvEsc () (OpParen f) f`).
+      --
+      -- We probably need to at least upgrade this signature to accept
+      -- an environment, so that it has some environment to refer to
+      -- in an `EnvExcSubexpr` result.
+      --
+      -- We should try to represent four operators this way: Two that
+      -- act as opening and closing parens of the next-higher
+      -- quasiquotation degree for the bracketed body, and two that
+      -- verify that the brackets contain nothing and then make the
+      -- pair of brackets act as an opening or closing paren itself.
+      --
+      (forall lit.
+        QQExpr f (QQExpr (OpParen f) lit) ->
+          OpParen f (EnvEsc () (OpParen f) f))
+      a
+  | OpParenClose a
+  | OpParenOther (f a)
+
+instance (Functor f) => Functor (OpParen f) where
+  fmap func x = case x of
+    OpParenOpen parenFunc a -> OpParenOpen parenFunc $ func a
+    OpParenClose a -> OpParenClose $ func a
+    OpParenOther other -> OpParenOther $ fmap func other
+
 -- NOTE: This environment expects at least one escape, namely
 -- `Nothing`, with the meaning of trampolining to the macroexpander.
-coreEnv :: (Functor g) => Env (Maybe esc) (OpParen f) g
+coreEnv ::
+  -- We use an explicit `forall` here so we can use these type
+  -- variables in type annotations below (with the help of
+  -- `ScopedTypeVariables`). We're only using the type annotations as
+  -- a sanity check.
+  forall fz esc. (Functor fz) =>
+  Env (Maybe esc) (OpParen fz) fz
 coreEnv = simpleEnv $ \env call -> case call of
-  OpParenOpen expr -> Just $ QQExprLiteral $ EnvEscSubexpr
-    Nothing
-    (downEscEnv $ shadowSimpleEnv (upEscEnv env) $ \env' call' ->
-      case call' of
-        OpParenClose expr' -> Just $ QQExprLiteral $
-          -- We reset the environment to the environment that existed
-          -- at the open paren.
-          EnvEscSubexpr (Just Nothing) (upEscEnv env) expr' id
-        _ -> Nothing)
-    expr
-    -- TODO: Currently, all we do with `OpParenOpen` and
-    -- `OpParenClose` is return a `QQExprQQ` like this. It would be
-    -- nifty if we could immediately run another interpretation pass
-    -- over this result, using an operator determined from the parens.
-    (QQExprQQ . fmap QQExprLiteral)
+  OpParenOpen parenFunc expr -> Just $ QQExprLiteral $
+    ((EnvEscSubexpr Nothing
+      ((downEscEnv $ shadowSimpleEnv (upEscEnv env) $ \env' call'' ->
+        case call'' of
+          OpParenClose expr' -> Just $ QQExprLiteral $
+            -- We reset the environment to the environment that
+            -- existed at the open paren.
+            EnvEscSubexpr (Just Nothing) (upEscEnv env)
+              (fmap absurd expr') (fmap absurd)
+          _ -> Nothing
+      ) :: Env (Maybe esc) (OpParen fz) fz)
+      (fmap absurd expr
+        :: QQExpr (OpParen fz) (EnvEsc () (OpParen fz) fz))
+      ((\expr' ->
+          -- We immediately run another interpretation pass over this
+          -- result, using an operator determined from the parens
+          -- (namely, `parenFunc`).
+          QQExprLiteral $ EnvEscSubexpr Nothing env
+            (QQExprList $ fmap QQExprLiteral $
+              parenFunc $ fmap absurd expr')
+            (fmap absurd)
+      ) ::
+        QQExpr fz Void ->
+          QQExpr fz (EnvEsc (Maybe esc) (OpParen fz) fz))
+    ) :: EnvEsc (Maybe esc) (OpParen fz) fz)
   OpParenClose expr ->
     Just $ QQExprLiteral $
       EnvEscErr "Encountered an unmatched closing paren"
