@@ -4,7 +4,7 @@
 -- It's just a scratch area to help guide the design of macros.rkt.
 
 
---{-# LANGUAGE RankNTypes, TypeOperators, FlexibleInstances #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 import Data.Void
 import Control.Monad (ap, liftM)
@@ -231,7 +231,9 @@ deNestedListsAsQQExpr qqExpr =
 data EnvEsc esc f g
   = EnvEscErr String
   | EnvEscClose esc (QQExpr f Void)
-  | EnvEscSubexpr (Env esc f g) (QQExpr f Void)
+  | forall esc' f' g'.
+      EnvEscSubexpr (Env esc' f' g') (QQExpr f' Void)
+      (QQExpr g' (EnvEsc esc' f' g') -> QQExpr g (EnvEsc esc f g))
 
 newtype Env esc f g = Env {
   callEnv ::
@@ -246,9 +248,10 @@ newtype Env esc f g = Env {
 -- reported locally among the branches of the returned expression.
 -- The `EnvEscClose` result allows us to represent the result of
 -- parsing a closing parenthesis or an unquote operation. Finally,
--- `EnvEscSubexpr` allows an operator to leave parts of its input
--- unparsed, so that we can potentially cache and recompute different
--- areas of the syntax without starting from scratch each time.
+-- `EnvEscSubexpr` allows an operator to invoke the macroexpander in
+-- a trampolined way, so that we can potentially cache and recompute
+-- different areas of the syntax without starting from scratch each
+-- time.
 --
 -- TODO: We don't currently implement a cache like that. Should we? If
 -- we could somehow guarantee that one macroexpansion step didnt't
@@ -294,6 +297,19 @@ shadowSimpleEnv (Env shadowee) shadower = Env $ \env expr ->
     Just result -> Just result
     Nothing -> shadowee env expr
 
+processEsc ::
+  (Functor g) =>
+  (String -> EnvEsc esc' f g) ->
+  (esc -> QQExpr f Void -> EnvEsc esc' f g) ->
+  EnvEsc esc f g ->
+    EnvEsc esc' f g
+processEsc onErr onClose esc = case esc of
+  EnvEscErr err -> onErr err
+  EnvEscClose esc' expr -> onClose esc' expr
+  EnvEscSubexpr env expr func ->
+    EnvEscSubexpr env expr $ \expr' ->
+    fmap (processEsc onErr onClose) (func expr')
+
 downEscEnv :: (Functor g) => Env (Maybe esc) f g -> Env esc f g
 downEscEnv (Env orig) = Env $ \env expr ->
   Just $ process env $ orig (upEscEnv env) expr
@@ -306,22 +322,21 @@ downEscEnv (Env orig) = Env $ \env expr ->
     process env result = case result of
       Nothing -> QQExprLiteral $
         EnvEscErr "Encountered an opening paren, but couldn't parse some syntax inside it"
-      Just expr' -> expr' >>= \leaf -> case leaf of
-        EnvEscClose esc expr''' -> return $ case esc of
-          Nothing -> EnvEscSubexpr env expr'''
+      Just expr' -> flip fmap expr' $ \leaf -> case leaf of
+        EnvEscClose esc expr''' -> case esc of
+          Nothing -> EnvEscSubexpr env expr''' id
           Just esc' -> EnvEscClose esc' expr'''
-        EnvEscErr err -> return $ EnvEscErr err
-        EnvEscSubexpr env'' expr''' ->
-          process env $ interpret env'' expr'''
+        EnvEscErr err -> EnvEscErr err
+        EnvEscSubexpr env'' expr'' func ->
+          EnvEscSubexpr env'' expr'' (process env . Just . func)
 
 upEscEnv :: (Functor g) => Env esc f g -> Env (Maybe esc) f g
 upEscEnv (Env orig) = Env $ \env expr ->
   case orig (downEscEnv env) expr of
     Nothing -> Nothing
-    Just expr' -> Just $ flip fmap expr' $ \esc -> case esc of
-      EnvEscClose esc' expr'' -> EnvEscClose (Just esc') expr''
-      EnvEscErr err -> EnvEscErr err
-      EnvEscSubexpr env' exp'' -> EnvEscSubexpr (upEscEnv env') exp''
+    Just expr' -> Just $ flip fmap expr' $ processEsc
+      (\err -> EnvEscErr err)
+      (\esc' expr'' -> EnvEscClose (Just esc') expr'')
 
 coreEnv :: (Functor g) => Env esc (OpParen f) g
 coreEnv = simpleEnv $ \env call -> case call of
