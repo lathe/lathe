@@ -240,6 +240,17 @@ newtype Env esc f g = Env {
     Env esc f g -> QQExpr f Void -> Maybe (QQExpr g (EnvEsc esc f g))
 }
 
+processEsc ::
+  (Functor g) =>
+  (esc -> QQExpr f Void -> EnvEsc esc' f g) ->
+  EnvEsc esc f g ->
+    EnvEsc esc' f g
+processEsc onClose esc = case esc of
+  EnvEscErr err -> EnvEscErr err
+  EnvEscClose esc' expr -> onClose esc' expr
+  EnvEscSubexpr env expr func ->
+    EnvEscSubexpr env expr (fmap (processEsc onClose) . func)
+
 -- NOTE: There's a lot going on in the result type. The (Maybe ...)
 -- part allows an environment to say that it has no binding for the
 -- "operator" in this expression, rather than calling its provided
@@ -274,87 +285,73 @@ data OpParen f a
   | OpParenClose a
   | OpParenOther (f a)
 
+callSimpleEnv ::
+  (Env esc f g ->
+    f (QQExpr f Void) ->
+      Maybe (QQExpr g (EnvEsc esc f g))
+  ) ->
+  Env esc f g ->
+  QQExpr f Void ->
+    Maybe (QQExpr g (EnvEsc esc f g))
+callSimpleEnv func env expr = case expr of
+  QQExprLiteral lit -> Nothing
+  QQExprQQ body -> Nothing
+  QQExprList list -> func env list
+
 simpleEnv ::
   (Env esc f g ->
     f (QQExpr f Void) ->
       Maybe (QQExpr g (EnvEsc esc f g))
   ) ->
     Env esc f g
-simpleEnv func = Env $ \env expr -> case expr of
-  QQExprLiteral lit -> Nothing
-  QQExprQQ body -> Nothing
-  QQExprList list -> func env list
+simpleEnv func = Env $ callSimpleEnv func
 
 shadowSimpleEnv ::
+  (Functor g) =>
   Env esc f g ->
   (Env esc f g ->
     f (QQExpr f Void) ->
       Maybe (QQExpr g (EnvEsc esc f g))
   ) ->
     Env esc f g
-shadowSimpleEnv (Env shadowee) shadower = Env $ \env expr ->
-  case callEnv (simpleEnv shadower) env expr of
+shadowSimpleEnv env shadower = Env $ \lateEnv expr ->
+  case callSimpleEnv shadower lateEnv expr of
     Just result -> Just result
-    Nothing -> shadowee env expr
+    Nothing -> callEnv env lateEnv expr
 
-processEsc ::
+qualifyEnv ::
   (Functor g) =>
-  (String -> EnvEsc esc' f g) ->
-  (esc -> QQExpr f Void -> EnvEsc esc' f g) ->
-  EnvEsc esc f g ->
-    EnvEsc esc' f g
-processEsc onErr onClose esc = case esc of
-  EnvEscErr err -> onErr err
-  EnvEscClose esc' expr -> onClose esc' expr
-  EnvEscSubexpr env expr func ->
-    EnvEscSubexpr env expr $ \expr' ->
-    fmap (processEsc onErr onClose) (func expr')
+  (Env esc' f g -> Env esc f g) ->
+  (Env esc' f g -> esc -> QQExpr f Void -> EnvEsc esc' f g) ->
+  Env esc f g ->
+    Env esc' f g
+qualifyEnv super qualify env = Env $ \lateEnv expr ->
+  fmap (fmap $ processEsc $ qualify lateEnv) $
+    callEnv env (super lateEnv) expr
 
 downEscEnv :: (Functor g) => Env (Maybe esc) f g -> Env esc f g
-downEscEnv (Env orig) = Env $ \env expr ->
-  Just $ process env $ orig (upEscEnv env) expr
-  where
-    process ::
-      (Functor g) =>
-      Env esc f g ->
-      Maybe (QQExpr g (EnvEsc (Maybe esc) f g)) ->
-        QQExpr g (EnvEsc esc f g)
-    process env result = case result of
-      Nothing -> QQExprLiteral $
-        EnvEscErr "Encountered an opening paren, but couldn't parse some syntax inside it"
-      Just expr' -> flip fmap expr' $ \leaf -> case leaf of
-        EnvEscClose esc expr''' -> case esc of
-          Nothing -> EnvEscSubexpr env expr''' id
-          Just esc' -> EnvEscClose esc' expr'''
-        EnvEscErr err -> EnvEscErr err
-        EnvEscSubexpr env'' expr'' func ->
-          EnvEscSubexpr env'' expr'' (process env . Just . func)
+downEscEnv = qualifyEnv upEscEnv $ \env esc expr -> case esc of
+  Nothing -> EnvEscSubexpr env expr id
+  Just esc' -> EnvEscClose esc' expr
 
 upEscEnv :: (Functor g) => Env esc f g -> Env (Maybe esc) f g
-upEscEnv (Env orig) = Env $ \env expr ->
-  case orig (downEscEnv env) expr of
-    Nothing -> Nothing
-    Just expr' -> Just $ flip fmap expr' $ processEsc
-      (\err -> EnvEscErr err)
-      (\esc' expr'' -> EnvEscClose (Just esc') expr'')
+upEscEnv = qualifyEnv downEscEnv $ \env esc expr' ->
+  EnvEscClose (Just esc) expr'
 
 coreEnv :: (Functor g) => Env esc (OpParen f) g
 coreEnv = simpleEnv $ \env call -> case call of
-  OpParenOpen expr -> Just $
-    case flip interpret expr $ downEscEnv $
-      shadowSimpleEnv (upEscEnv env) $ \env call' -> case call' of
+  OpParenOpen expr -> Just $ QQExprLiteral $ EnvEscSubexpr
+    (downEscEnv $ shadowSimpleEnv (upEscEnv env) $ \env call' ->
+      case call' of
         OpParenClose expr' ->
           Just $ QQExprLiteral $ EnvEscClose Nothing expr'
-        _ -> Nothing
-    of
-      Nothing -> QQExprLiteral $
-        EnvEscErr "Internal error: Expected an opening paren parser to return a result"
-      -- TODO: Currently, all we do with `OpParenOpen` and
-      -- `OpParenClose` is return a `QQExprQQ` like this. It would be
-      -- nifty if we could immediately run another interpretation pass
-      -- over this result, using an operator determined from the
-      -- parens.
-      Just expr -> QQExprQQ $ fmap QQExprLiteral expr
+        _ -> Nothing)
+    expr
+    -- TODO: Currently, all we do with `OpParenOpen` and
+    -- `OpParenClose` is return a `QQExprQQ` like this. It would be
+    -- nifty if we could immediately run another interpretation pass
+    -- over this result, using an operator determined from the parens.
+    (QQExprQQ . fmap QQExprLiteral)
   OpParenClose expr ->
     Just $ QQExprLiteral $
       EnvEscErr "Encountered an unmatched closing paren"
