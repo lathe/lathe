@@ -4,7 +4,7 @@
 -- It's just a scratch area to help guide the design of macros.rkt.
 
 
-{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE ExistentialQuantification, Rank2Types #-}
 
 import Data.Void
 import Control.Monad (ap, liftM)
@@ -230,9 +230,10 @@ deNestedListsAsQQExpr qqExpr =
 
 data EnvEsc esc f g
   = EnvEscErr String
-  | EnvEscClose esc (QQExpr f Void)
-  | forall esc' f' g'.
-      EnvEscSubexpr (Env esc' f' g') (QQExpr f' Void)
+  | forall esc' f' g'. EnvEscSubexpr
+      esc
+      (Env esc' f' g')
+      (QQExpr f' Void)
       (QQExpr g' (EnvEsc esc' f' g') -> QQExpr g (EnvEsc esc f g))
 
 newtype Env esc f g = Env {
@@ -242,14 +243,18 @@ newtype Env esc f g = Env {
 
 processEsc ::
   (Functor g) =>
-  (esc -> QQExpr f Void -> EnvEsc esc' f g) ->
+  (forall esc' f' g'.
+    esc ->
+    Env esc' f' g' ->
+    QQExpr f' Void ->
+    (QQExpr g' (EnvEsc esc' f' g') -> QQExpr g (EnvEsc esc'' f g)) ->
+    EnvEsc esc'' f g) ->
   EnvEsc esc f g ->
-    EnvEsc esc' f g
-processEsc onClose esc = case esc of
+    EnvEsc esc'' f g
+processEsc onSubexpr esc = case esc of
   EnvEscErr err -> EnvEscErr err
-  EnvEscClose esc' expr -> onClose esc' expr
-  EnvEscSubexpr env expr func ->
-    EnvEscSubexpr env expr (fmap (processEsc onClose) . func)
+  EnvEscSubexpr esc' env expr func ->
+    onSubexpr esc' env expr (fmap (processEsc onSubexpr) . func)
 
 -- NOTE: There's a lot going on in the result type. The (Maybe ...)
 -- part allows an environment to say that it has no binding for the
@@ -257,12 +262,11 @@ processEsc onClose esc = case esc of
 -- late-bound environment (eventually itself) over and over in an
 -- infinite loop. The `EnvEscErr` result allows syntax errors to be
 -- reported locally among the branches of the returned expression.
--- The `EnvEscClose` result allows us to represent the result of
--- parsing a closing parenthesis or an unquote operation. Finally,
--- `EnvEscSubexpr` allows an operator to invoke the macroexpander in
--- a trampolined way, so that we can potentially cache and recompute
--- different areas of the syntax without starting from scratch each
--- time.
+-- Finally, the `EnvEscSubexpr` result allows us to represent the
+-- result of parsing a closing parenthesis/unquote or to invoke the
+-- macroexpander in a trampolined way, so that we can potentially
+-- cache and recompute different areas of the syntax without starting
+-- from scratch each time.
 --
 -- TODO: We don't currently implement a cache like that. Should we? If
 -- we could somehow guarantee that one macroexpansion step didnt't
@@ -321,30 +325,50 @@ shadowSimpleEnv env shadower = Env $ \lateEnv expr ->
 
 qualifyEnv ::
   (Functor g) =>
-  (Env esc' f g -> Env esc f g) ->
-  (Env esc' f g -> esc -> QQExpr f Void -> EnvEsc esc' f g) ->
+  (Env esc'' f g -> Env esc f g) ->
+  (forall esc' f' g'.
+    esc ->
+    Env esc' f' g' ->
+    QQExpr f' Void ->
+    (QQExpr g' (EnvEsc esc' f' g') -> QQExpr g (EnvEsc esc'' f g)) ->
+    EnvEsc esc'' f g) ->
   Env esc f g ->
-    Env esc' f g
+    Env esc'' f g
 qualifyEnv super qualify env = Env $ \lateEnv expr ->
-  fmap (fmap $ processEsc $ qualify lateEnv) $
-    callEnv env (super lateEnv) expr
+  fmap (fmap $ processEsc qualify) $ callEnv env (super lateEnv) expr
 
-downEscEnv :: (Functor g) => Env (Maybe esc) f g -> Env esc f g
-downEscEnv = qualifyEnv upEscEnv $ \env esc expr -> case esc of
-  Nothing -> EnvEscSubexpr env expr id
-  Just esc' -> EnvEscClose esc' expr
+downEscEnv ::
+  (Functor g) => Env (Maybe (Maybe esc)) f g -> Env (Maybe esc) f g
+downEscEnv = qualifyEnv upEscEnv $ \esc env expr func -> case esc of
+  -- If we have an escape that's supposed to be trampolined to the
+  -- macroexpander (Nothing), it's still supposed to be trampolined.
+  Nothing -> EnvEscSubexpr Nothing env expr func
+  -- If we have an escape that's a closing paren (Just Nothing),
+  -- trampoline the following syntax to the macroexpander (Nothing).
+  Just esc' -> EnvEscSubexpr esc' env expr func
 
-upEscEnv :: (Functor g) => Env esc f g -> Env (Maybe esc) f g
-upEscEnv = qualifyEnv downEscEnv $ \env esc expr' ->
-  EnvEscClose (Just esc) expr'
+upEscEnv ::
+  (Functor g) => Env (Maybe esc) f g -> Env (Maybe (Maybe esc)) f g
+upEscEnv = qualifyEnv downEscEnv $ \esc env expr func -> case esc of
+  -- If we have an escape that's supposed to be trampolined to the
+  -- macroexpander (Nothing), it's still supposed to be trampolined.
+  Nothing -> EnvEscSubexpr Nothing env expr func
+  -- Otherwise, we at least know it's not a closing paren
+  -- (Just Nothing).
+  Just esc' -> EnvEscSubexpr (Just (Just esc')) env expr func
 
-coreEnv :: (Functor g) => Env esc (OpParen f) g
+-- NOTE: This environment expects at least one escape, namely
+-- `Nothing`, with the meaning of trampolining to the macroexpander.
+coreEnv :: (Functor g) => Env (Maybe esc) (OpParen f) g
 coreEnv = simpleEnv $ \env call -> case call of
   OpParenOpen expr -> Just $ QQExprLiteral $ EnvEscSubexpr
-    (downEscEnv $ shadowSimpleEnv (upEscEnv env) $ \env call' ->
+    Nothing
+    (downEscEnv $ shadowSimpleEnv (upEscEnv env) $ \env' call' ->
       case call' of
-        OpParenClose expr' ->
-          Just $ QQExprLiteral $ EnvEscClose Nothing expr'
+        OpParenClose expr' -> Just $ QQExprLiteral $
+          -- We reset the environment to the environment that existed
+          -- at the open paren.
+          EnvEscSubexpr (Just Nothing) (upEscEnv env) expr' id
         _ -> Nothing)
     expr
     -- TODO: Currently, all we do with `OpParenOpen` and
