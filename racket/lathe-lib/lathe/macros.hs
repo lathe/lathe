@@ -357,18 +357,18 @@ upEscEnv = qualifyEnv downEscEnv $ \esc env expr func -> case esc of
   -- (Just Nothing).
   Just esc' -> EnvEscSubexpr (Just (Just esc')) env expr func
 
-data OpParen f a
+data OpParen f g a
   = OpParenOpen
       -- TODO: Figure out what kind of operation can actually be
       -- expressed with this signature. What this is supposed to
       -- represent is an operation that takes an interval enclosed by
       -- the parens (`QQExpr f`), some following syntax for which that
       -- bracketed section could itself be an opening bracket
-      -- (`QQExpr (OpParen f)`), and finally a section that's off
+      -- (`QQExpr (OpParen f g)`), and finally a section that's off
       -- limits which the operator must ignore (`lit`). The operator
-      -- returns a possible parenthesis (`OpParen f`) followed by
+      -- returns a possible parenthesis (`OpParen f g`) followed by
       -- instructions on how to parse whatever fragment following the
-      -- parens has not been consumed (`EnvEsc () (OpParen f) f`).
+      -- parens has not been consumed (`EnvEsc () (OpParen f g) f`).
       --
       -- We probably need to at least upgrade this signature to accept
       -- an environment, so that it has some environment to refer to
@@ -381,13 +381,13 @@ data OpParen f a
       -- pair of brackets act as an opening or closing paren itself.
       --
       (forall lit.
-        QQExpr f (QQExpr (OpParen f) lit) ->
-          OpParen f (EnvEsc () (OpParen f) f))
+        QQExpr g (QQExpr (OpParen f g) lit) ->
+          OpParen f g (EnvEsc () (OpParen f g) g))
       a
   | OpParenClose a
   | OpParenOther (f a)
 
-instance (Functor f) => Functor (OpParen f) where
+instance (Functor f) => Functor (OpParen f g) where
   fmap func x = case x of
     OpParenOpen parenFunc a -> OpParenOpen parenFunc $ func a
     OpParenClose a -> OpParenClose $ func a
@@ -400,8 +400,8 @@ coreEnv ::
   -- variables in type annotations below (with the help of
   -- `ScopedTypeVariables`). We're only using the type annotations as
   -- a sanity check.
-  forall fz esc. (Functor fz) =>
-  Env (Maybe esc) (OpParen fz) fz
+  forall esc f g. (Functor f, Functor g) =>
+  Env (Maybe esc) (OpParen f g) g
 coreEnv = simpleEnv $ \env call -> case call of
   OpParenOpen parenFunc expr -> Just $ QQExprLiteral $
     ((EnvEscSubexpr Nothing
@@ -413,9 +413,9 @@ coreEnv = simpleEnv $ \env call -> case call of
             EnvEscSubexpr (Just Nothing) (upEscEnv env)
               (fmap absurd expr') (fmap absurd)
           _ -> Nothing
-      ) :: Env (Maybe esc) (OpParen fz) fz)
+      ) :: Env (Maybe esc) (OpParen f g) g)
       (fmap absurd expr
-        :: QQExpr (OpParen fz) (EnvEsc () (OpParen fz) fz))
+        :: QQExpr (OpParen f g) (EnvEsc () (OpParen f g) g))
       ((\expr' ->
           -- We immediately run another interpretation pass over this
           -- result, using an operator determined from the parens
@@ -425,9 +425,9 @@ coreEnv = simpleEnv $ \env call -> case call of
               parenFunc $ fmap absurd expr')
             (fmap absurd)
       ) ::
-        QQExpr fz Void ->
-          QQExpr fz (EnvEsc (Maybe esc) (OpParen fz) fz))
-    ) :: EnvEsc (Maybe esc) (OpParen fz) fz)
+        QQExpr g Void ->
+          QQExpr g (EnvEsc (Maybe esc) (OpParen f g) g))
+    ) :: EnvEsc (Maybe esc) (OpParen f g) g)
   OpParenClose expr ->
     Just $ QQExprLiteral $
       EnvEscErr "Encountered an unmatched closing paren"
