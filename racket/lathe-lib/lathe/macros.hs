@@ -357,37 +357,51 @@ upEscEnv = qualifyEnv downEscEnv $ \esc env expr func -> case esc of
   -- (Just Nothing).
   Just esc' -> EnvEscSubexpr (Just (Just esc')) env expr func
 
-data OpParen f g a
-  = OpParenOpen
-      -- TODO: Figure out what kind of operation can actually be
-      -- expressed with this signature. What this is supposed to
-      -- represent is an operation that takes an interval enclosed by
-      -- the parens (`QQExpr f`), some following syntax for which that
-      -- bracketed section could itself be an opening bracket
-      -- (`QQExpr (OpParen f g)`), and finally a section that's off
-      -- limits which the operator must ignore (`lit`). The operator
-      -- returns a possible parenthesis (`OpParen f g`) followed by
-      -- instructions on how to parse whatever fragment following the
-      -- parens has not been consumed (`EnvEsc () (OpParen f g) f`).
-      --
-      -- We probably need to at least upgrade this signature to accept
-      -- an environment, so that it has some environment to refer to
-      -- in an `EnvExcSubexpr` result.
-      --
-      -- We should try to represent four operators this way: Two that
-      -- act as opening and closing parens of the next-higher
-      -- quasiquotation degree for the bracketed body, and two that
-      -- verify that the brackets contain nothing and then make the
-      -- pair of brackets act as an opening or closing paren itself.
-      --
-      (forall lit.
-        QQExpr g (QQExpr (OpParen f g) lit) ->
-          OpParen f g (EnvEsc () (OpParen f g) g))
-      a
+newtype OpParenOp esc f g = OpParenOp
+  -- TODO: Figure out what kind of operation can actually be expressed
+  -- with this signature. What this is supposed to represent is an
+  -- operation that takes an interval enclosed by the parens
+  -- (`QQExpr f`), some following syntax for which that bracketed
+  -- section could itself be an opening bracket
+  -- (`QQExpr (OpParen esc f g)`), and finally a section that's off
+  -- limits which the operator must ignore (`lit`). The operator
+  -- returns a possible parenthesis (`OpParen esc f g`) followed by
+  -- instructions on how to parse whatever fragment following the
+  -- parens has not been consumed (`EnvEsc () (OpParen esc f g) f`).
+  --
+{-
+  (forall lit.
+    Env esc (OpParen esc f g) g ->
+    QQExpr g (QQExpr (OpParen esc f g) lit) ->
+      OpParen esc f g (EnvEsc () (OpParen esc f g) g))
+-}
+  (Env esc (OpParen esc f g) g -> QQExpr g Void ->
+    QQExpr g (EnvEsc esc (OpParen esc f g) g))
+
+data OpParen esc f g a
+  = OpParenOpen (OpParenOp esc f g) a
   | OpParenClose a
   | OpParenOther (f a)
 
-instance (Functor f) => Functor (OpParen f g) where
+-- TODO: Write four operators to interpret an `OpParenOpen` usage of
+-- the form "(...bracketedBody...)...followingBody...": Two that
+-- quasiquote and unquote the `bracketedBody`, and two that verify
+-- `bracketedBody` is empty and then behave like
+-- "(...followingBody..." or ")...followingBody...".
+opParenOpenQuasiquote :: OpParenOp esc f g -> a -> OpParen esc f g a
+opParenOpenQuasiquote op rest = flip OpParenOpen rest $ OpParenOp $
+  \env expr -> undefined
+opParenOpenUnquote :: OpParenOp esc f g -> a -> OpParen esc f g a
+opParenOpenUnquote op rest = flip OpParenOpen rest $ OpParenOp $
+  \env expr -> undefined
+opParenOpenEmptyOpen :: OpParenOp esc f g -> a -> OpParen esc f g a
+opParenOpenEmptyOpen op rest = flip OpParenOpen rest $ OpParenOp $
+  \env expr -> undefined
+opParenOpenEmptyClose :: OpParenOp esc f g -> a -> OpParen esc f g a
+opParenOpenEmptyClose op rest = flip OpParenOpen rest $ OpParenOp $
+  \env expr -> undefined
+
+instance (Functor f) => Functor (OpParen esc f g) where
   fmap func x = case x of
     OpParenOpen parenFunc a -> OpParenOpen parenFunc $ func a
     OpParenClose a -> OpParenClose $ func a
@@ -401,9 +415,9 @@ coreEnv ::
   -- `ScopedTypeVariables`). We're only using the type annotations as
   -- a sanity check.
   forall esc f g. (Functor f, Functor g) =>
-  Env (Maybe esc) (OpParen f g) g
+  Env (Maybe esc) (OpParen (Maybe esc) f g) g
 coreEnv = simpleEnv $ \env call -> case call of
-  OpParenOpen parenFunc expr -> Just $ QQExprLiteral $
+  OpParenOpen (OpParenOp op) expr -> Just $ QQExprLiteral $
     ((EnvEscSubexpr Nothing
       ((downEscEnv $ shadowSimpleEnv (upEscEnv env) $ \env' call'' ->
         case call'' of
@@ -411,23 +425,55 @@ coreEnv = simpleEnv $ \env call -> case call of
             -- We reset the environment to the environment that
             -- existed at the open paren.
             EnvEscSubexpr (Just Nothing) (upEscEnv env)
-              (fmap absurd expr') (fmap absurd)
+              (fmap
+                (absurd ::
+                  Void -> EnvEsc () (OpParen (Maybe esc) f g) g)
+                expr')
+              (fmap
+                (absurd ::
+                  Void ->
+                    EnvEsc (Maybe (Maybe esc))
+                      (OpParen (Maybe esc) f g)
+                      g))
           _ -> Nothing
-      ) :: Env (Maybe esc) (OpParen f g) g)
-      (fmap absurd expr
-        :: QQExpr (OpParen f g) (EnvEsc () (OpParen f g) g))
+      ) :: Env (Maybe esc) (OpParen (Maybe esc) f g) g)
+      (fmap
+        (absurd :: Void -> EnvEsc () (OpParen (Maybe esc) f g) g)
+        expr
+        :: QQExpr (OpParen (Maybe esc) f g)
+             (EnvEsc () (OpParen (Maybe esc) f g) g))
       ((\expr' ->
           -- We immediately run another interpretation pass over this
           -- result, using an operator determined from the parens
-          -- (namely, `parenFunc`).
+          -- (namely, `op`).
+          
+          -- TODO: This commented-out version corresponds to the
+          -- commented-out variant of `OpParenOp` above. Although that
+          -- variant of `OpParenOp` makes more sense from a
+          -- high-level point of view on what operators attached to
+          -- parens can do, this implementation doesn't actually
+          -- accomplish that because it doesn't pass in any
+          -- `followingBody`. (The second `absurd` here generates the
+          -- `followingBody` out of thin air.)
+{-
           QQExprLiteral $ EnvEscSubexpr Nothing env
             (QQExprList $ fmap QQExprLiteral $
-              parenFunc $ fmap absurd expr')
-            (fmap absurd)
+              op env $
+              fmap
+                (absurd ::
+                  forall lit.
+                  Void -> QQExpr (OpParen (Maybe esc) f g) lit)
+                expr')
+            (fmap
+              (absurd ::
+                Void ->
+                  EnvEsc (Maybe esc) (OpParen (Maybe esc) f g) g))
+-}
+          op env expr'
       ) ::
         QQExpr g Void ->
-          QQExpr g (EnvEsc (Maybe esc) (OpParen f g) g))
-    ) :: EnvEsc (Maybe esc) (OpParen f g) g)
+          QQExpr g (EnvEsc (Maybe esc) (OpParen (Maybe esc) f g) g))
+    ) :: EnvEsc (Maybe esc) (OpParen (Maybe esc) f g) g)
   OpParenClose expr ->
     Just $ QQExprLiteral $
       EnvEscErr "Encountered an unmatched closing paren"
