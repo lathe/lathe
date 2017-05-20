@@ -8,6 +8,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+import Data.Void (Void)
 import Control.Monad (ap, liftM)
 
 
@@ -236,7 +237,7 @@ data EnvEsc esc f lit
   | forall esc' fa lita fb litb. EnvEscSubexpr
       esc
       (Env esc' fa lita fb litb)
-      (QQExpr fa (EnvEsc () fa lita))
+      (QQExpr fa (EnvEsc (Maybe Void) fa lita))
       (QQExpr fb litb -> QQExpr f (EnvEsc esc f lit))
 
 newtype Env esc fa lita fb litb = Env {
@@ -251,7 +252,7 @@ processEsc ::
   (forall esc' fa lita fb litb.
     esc ->
     Env esc' fa lita fb litb ->
-    QQExpr fa (EnvEsc () fa lita) ->
+    QQExpr fa (EnvEsc (Maybe Void) fa lita) ->
     (QQExpr fb litb -> QQExpr f (EnvEsc esc'' f lit)) ->
     EnvEsc esc'' f lit) ->
   EnvEsc esc f lit ->
@@ -273,8 +274,8 @@ processEsc onSubexpr esc = case esc of
 -- macroexpander in a trampolined way, so that we can potentially
 -- cache and recompute different areas of the syntax without starting
 -- from scratch each time. The expression parameter to `EnvEscSubexpr`
--- includes (EnvEsc () ...) so that it can use a () escape to
--- trampoline to the macroexpander like this.
+-- includes (EnvEsc (Maybe Void) ...) so that it can use a `Nothing`
+-- escape to trampoline to the macroexpander like this.
 --
 -- TODO: We don't currently implement a cache like that. Should we? If
 -- we could somehow guarantee that one macroexpansion step didnt't
@@ -334,7 +335,7 @@ qualifyEnv ::
   (forall lit esc' fa' lita' fb' litb'.
     esc ->
     Env esc' fa' lita' fb' litb' ->
-    QQExpr fa' (EnvEsc () fa' lita') ->
+    QQExpr fa' (EnvEsc (Maybe Void) fa' lita') ->
     (QQExpr fb' litb' -> QQExpr fb (EnvEsc esc'' fb litb)) ->
     EnvEsc esc'' fb litb) ->
   Env esc fa lita fb litb ->
@@ -366,63 +367,105 @@ upEscEnv = qualifyEnv downEscEnv $ \esc env expr func -> case esc of
   -- (Just Nothing).
   Just esc' -> EnvEscSubexpr (Just (Just esc')) env expr func
 
-newtype OpParenOp esc fa fb = OpParenOp
-  -- TODO: Figure out what kind of operation can actually be expressed
-  -- with this signature. What this is supposed to represent is an
-  -- operation that takes an interval enclosed by the parens
-  -- (`QQExpr fb`), some following syntax for which that bracketed
-  -- section could itself be an opening bracket
-  -- (`QQExpr (OpParen esc fa fb)`), and finally a section that's off
-  -- limits which the operator must ignore (`litb`). The operator
-  -- returns a possible parenthesis (`OpParen esc fa fb`) followed by
-  -- instructions for how to parse whatever fragment following the
-  -- parens has not been consumed
-  -- (`EnvEsc () (OpParen esc fa fb) lita`).
-  --
-  -- TODO: Actually, we want the `(QQExpr (OpParen esc fa fb) litb)`
-  -- part to be `(QQExpr (OpParen esc fa fb) lita)`. This probably
-  -- means we want to change `litb` itself to be
-  -- `(QQExpr (OpParen esc fa fb) lita)` here, or something like that.
-  --
-{-
-  (forall lita litb.
-    Env esc (OpParen esc fa fb) lita fb litb ->
-    QQExpr fb (QQExpr (OpParen esc fa fb) litb) ->
-      OpParen esc fa fb (EnvEsc () (OpParen esc fa fb) lita))
--}
-  (forall lita litb.
-    Env esc (OpParen esc fa fb) lita fb litb ->
-    QQExpr fb litb ->
-      QQExpr fb (EnvEsc esc fb litb))
+-- A good way to read this signature is to see that the operation
+-- takes an interval enclosed by the parens (`QQExpr fb (...)`), some
+-- following syntax for which that bracketed section could itself be
+-- an opening bracket (`EnvEsc (Maybe esc) (OpParen fa fb) (...)`),
+-- and finally a past-the-end-of-the-file section which the operator
+-- must ignore (`lita`). The operator returns a possible bracketed
+-- section which may trampoline to the macroexpander
+-- (`QQExpr fb (EnvEsc (Maybe Void) fb (...))`) followed by some
+-- syntax which has not been consumed
+-- (`EnvEsc (Maybe esc) (OpParen fa fb) (...)`) followed by an
+-- untouched past-the-end-of-the-file section (`lita`).
+newtype OpParenOp fa fb = OpParenOp
+  (forall esc lita.
+    (Env (Maybe Void) (OpParen fa fb) lita fb
+      (EnvEsc (Maybe esc) (OpParen fa fb) lita)) ->
+    QQExpr fb (EnvEsc (Maybe esc) (OpParen fa fb) lita) ->
+      QQExpr fb
+        (EnvEsc (Maybe Void) fb
+          (EnvEsc (Maybe esc) (OpParen fa fb) lita)))
 
-data OpParen esc fa fb rest
-  = OpParenOpen (OpParenOp esc fa fb) rest
+data OpParen fa fb rest
+  = OpParenOpen (OpParenOp fa fb) rest
   | OpParenClose rest
   | OpParenOther (fa rest)
 
--- TODO: Write four operators to interpret an `OpParenOpen` usage of
+opParenOpenEmpty ::
+  forall fa fb rest. (Functor fa, Functor fb) =>
+  (forall rest. rest -> OpParen fa fb rest) ->
+  rest -> OpParen fa fb rest
+opParenOpenEmpty op rest = flip OpParenOpen rest $ OpParenOp $
+  \env expr -> QQExprLiteral $ case expr of
+    QQExprLiteral esc -> case esc of
+      EnvEscErr err -> EnvEscErr err
+      EnvEscLit lit -> unmatchedErr
+      EnvEscSubexpr esc' env' expr' func -> case esc' of
+        Just esc'' -> unmatchedErr
+        Nothing ->
+          EnvEscSubexpr Nothing env' expr' $ \expr'' ->
+          QQExprLiteral $
+            EnvEscSubexpr Nothing env
+              -- TODO: Implement this. We'll want to remove
+              -- "undefined $" from here and refactor the definition
+              -- of `Env` so that its implementation is quantified
+              -- over all `lita`.
+              (undefined $ fmap putOff $ QQExprList $
+                op $ func expr'') $
+            fmap
+              (EnvEscLit ::
+                forall lit. lit -> EnvEsc (Maybe Void) fb lit)
+    _ -> unmatchedErr
+  where
+  
+  unmatchedErr :: forall esc f lit. EnvEsc esc f lit
+  unmatchedErr = EnvEscErr "Encountered an unmatched opening paren"
+  
+  putOff ::
+    forall esc f lit. (Functor f) =>
+    EnvEsc (Maybe esc) f lit ->
+      EnvEsc (Maybe Void) f (EnvEsc (Maybe esc) f lit)
+  putOff esc = case esc of
+    EnvEscErr err -> EnvEscErr err
+    EnvEscLit lit -> EnvEscLit $ EnvEscLit lit
+    EnvEscSubexpr esc' env expr func -> case esc' of
+      Just esc'' ->
+        EnvEscLit $ EnvEscSubexpr (Just esc'') env expr func
+      Nothing -> EnvEscSubexpr Nothing env expr (fmap putOff . func)
+
+-- TODO: Implement this.
+opParenOpenQuasi ::
+  forall fa fb rest. (Functor fa, Functor fb) =>
+  (forall rest. rest -> OpParen fa fb rest) ->
+  rest -> OpParen fa fb rest
+opParenOpenQuasi op rest = flip OpParenOpen rest $ OpParenOp $
+  \env expr -> undefined
+
+-- These are four operators which interpret an `OpParenOpen` usage of
 -- the form "(...bracketedBody...)...followingBody...": Two that
 -- quasiquote and unquote the `bracketedBody`, and two that verify
 -- `bracketedBody` is empty and then behave like
 -- "(...followingBody..." or ")...followingBody...".
+--
+-- TODO: None of their implementations is complete yet. Complete them.
+--
 opParenOpenQuasiquote ::
-  OpParenOp esc fa fb -> rest -> OpParen esc fa fb rest
-opParenOpenQuasiquote op rest = flip OpParenOpen rest $ OpParenOp $
-  \env expr -> undefined
+  (Functor fa, Functor fb) =>
+  OpParenOp fa fb -> rest -> OpParen fa fb rest
+opParenOpenQuasiquote op = opParenOpenQuasi $ OpParenOpen op
 opParenOpenUnquote ::
-  OpParenOp esc fa fb -> rest -> OpParen esc fa fb rest
-opParenOpenUnquote op rest = flip OpParenOpen rest $ OpParenOp $
-  \env expr -> undefined
+  (Functor fa, Functor fb) => rest -> OpParen fa fb rest
+opParenOpenUnquote = opParenOpenQuasi $ OpParenClose
 opParenOpenEmptyOpen ::
-  OpParenOp esc fa fb -> rest -> OpParen esc fa fb rest
-opParenOpenEmptyOpen op rest = flip OpParenOpen rest $ OpParenOp $
-  \env expr -> undefined
+  (Functor fa, Functor fb) =>
+  OpParenOp fa fb -> rest -> OpParen fa fb rest
+opParenOpenEmptyOpen op = opParenOpenEmpty $ OpParenOpen op
 opParenOpenEmptyClose ::
-  OpParenOp esc fa fb -> rest -> OpParen esc fa fb rest
-opParenOpenEmptyClose op rest = flip OpParenOpen rest $ OpParenOp $
-  \env expr -> undefined
+  (Functor fa, Functor fb) => rest -> OpParen fa fb rest
+opParenOpenEmptyClose = opParenOpenEmpty OpParenClose
 
-instance (Functor fa) => Functor (OpParen esc fa ga) where
+instance (Functor fa) => Functor (OpParen fa ga) where
   fmap func x = case x of
     OpParenOpen parenFunc rest -> OpParenOpen parenFunc $ func rest
     OpParenClose rest -> OpParenClose $ func rest
@@ -435,8 +478,9 @@ coreEnv ::
   -- variables in type annotations below (with the help of
   -- `ScopedTypeVariables`). We're only using the type annotations as
   -- a sanity check.
-  forall esc fa lita fb litb. (Functor fa, Functor fb) =>
-  Env (Maybe esc) (OpParen (Maybe esc) fa fb) lita fb litb
+  forall esc fa lita fb. (Functor fa, Functor fb) =>
+  Env (Maybe Void) (OpParen fa fb) lita fb
+    (EnvEsc (Maybe esc) (OpParen fa fb) lita)
 coreEnv = simpleEnv $ \env call -> case call of
   OpParenOpen (OpParenOp op) expr -> Just $ QQExprLiteral $
     ((EnvEscSubexpr Nothing
@@ -448,46 +492,34 @@ coreEnv = simpleEnv $ \env call -> case call of
             EnvEscSubexpr (Just Nothing) (upEscEnv env)
               (fmap
                 (EnvEscLit ::
-                  lita -> EnvEsc () (OpParen (Maybe esc) fa fb) lita)
+                  lita -> EnvEsc (Maybe Void) (OpParen fa fb) lita)
                 expr')
               (fmap
                 (EnvEscLit ::
-                  litb -> EnvEsc (Maybe (Maybe esc)) fb litb))
+                  (EnvEsc (Maybe esc) (OpParen fa fb) lita) ->
+                  EnvEsc (Maybe (Maybe Void)) fb
+                    (EnvEsc (Maybe esc) (OpParen fa fb) lita)))
           _ -> Nothing
-      ) :: Env (Maybe esc) (OpParen (Maybe esc) fa fb) lita fb litb)
+      ) ::
+        Env (Maybe Void) (OpParen fa fb) lita fb
+          (EnvEsc (Maybe esc) (OpParen fa fb) lita))
       (fmap
         (EnvEscLit ::
-          lita -> EnvEsc () (OpParen (Maybe esc) fa fb) lita)
+          lita -> EnvEsc (Maybe Void) (OpParen fa fb) lita)
         expr
-        :: QQExpr (OpParen (Maybe esc) fa fb)
-             (EnvEsc () (OpParen (Maybe esc) fa fb) lita))
+        :: QQExpr (OpParen fa fb)
+             (EnvEsc (Maybe Void) (OpParen fa fb) lita))
       ((\expr' ->
-          -- We immediately run another interpretation pass over this
-          -- result, using an operator determined from the parens
-          -- (namely, `op`).
-          
-          -- TODO: This commented-out version corresponds to the
-          -- commented-out variant of `OpParenOp` above. Although that
-          -- variant of `OpParenOp` makes more sense from a
-          -- high-level point of view on what operators attached to
-          -- parens can do, this implementation doesn't actually
-          -- accomplish that because it doesn't pass in any
-          -- `followingBody`. (The use of `EnvEscLit` here represents
-          -- an empty `followingBody`.)
-{-
-          QQExprLiteral $ EnvEscSubexpr Nothing env
-            (QQExprList $ fmap QQExprLiteral $
-              op env $
-              fmap
-                (QQExprLiteral ::
-                  litb -> QQExpr (OpParen (Maybe esc) fa fb) litb)
-                expr')
-            (fmap
-              (EnvEscLit :: litb -> EnvEsc (Maybe esc) fb litb))
--}
+          -- We consult an operator determined by the matched opening
+          -- and closing parens to determine what to do next. In this
+          -- proof of concept, we determine the operation fully in
+          -- terms of the opening paren.
           op env expr'
-      ) :: QQExpr fb litb -> QQExpr fb (EnvEsc (Maybe esc) fb litb))
-    ) :: EnvEsc (Maybe esc) fb litb)
+      ) :: QQExpr fb (EnvEsc (Maybe esc) (OpParen fa fb) lita) ->
+             QQExpr fb (EnvEsc (Maybe Void) fb
+               (EnvEsc (Maybe esc) (OpParen fa fb) lita)))
+    ) :: EnvEsc (Maybe Void) fb
+           (EnvEsc (Maybe esc) (OpParen fa fb) lita))
   OpParenClose expr ->
     Just $ QQExprLiteral $
       EnvEscErr "Encountered an unmatched closing paren"
