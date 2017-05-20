@@ -411,6 +411,14 @@ data OpParen fa fb rest
   | OpParenClose rest
   | OpParenOther (fa rest)
 
+-- TODO: Implement this.
+opParenOpenQuasi ::
+  forall fa fb rest. (Functor fa, Functor fb) =>
+  (forall rest. rest -> OpParen fa fb rest) ->
+  rest -> OpParen fa fb rest
+opParenOpenQuasi op rest = flip OpParenOpen rest $ OpParenOp $
+  \env expr -> undefined
+
 opParenOpenEmpty ::
   forall fa fb rest. (Functor fa, Functor fb) =>
   (forall rest. rest -> OpParen fa fb rest) ->
@@ -419,9 +427,9 @@ opParenOpenEmpty op rest = flip OpParenOpen rest $ OpParenOp $
   \env expr -> QQExprLiteral $ case expr of
     QQExprLiteral esc -> case esc of
       EnvEscErr err -> EnvEscErr err
-      EnvEscLit lit -> unmatchedErr
+      EnvEscLit lit -> nonemptyErr
       EnvEscSubexpr esc' env' expr' func -> case esc' of
-        Just esc'' -> unmatchedErr
+        Just esc'' -> nonemptyErr
         Nothing ->
           EnvEscSubexpr Nothing env' expr' $ \expr'' ->
           QQExprLiteral $
@@ -435,11 +443,12 @@ opParenOpenEmpty op rest = flip OpParenOpen rest $ OpParenOp $
                    EnvEsc (Maybe Void) fb
                      (EnvEsc (Maybe esc) (OpParen fa fb) lita)
               ) . join)
-    _ -> unmatchedErr
+    _ -> nonemptyErr
   where
   
-  unmatchedErr :: forall esc f lit. EnvEsc esc f lit
-  unmatchedErr = EnvEscErr "Encountered an unmatched opening paren"
+  nonemptyErr :: forall esc f lit. EnvEsc esc f lit
+  nonemptyErr =
+    EnvEscErr "Encountered a paren which held content within the paren itself"
   
   putOff ::
     forall esc f lit. (Functor f) =>
@@ -452,14 +461,6 @@ opParenOpenEmpty op rest = flip OpParenOpen rest $ OpParenOp $
       Just esc'' ->
         EnvEscLit $ EnvEscSubexpr (Just esc'') env expr func
       Nothing -> EnvEscSubexpr Nothing env expr (fmap putOff . func)
-
--- TODO: Implement this.
-opParenOpenQuasi ::
-  forall fa fb rest. (Functor fa, Functor fb) =>
-  (forall rest. rest -> OpParen fa fb rest) ->
-  rest -> OpParen fa fb rest
-opParenOpenQuasi op rest = flip OpParenOpen rest $ OpParenOp $
-  \env expr -> undefined
 
 -- These are four operators which interpret an `OpParenOpen` usage of
 -- the form "(...bracketedBody...)...followingBody...": Two that
