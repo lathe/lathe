@@ -235,13 +235,14 @@ data EnvEsc esc f g lit
   | EnvEscLit lit
   | forall esc' f' g' lit'. EnvEscSubexpr
       esc
-      (Env esc' f' g' lit')
+      (Env esc' f' g')
       (QQExpr f' (EnvEsc () f' g' lit'))
       (QQExpr g' lit' -> QQExpr g (EnvEsc esc f g lit))
 
-newtype Env esc f g lit = Env {
+newtype Env esc f g = Env {
   callEnv ::
-    Env esc f g lit ->
+    forall lit.
+    Env esc f g ->
     QQExpr f lit ->
       Maybe (QQExpr g (EnvEsc esc f g lit))
 }
@@ -250,7 +251,7 @@ processEsc ::
   (Functor g) =>
   (forall esc' f' g' lit'.
     esc ->
-    Env esc' f' g' lit' ->
+    Env esc' f' g' ->
     QQExpr f' (EnvEsc () f' g' lit') ->
     (QQExpr g' lit' -> QQExpr g (EnvEsc esc'' f g lit)) ->
     EnvEsc esc'' f g lit) ->
@@ -289,17 +290,15 @@ processEsc onSubexpr esc = case esc of
 -- imperative streams).
 --
 interpret ::
-  Env esc f g lit ->
-  QQExpr f lit ->
-    Maybe (QQExpr g (EnvEsc esc f g lit))
+  Env esc f g -> QQExpr f lit -> Maybe (QQExpr g (EnvEsc esc f g lit))
 interpret env expr = callEnv env env expr
 
 callSimpleEnv ::
-  (Env esc f g lit ->
+  (Env esc f g ->
     f (QQExpr f lit) ->
       Maybe (QQExpr g (EnvEsc esc f g lit))
   ) ->
-  Env esc f g lit ->
+  Env esc f g ->
   QQExpr f lit ->
     Maybe (QQExpr g (EnvEsc esc f g lit))
 callSimpleEnv func env expr = case expr of
@@ -308,21 +307,23 @@ callSimpleEnv func env expr = case expr of
   QQExprList list -> func env list
 
 simpleEnv ::
-  (Env esc f g lit ->
+  (forall lit.
+    Env esc f g ->
     f (QQExpr f lit) ->
       Maybe (QQExpr g (EnvEsc esc f g lit))
   ) ->
-    Env esc f g lit
+    Env esc f g
 simpleEnv func = Env $ callSimpleEnv func
 
 shadowSimpleEnv ::
   (Functor g) =>
-  Env esc f g lit ->
-  (Env esc f g lit ->
+  Env esc f g ->
+  (forall lit.
+    Env esc f g ->
     f (QQExpr f lit) ->
       Maybe (QQExpr g (EnvEsc esc f g lit))
   ) ->
-    Env esc f g lit
+    Env esc f g
 shadowSimpleEnv env shadower = Env $ \lateEnv expr ->
   case callSimpleEnv shadower lateEnv expr of
     Just result -> Just result
@@ -330,21 +331,20 @@ shadowSimpleEnv env shadower = Env $ \lateEnv expr ->
 
 qualifyEnv ::
   (Functor g) =>
-  (Env esc'' f g lit -> Env esc f g lit) ->
-  (forall esc' f' g' lit'.
+  (Env esc'' f g -> Env esc f g) ->
+  (forall lit esc' f' g' lit'.
     esc ->
-    Env esc' f' g' lit' ->
+    Env esc' f' g' ->
     QQExpr f' (EnvEsc () f' g' lit') ->
     (QQExpr g' lit' -> QQExpr g (EnvEsc esc'' f g lit)) ->
     EnvEsc esc'' f g lit) ->
-  Env esc f g lit ->
-    Env esc'' f g lit
+  Env esc f g ->
+    Env esc'' f g
 qualifyEnv super qualify env = Env $ \lateEnv expr ->
   fmap (fmap $ processEsc qualify) $ callEnv env (super lateEnv) expr
 
 downEscEnv ::
-  (Functor g) =>
-  Env (Maybe (Maybe esc)) f g lit -> Env (Maybe esc) f g lit
+  (Functor g) => Env (Maybe (Maybe esc)) f g -> Env (Maybe esc) f g
 downEscEnv = qualifyEnv upEscEnv $ \esc env expr func -> case esc of
   -- If we have an escape that's supposed to be trampolined to the
   -- macroexpander (Nothing), it's still supposed to be trampolined.
@@ -354,8 +354,7 @@ downEscEnv = qualifyEnv upEscEnv $ \esc env expr func -> case esc of
   Just esc' -> EnvEscSubexpr esc' env expr func
 
 upEscEnv ::
-  (Functor g) =>
-  Env (Maybe esc) f g lit -> Env (Maybe (Maybe esc)) f g lit
+  (Functor g) => Env (Maybe esc) f g -> Env (Maybe (Maybe esc)) f g
 upEscEnv = qualifyEnv downEscEnv $ \esc env expr func -> case esc of
   -- If we have an escape that's supposed to be trampolined to the
   -- macroexpander (Nothing), it's still supposed to be trampolined.
@@ -379,12 +378,12 @@ newtype OpParenOp esc f g = OpParenOp
   --
 {-
   (forall lit.
-    Env esc (OpParen esc f g) g lit ->
+    Env esc (OpParen esc f g) g ->
     QQExpr g (QQExpr (OpParen esc f g) lit) ->
       OpParen esc f g (EnvEsc () (OpParen esc f g) g lit))
 -}
   (forall lit.
-    Env esc (OpParen esc f g) g lit ->
+    Env esc (OpParen esc f g) g ->
     QQExpr g lit ->
       QQExpr g (EnvEsc esc (OpParen esc f g) g lit))
 
@@ -420,13 +419,21 @@ instance (Functor f) => Functor (OpParen esc f g) where
 -- NOTE: This environment expects at least one escape, namely
 -- `Nothing`, with the meaning of trampolining to the macroexpander.
 coreEnv ::
+  (Functor f, Functor g) =>
+  Env (Maybe esc) (OpParen (Maybe esc) f g) g
+coreEnv = simpleEnv coreEnv_
+
+coreEnv_ ::
   -- We use an explicit `forall` here so we can use these type
   -- variables in type annotations below (with the help of
   -- `ScopedTypeVariables`). We're only using the type annotations as
   -- a sanity check.
   forall esc f g lit. (Functor f, Functor g) =>
-  Env (Maybe esc) (OpParen (Maybe esc) f g) g lit
-coreEnv = simpleEnv $ \env call -> case call of
+  Env (Maybe esc) (OpParen (Maybe esc) f g) g ->
+  OpParen (Maybe esc) f g (QQExpr (OpParen (Maybe esc) f g) lit) ->
+    Maybe
+      (QQExpr g (EnvEsc (Maybe esc) (OpParen (Maybe esc) f g) g lit))
+coreEnv_ env call = case call of
   OpParenOpen (OpParenOp op) expr -> Just $ QQExprLiteral $
     ((EnvEscSubexpr Nothing
       ((downEscEnv $ shadowSimpleEnv (upEscEnv env) $ \env' call'' ->
@@ -437,17 +444,19 @@ coreEnv = simpleEnv $ \env call -> case call of
             EnvEscSubexpr (Just Nothing) (upEscEnv env)
               (fmap
                 (EnvEscLit ::
+                  forall lit.
                   lit -> EnvEsc () (OpParen (Maybe esc) f g) g lit)
                 expr')
               (fmap
                 (EnvEscLit ::
+                  forall lit.
                   lit ->
                     EnvEsc (Maybe (Maybe esc))
                       (OpParen (Maybe esc) f g)
                       g
                       lit))
           _ -> Nothing
-      ) :: Env (Maybe esc) (OpParen (Maybe esc) f g) g lit)
+      ) :: Env (Maybe esc) (OpParen (Maybe esc) f g) g)
       (fmap
         (EnvEscLit ::
           lit -> EnvEsc () (OpParen (Maybe esc) f g) g lit)
