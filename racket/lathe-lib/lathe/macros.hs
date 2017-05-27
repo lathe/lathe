@@ -85,7 +85,7 @@ instance (Functor f) => Functor (QQExpr f) where
 -- `QQExpr` corresponds to the special case of `SExpr` where all
 -- parens within are balanced. This correspondence is witnessed by
 -- the total function `flattenQQ` and its partial function inverse
--- `nudgeBestQQ`.
+-- `nudgeNestQQ`.
 
 flattenQQ :: (Functor f) => QQExpr f lit -> SExpr (ParensAdded f) lit
 flattenQQ qqExpr = case qqExpr of
@@ -411,18 +411,33 @@ data OpParen fa fb rest
   | OpParenClose rest
   | OpParenOther (fa rest)
 
--- TODO: Implement this.
+-- TODO: Implement this if we can. We probably want to change this to
+-- take an operator that acts on syntax in the next-higher level of
+-- quasiquotation. Would that syntax really look anything like
+-- `QQExpr`? What it might look like is more like this:
+--
+-- type SMap a = Map [String] a
+--
+-- SMap (forall lit. SMap (QQExpr g lit) -> QQExpr g lit) ->
+--   (forall lit. SMap (QQExpr g lit) -> QQExpr g lit)
+--
+-- We can't just replace (OpParen fa fb rest) with
+-- (OpParen (SMap ... -> ...) fb rest) becase we need to replace `fa`
+-- with a functor, not a type.
+--
 opParenOpenQuasi ::
   forall fa fb rest. (Functor fa, Functor fb) =>
   (forall rest. rest -> OpParen fa fb rest) ->
-  rest -> OpParen fa fb rest
+  rest ->
+    OpParen fa fb rest
 opParenOpenQuasi op rest = flip OpParenOpen rest $ OpParenOp $
   \env expr -> undefined
 
 opParenOpenEmpty ::
   forall fa fb rest. (Functor fa, Functor fb) =>
   (forall rest. rest -> OpParen fa fb rest) ->
-  rest -> OpParen fa fb rest
+  rest ->
+    OpParen fa fb rest
 opParenOpenEmpty op rest = flip OpParenOpen rest $ OpParenOp $
   \env expr -> QQExprLiteral $ case expr of
     QQExprLiteral esc -> case esc of
