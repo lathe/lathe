@@ -238,15 +238,15 @@ data EnvEsc esc f lit
   | forall esc' fa lita fb litb eof. EnvEscSubexpr
       esc
       (Env esc' fa lita fb litb)
-      (QQExpr fa (EnvEsc (Maybe Void) fa (lita eof)))
-      (QQExpr fb (litb eof) -> QQExpr f (EnvEsc esc f lit))
+      (SExpr fa (EnvEsc (Maybe Void) fa (lita eof)))
+      (SExpr fb (litb eof) -> SExpr f (EnvEsc esc f lit))
 
 newtype Env esc fa lita fb litb = Env {
   callEnv ::
     forall eof.
     Env esc fa lita fb litb ->
-    QQExpr fa (lita eof) ->
-      Maybe (QQExpr fb (EnvEsc esc fb (litb eof)))
+    SExpr fa (lita eof) ->
+      Maybe (SExpr fb (EnvEsc esc fb (litb eof)))
 }
 
 instance (Functor f) => Monad (EnvEsc esc f) where
@@ -267,8 +267,8 @@ processEsc ::
   (forall esc' fa lita fb litb eof'.
     esc ->
     Env esc' fa lita fb litb ->
-    QQExpr fa (EnvEsc (Maybe Void) fa (lita eof')) ->
-    (QQExpr fb (litb eof') -> QQExpr f (EnvEsc esc'' f (lit eof))) ->
+    SExpr fa (EnvEsc (Maybe Void) fa (lita eof')) ->
+    (SExpr fb (litb eof') -> SExpr f (EnvEsc esc'' f (lit eof))) ->
     EnvEsc esc'' f (lit eof)) ->
   EnvEsc esc f (lit eof) ->
     EnvEsc esc'' f (lit eof)
@@ -306,29 +306,28 @@ processEsc onSubexpr esc = case esc of
 --
 interpret ::
   Env esc fa lita fb litb ->
-  QQExpr fa (lita eof) ->
-    Maybe (QQExpr fb (EnvEsc esc fb (litb eof)))
+  SExpr fa (lita eof) ->
+    Maybe (SExpr fb (EnvEsc esc fb (litb eof)))
 interpret env expr = callEnv env env expr
 
 callSimpleEnv ::
   (forall eof.
     Env esc fa lita fb litb ->
-    fa (QQExpr fa (lita eof)) ->
-      Maybe (QQExpr fb (EnvEsc esc fb (litb eof)))
+    fa (SExpr fa (lita eof)) ->
+      Maybe (SExpr fb (EnvEsc esc fb (litb eof)))
   ) ->
   Env esc fa lita fb litb ->
-  QQExpr fa (lita eof) ->
-    Maybe (QQExpr fb (EnvEsc esc fb (litb eof)))
+  SExpr fa (lita eof) ->
+    Maybe (SExpr fb (EnvEsc esc fb (litb eof)))
 callSimpleEnv func env expr = case expr of
-  QQExprLiteral lit -> Nothing
-  QQExprQQ body -> Nothing
-  QQExprList list -> func env list
+  SExprLiteral lit -> Nothing
+  SExprList list -> func env list
 
 simpleEnv ::
   (forall eof.
     Env esc fa lita fb litb ->
-    fa (QQExpr fa (lita eof)) ->
-      Maybe (QQExpr fb (EnvEsc esc fb (litb eof)))
+    fa (SExpr fa (lita eof)) ->
+      Maybe (SExpr fb (EnvEsc esc fb (litb eof)))
   ) ->
     Env esc fa lita fb litb
 simpleEnv func = Env $ callSimpleEnv func
@@ -338,8 +337,8 @@ shadowSimpleEnv ::
   Env esc fa lita fb litb ->
   (forall eof.
     Env esc fa lita fb litb ->
-    fa (QQExpr fa (lita eof)) ->
-      Maybe (QQExpr fb (EnvEsc esc fb (litb eof)))
+    fa (SExpr fa (lita eof)) ->
+      Maybe (SExpr fb (EnvEsc esc fb (litb eof)))
   ) ->
     Env esc fa lita fb litb
 shadowSimpleEnv env shadower = Env $ \lateEnv expr ->
@@ -353,9 +352,9 @@ qualifyEnv ::
   (forall esc' fa' lita' fb' litb' eof' eof.
     esc ->
     Env esc' fa' lita' fb' litb' ->
-    QQExpr fa' (EnvEsc (Maybe Void) fa' (lita' eof')) ->
-    (QQExpr fb' (litb' eof') ->
-      QQExpr fb (EnvEsc esc'' fb (litb eof))) ->
+    SExpr fa' (EnvEsc (Maybe Void) fa' (lita' eof')) ->
+    (SExpr fb' (litb' eof') ->
+      SExpr fb (EnvEsc esc'' fb (litb eof))) ->
     EnvEsc esc'' fb (litb eof)) ->
   Env esc fa lita fb litb ->
     Env esc'' fa lita fb litb
@@ -387,22 +386,22 @@ upEscEnv = qualifyEnv downEscEnv $ \esc env expr func -> case esc of
   Just esc' -> EnvEscSubexpr (Just (Just esc')) env expr func
 
 -- A good way to read this signature is to see that the operation
--- takes an interval enclosed by the parens (`QQExpr fb (...)`), some
+-- takes an interval enclosed by the parens (`SExpr fb (...)`), some
 -- following syntax for which that bracketed section could itself be
 -- an opening bracket (`EnvEsc (Maybe esc) (OpParen fa fb) (...)`),
 -- and finally a past-the-end-of-the-file section which the operator
 -- must ignore (`lita`). The operator returns a possible bracketed
 -- section which may trampoline to the macroexpander
--- (`QQExpr fb (EnvEsc (Maybe Void) fb (...))`) followed by some
--- syntax which has not been consumed
+-- (`SExpr fb (EnvEsc (Maybe Void) fb (...))`) followed by some syntax
+-- which has not been consumed
 -- (`EnvEsc (Maybe esc) (OpParen fa fb) (...)`) followed by an
 -- untouched past-the-end-of-the-file section (`lita`).
 newtype OpParenOp fa fb = OpParenOp
   (forall esc lita.
     (Env (Maybe Void) (OpParen fa fb) Identity fb
       (EnvEsc (Maybe esc) (OpParen fa fb))) ->
-    QQExpr fb (EnvEsc (Maybe esc) (OpParen fa fb) lita) ->
-      QQExpr fb
+    SExpr fb (EnvEsc (Maybe esc) (OpParen fa fb) lita) ->
+      SExpr fb
         (EnvEsc (Maybe Void) fb
           (EnvEsc (Maybe esc) (OpParen fa fb) lita)))
 
@@ -414,12 +413,12 @@ data OpParen fa fb rest
 -- TODO: Implement this if we can. We probably want to change this to
 -- take an operator that acts on syntax in the next-higher level of
 -- quasiquotation. Would that syntax really look anything like
--- `QQExpr`? What it might look like is more like this:
+-- `SExpr`? What it might look like is more like this:
 --
 -- type SMap a = Map [String] a
 --
--- SMap (forall lit. SMap (QQExpr g lit) -> QQExpr g lit) ->
---   (forall lit. SMap (QQExpr g lit) -> QQExpr g lit)
+-- SMap (forall lit. SMap (SExpr g lit) -> SExpr g lit) ->
+--   (forall lit. SMap (SExpr g lit) -> SExpr g lit)
 --
 -- We can't just replace (OpParen fa fb rest) with
 -- (OpParen (SMap ... -> ...) fb rest) becase we need to replace `fa`
@@ -439,17 +438,17 @@ opParenOpenEmpty ::
   rest ->
     OpParen fa fb rest
 opParenOpenEmpty op rest = flip OpParenOpen rest $ OpParenOp $
-  \env expr -> QQExprLiteral $ case expr of
-    QQExprLiteral esc -> case esc of
+  \env expr -> SExprLiteral $ case expr of
+    SExprLiteral esc -> case esc of
       EnvEscErr err -> EnvEscErr err
       EnvEscLit lit -> nonemptyErr
       EnvEscSubexpr esc' env' expr' func -> case esc' of
         Just esc'' -> nonemptyErr
         Nothing ->
           EnvEscSubexpr Nothing env' expr' $ \expr'' ->
-          QQExprLiteral $
+          SExprLiteral $
             EnvEscSubexpr Nothing env
-              (fmap (fmap Identity . putOff) $ QQExprList $
+              (fmap (fmap Identity . putOff) $ SExprList $
                 op $ func expr'') $
             fmap
               ((EnvEscLit ::
@@ -523,17 +522,17 @@ coreEnv_ ::
   forall esc fa fb eof. (Functor fa, Functor fb) =>
   Env (Maybe Void) (OpParen fa fb) Identity fb
     (EnvEsc (Maybe esc) (OpParen fa fb)) ->
-  OpParen fa fb (QQExpr (OpParen fa fb) (Identity eof)) ->
+  OpParen fa fb (SExpr (OpParen fa fb) (Identity eof)) ->
     Maybe
-      (QQExpr fb
+      (SExpr fb
         (EnvEsc (Maybe Void) fb
           (EnvEsc (Maybe esc) (OpParen fa fb) eof)))
 coreEnv_ env call = case call of
-  OpParenOpen (OpParenOp op) expr -> Just $ QQExprLiteral $
+  OpParenOpen (OpParenOp op) expr -> Just $ SExprLiteral $
     ((EnvEscSubexpr Nothing
       ((downEscEnv $ shadowSimpleEnv (upEscEnv env) $ \env' call'' ->
         case call'' of
-          OpParenClose expr' -> Just $ QQExprLiteral $
+          OpParenClose expr' -> Just $ SExprLiteral $
             -- We reset the environment to the environment that
             -- existed at the open paren.
             EnvEscSubexpr (Just Nothing) (upEscEnv env)
@@ -559,7 +558,7 @@ coreEnv_ env call = case call of
           Identity eof ->
             EnvEsc (Maybe Void) (OpParen fa fb) (Identity eof))
         expr
-        :: QQExpr (OpParen fa fb)
+        :: SExpr (OpParen fa fb)
              (EnvEsc (Maybe Void) (OpParen fa fb) (Identity eof)))
       ((\expr' ->
           -- We consult an operator determined by the matched opening
@@ -568,13 +567,13 @@ coreEnv_ env call = case call of
           -- terms of the opening paren.
           op env expr'
       ) ::
-        QQExpr fb (EnvEsc (Maybe esc) (OpParen fa fb) eof) ->
-          QQExpr fb
+        SExpr fb (EnvEsc (Maybe esc) (OpParen fa fb) eof) ->
+          SExpr fb
             (EnvEsc (Maybe Void) fb
               (EnvEsc (Maybe esc) (OpParen fa fb) eof)))
     ) :: EnvEsc (Maybe Void) fb
            (EnvEsc (Maybe esc) (OpParen fa fb) eof))
   OpParenClose expr ->
-    Just $ QQExprLiteral $
+    Just $ SExprLiteral $
       EnvEscErr "Encountered an unmatched closing paren"
   _ -> Nothing
