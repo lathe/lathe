@@ -9,7 +9,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 import Control.Monad (ap, join, liftM)
-import Data.Functor.Identity (Identity(Identity), runIdentity)
+import Data.Bifunctor (bimap)
+import Data.Functor.Identity (Identity(Identity))
 import Data.Void (Void)
 
 
@@ -431,23 +432,48 @@ data OpParen fa fb rest
   | OpParenClose rest
   | OpParenOther (fa rest)
 
--- TODO: Implement this if we can. We probably want to change this to
--- take an operator that acts on syntax in the next-higher level of
--- quasiquotation. Would that syntax really look anything like
--- `SExpr`? What it might look like is more like this:
+data Turns outer inner = Turns (outer (Turns inner outer))
+data ValTurns f val = ValTurns (Turns f ((,) val))
+
+instance (Functor f) => Functor (ValTurns f) where
+  fmap func (ValTurns outer) = ValTurns $ fmapOuter func outer
+    where
+    fmapOuter :: (a -> b) -> Turns f ((,) a) -> Turns f ((,) b)
+    fmapOuter func (Turns layer) = Turns $ fmap (fmapInner func) layer
+    fmapInner :: (a -> b) -> Turns ((,) a) f -> Turns ((,) b) f
+    fmapInner func (Turns layer) =
+      Turns $ bimap func (fmapOuter func) layer
+
+-- TODO: Implement this if we can. The idea of `ValTurns` is that we
+-- want `opParenOpenQuasi` to hold an operator that acts on syntax in
+-- the next-higher degree of quasiquotation. One way to think about
+-- the next-higher degree is that it might look like this:
 --
 -- type SMap a = Map [String] a
 --
 -- SMap (forall lit. SMap (SExpr g lit) -> SExpr g lit) ->
 --   (forall lit. SMap (SExpr g lit) -> SExpr g lit)
 --
--- We can't just replace (OpParen fa fb rest) with
+-- The pattern (SMap x -> x) indicates an `x` with `x`-shaped holes in
+-- it. In this case we've described a quasiquotation with
+-- quasiquotation-shaped holes in it, where a quasiquotation is an
+-- s-expression with s-expression-shaped holes in it. Unfortunately,
+-- we can't just replace (OpParen fa fb rest) with
 -- (OpParen (SMap ... -> ...) fb rest) becase we need to replace `fa`
 -- with a functor, not a type.
 --
+-- So what we're doing instead is using (ValTurns fa) as the functor.
+-- Data of the type (ValTurns fa val) is a deeply nested data
+-- structure which alternates between the functor `fa` and the functor
+-- ((,) val). These `val` values sort of stand in for `fa`-shaped
+-- holes.
+--
+-- If we manage to implement this, update all the other comments
+-- marked (TODO) which talk about how we haven't implemented this yet.
+--
 opParenOpenQuasi ::
   forall fa fb rest. (Functor fa, Functor fb) =>
-  (forall rest. rest -> OpParen fa fb rest) ->
+  (forall rest. rest -> OpParen (ValTurns fa) fb rest) ->
   rest ->
     OpParen fa fb rest
 opParenOpenQuasi op rest = flip OpParenOpen rest $ OpParenOp $
@@ -508,7 +534,7 @@ opParenOpenEmpty op rest = flip OpParenOpen rest $ OpParenOp $
 --
 opParenOpenQuasiquote ::
   (Functor fa, Functor fb) =>
-  OpParenOp fa fb -> rest -> OpParen fa fb rest
+  OpParenOp (ValTurns fa) fb -> rest -> OpParen fa fb rest
 opParenOpenQuasiquote op = opParenOpenQuasi $ OpParenOpen op
 opParenOpenUnquote ::
   (Functor fa, Functor fb) => rest -> OpParen fa fb rest
