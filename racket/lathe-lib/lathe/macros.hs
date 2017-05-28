@@ -14,8 +14,13 @@ import Data.Void (Void)
 
 
 
--- We aim to generalize the two concepts of balanced parentheses and
--- balanced quasiquote/unquote operations.
+-- We aim to generalize the concepts of balanced parentheses and
+-- balanced quasiquote/unquote operations. We eventually hope to
+-- extend this analogy beyond text, beyond expressions, beyond
+-- quasiquotation, to higher degrees of quasiquotation. However, this
+-- hasn't panned out yet (TODO), so we focus here on modeling
+-- quasiquotation, which will successfully models lower degrees
+-- (parens).
 --
 -- We define two main types, `SExpr` and `QQExpr`. Our goal with
 -- `QQExpr` is to represent a data structure where quasiquote and
@@ -25,10 +30,7 @@ import Data.Void (Void)
 --
 -- Since we're generalizing, we simply refer to the generalized
 -- quasiquotation and unquotation operations as opening and closing
--- parens, repsectively. Just as nested quasiquotations have more
--- nesting structure than nested lists, which have more nesting
--- structure than flat text, we'll be able to extrapolate upward to
--- even higher degrees of nesting.
+-- parens, repsectively.
 --
 -- The point of all this is so that we can design a macro system where
 -- symbols like "quasiquote", "unquote", "(", and ")" are within the
@@ -133,10 +135,14 @@ insistNestQQ sExpr = flip fmap (nudgeNestQQ sExpr) $ \errOrLit ->
 
 -- Here's the obvious inclusion from `SExpr` into `QQExpr`, along with
 -- its partial function inverse. Together with `flattenQQ` and
--- `nudgeNestQQ`, these functions mean we can nestle or flatten
--- something over and over. For instance, we could flatten a
--- quasiquote/unquote structure into an s-expression and then flatten
--- that s-expression into text.
+-- `nudgeNestQQ`, we can nestle or flatten something over and over.
+--
+-- This doesn't achieve higher quasiquotation. What it means is that
+-- we can parse "( [ { ... } ] )" interpreting only the square
+-- brackets, and then run a parser recursively over that s-expression
+-- to interpret the curly brackets, then repeat the process for the
+-- parens, etc. In this example, at every stage we're still dealing
+-- with matching parens, never matching quasiquotes with unquotes.
 
 qqExprOfSExpr :: (Functor f) => SExpr f lit -> QQExpr f lit
 qqExprOfSExpr sExpr = case sExpr of
@@ -227,10 +233,19 @@ deNestedListsAsQQExpr qqExpr =
 
 
 
--- Equipped with a generalized notion of nested syntax, we demonstrate
--- a generalized macroexpansion technique where parentheses can be
--- defined as macros. (Or, if you prefer, this is an interpreter that
--- happens to return an expression.)
+-- Now instead of writing quasiquote-matching as a standalone
+-- algorithm, we explore a macroexpansion technique where the
+-- quasiquote and unquote operations are treated as user-definable
+-- macros, and the behavior of the quasiquote macro (`OpParenOpen`) is
+-- to run the result of the match through another operation. In the
+-- end, the macroexpander returns an s-expression in a potentially
+-- different language from the s-expression it received.
+--
+-- Unfortunately, we don't get to do higher quasiquotation with this.
+-- It seems like we should be able to write a user-definable operator
+-- `opParenOpenQuasi` which takes an operator for a higher degree of
+-- quasiquotation and returns an operator for the current degree, but
+-- the type we need for the higher degree is currently unclear (TODO).
 
 data EnvEsc esc f lit
   = EnvEscErr String
@@ -285,12 +300,13 @@ processEsc onSubexpr esc = case esc of
 -- infinite loop. The `EnvEscErr` result allows syntax errors to be
 -- reported locally among the branches of the returned expression.
 -- Finally, the `EnvEscSubexpr` result allows us to represent the
--- result of parsing a closing parenthesis/unquote or to invoke the
--- macroexpander in a trampolined way, so that we can potentially
--- cache and recompute different areas of the syntax without starting
--- from scratch each time. The expression parameter to `EnvEscSubexpr`
--- includes (EnvEsc (Maybe Void) ...) so that it can use a `Nothing`
--- escape to trampoline to the macroexpander like this.
+-- result of parsing a closing parenthesis/unquote, and it also allows
+-- us invoke the macroexpander in a trampolined way, a way that
+-- potentially lets us cache and recompute different areas of the
+-- syntax without starting from scratch each time. The expression
+-- parameter to `EnvEscSubexpr` includes (EnvEsc (Maybe Void) ...) so
+-- that it can use a `Nothing` escape to trampoline to the
+-- macroexpander like this.
 --
 -- TODO: We don't currently implement a cache like that. Should we? If
 -- we could somehow guarantee that one macroexpansion step didnt't
@@ -298,11 +314,11 @@ processEsc onSubexpr esc = case esc of
 -- returned, we could have much more confidence in caching results. If
 -- we start to formalize that, we'll likewise want to keep track of
 -- what parts of the environment have been peeked at as well. We might
--- be able to make a little bit of headway on this if we use type
--- quantifiers, but it's likely this will be much more
--- straightoforward to enforce if we make peeking a side effect (so
--- we'll want to treat expressions not as pure data structures but as
--- imperative streams).
+-- be able to make a little bit of headway on this if we use some more
+-- explicit foralls in our types, but it's likely this will be much
+-- more straightoforward to enforce if we make peeking a side effect
+-- (so we'll want to treat expressions not as pure data structures but
+-- as imperative streams).
 --
 interpret ::
   Env esc fa lita fb litb ->
@@ -476,14 +492,14 @@ opParenOpenEmpty op rest = flip OpParenOpen rest $ OpParenOp $
         EnvEscLit $ EnvEscSubexpr (Just esc'') env expr func
       Nothing -> EnvEscSubexpr Nothing env expr (fmap putOff . func)
 
--- These are four operators which interpret an `OpParenOpen` usage of
--- the form "(...bracketedBody...)...followingBody...": Two that
--- quasiquote and unquote the `bracketedBody`, and two that verify
--- `bracketedBody` is empty and then behave like
--- "(...followingBody..." or ")...followingBody...".
---
--- TODO: Complete the implementation of `opParenOpenQuasi`, which the
--- first two of these depend on.
+-- These are four operators which reside on a use of `OpParenOpen`.
+-- A properly matched call to `OpParenOpen` when the parens are among
+-- text (rather than s-expressions) looks like
+-- "(...bracketedBody...)...followingBody...". Two of these operators
+-- are supposed to quasiquote and unquote the `bracketedBody`, but we
+-- can't seem to implement `opParenOpenQuasi`, which they depend on
+-- (TODO). The other two verify `bracketedBody` is empty and then
+-- behave like "(...followingBody..." or ")...followingBody...".
 --
 opParenOpenQuasiquote ::
   (Functor fa, Functor fb) =>
@@ -515,10 +531,10 @@ coreEnv ::
 coreEnv = simpleEnv coreEnv_
 
 coreEnv_ ::
-  -- We use an explicit `forall` here so we can use these type
-  -- variables in type annotations below (with the help of
-  -- `ScopedTypeVariables`). We're only using the type annotations as
-  -- a sanity check.
+  -- We use `ScopedTypeVariables` and an explicit `forall` here so we
+  -- can use these type variables in type annotations below. We're not
+  -- doing this because we need to, but just as a sanity check and a
+  -- form of documentation.
   forall esc fa fb eof. (Functor fa, Functor fb) =>
   Env (Maybe Void) (OpParen fa fb) Identity fb
     (EnvEsc (Maybe esc) (OpParen fa fb)) ->
