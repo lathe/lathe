@@ -15,12 +15,17 @@ import Data.Void (Void)
 
 
 -- We aim to generalize the concepts of balanced parentheses and
--- balanced quasiquote/unquote operations. We eventually hope to
--- extend this analogy beyond text, beyond expressions, beyond
--- quasiquotation, to higher degrees of quasiquotation. However, this
--- hasn't panned out yet (TODO), so we focus here on modeling
--- quasiquotation, which will successfully models lower degrees
--- (parens).
+-- balanced quasiquote/unquote operations, and we will collectively
+-- call these operations "parens". In particular, we sometimes refer
+-- to quasiquote as an opening paren and unquote as a closing paren.
+-- We eventually hope to extend this analogy beyond the matching of
+-- parentheses among text and beyond the matching of quasiquote and
+-- unquote among s-expressions, toward what we'd like to call
+-- "higher degrees of quasiquotation" or simply
+-- "higher quasiquotation." However, this hasn't panned out yet
+-- (TODO), so we focus here on modeling quasiquotation-matching among
+-- s-expressions and showing how it generalizes paren-matching among
+-- text.
 --
 -- We define two main types, `SExpr` and `QQExpr`. Our goal with
 -- `QQExpr` is to represent a data structure where quasiquote and
@@ -171,16 +176,15 @@ insistSExprFromQQExpr qqExpr =
 --
 -- If we use the functor (Compose [] (Sum (Const a) Identity)), then
 -- our s-expressions can contain literal values of type `a`. We can
--- put symbols or other atoms into our s-exprssions that way, making
--- them even more familiar from the Lisp s-expression tradition.
+-- put symbols or other atoms into our s-exprssions that way, giving
+-- them an even closer resemblance to the the Lisp s-expression
+-- tradition.
 --
 -- If we use the functor ((,) a), then `SExpr` is isomorphic to a
 -- list, and `QQExpr` is isomorphic to a list of s-expressions, as we
--- show using the coercions below. So the same algorithm we used for
--- flattening quasiquote/unquote can be used to flatten an
--- s-expression into a list with parens in it. So naming the
--- quasiquote/unquote operations "ParenOpen" and "ParenClosed" was
--- well justified.
+-- show using the coercions below. So indeed, quasiquotation-matching
+-- among s-expressions generalizes paren-matching among text, and our
+-- generalized use of the term "paren" is well justified.
 
 improperListAsSExpr :: ([a], end) -> SExpr ((,) a) end
 improperListAsSExpr (list, end) = case list of
@@ -236,10 +240,11 @@ deNestedListsAsQQExpr qqExpr =
 -- Now instead of writing quasiquote-matching as a standalone
 -- algorithm, we explore a macroexpansion technique where the
 -- quasiquote and unquote operations are treated as user-definable
--- macros, and the behavior of the quasiquote macro (`OpParenOpen`) is
--- to run the result of the match through another operation. In the
--- end, the macroexpander returns an s-expression in a potentially
--- different language from the s-expression it received.
+-- macros. The behavior of the quasiquote macro (`OpParenOpen`) is to
+-- match itself with occurrences of the unquote macro (`OpParenClose`)
+-- and pass the matched-up syntax through another operation to process
+-- it. In the end, the macroexpander returns an s-expression in a
+-- potentially different language from the s-expression it received.
 --
 -- Unfortunately, we don't get to do higher quasiquotation with this.
 -- It seems like we should be able to write a user-definable operator
