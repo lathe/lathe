@@ -23,10 +23,12 @@ import Data.Void (Void)
 -- parentheses among text and beyond the matching of quasiquote and
 -- unquote among s-expressions, toward what we'd like to call
 -- "higher degrees of quasiquotation" or simply
--- "higher quasiquotation." However, this hasn't panned out yet
--- (TODO), so we focus here on modeling quasiquotation-matching among
--- s-expressions and showing how it generalizes paren-matching among
--- text.
+-- "higher quasiquotation." While we may have already achieved this
+-- goal with the definition of `opParenOpenQuasiquote` and
+-- `opParenOpenUnquote`, we haven't put it to the test yet (TODO), so
+-- we focus first on the simpler case of modeling
+-- quasiquotation-matching among s-expressions and showing how it
+-- generalizes paren-matching among text.
 --
 -- We define two main types, `SExpr` and `QQExpr`. Our goal with
 -- `QQExpr` is to represent a data structure where quasiquote and
@@ -247,11 +249,13 @@ deNestedListsAsQQExpr qqExpr =
 -- it. In the end, the macroexpander returns an s-expression in a
 -- potentially different language from the s-expression it received.
 --
--- Unfortunately, we don't get to do higher quasiquotation with this.
--- It seems like we should be able to write a user-definable operator
--- `opParenOpenQuasi` which takes an operator for a higher degree of
--- quasiquotation and returns an operator for the current degree, but
--- the type we need for the higher degree is currently unclear (TODO).
+-- To do macroexpansion at a high degree of quasiquotation, we take
+-- the output of one macroexpansion pass and feed it in as the input
+-- to another. This is analogous to the way the outputs of Common Lisp
+-- or Racket reader macros (namely, s-expressions) are used as the
+-- input to those languages' s-expression macroexpanders. We provide
+-- `opParenOpenQuasiquote` and `opParenOpenUnquote` for this use case,
+-- but we still need to put them to the test (TODO).
 
 data EnvEsc esc f lit
   = EnvEscErr String
@@ -432,58 +436,36 @@ data OpParen fa fb rest
   | OpParenClose rest
   | OpParenOther (fa rest)
 
-data Turns outer inner = Turns (outer (Turns inner outer))
-data ValTurns f val = ValTurns (Turns f ((,) val))
+mapLists ::
+  (Functor f) =>
+  (forall lit. f lit -> g lit) -> SExpr f lit -> SExpr g lit
+mapLists func sexpr = case sexpr of
+  SExprLiteral lit -> SExprLiteral lit
+  SExprList list -> SExprList $ func (fmap (mapLists func) list)
 
-instance (Functor f) => Functor (ValTurns f) where
-  fmap func (ValTurns outer) = ValTurns $ fmapOuter func outer
-    where
-    fmapOuter :: (a -> b) -> Turns f ((,) a) -> Turns f ((,) b)
-    fmapOuter func (Turns layer) = Turns $ fmap (fmapInner func) layer
-    fmapInner :: (a -> b) -> Turns ((,) a) f -> Turns ((,) b) f
-    fmapInner func (Turns layer) =
-      Turns $ bimap func (fmapOuter func) layer
-
--- TODO: Implement this if we can. The idea of `ValTurns` is that we
--- want `opParenOpenQuasi` to hold an operator that acts on syntax in
--- the next-higher degree of quasiquotation. One way to think about
--- the next-higher degree is that it might look like this:
---
--- type SMap a = Map [String] a
---
--- SMap (forall lit. SMap (SExpr g lit) -> SExpr g lit) ->
---   (forall lit. SMap (SExpr g lit) -> SExpr g lit)
---
--- The pattern (SMap x -> x) indicates an `x` with `x`-shaped holes in
--- it. In this case we've described a quasiquotation with
--- quasiquotation-shaped holes in it, where a quasiquotation is an
--- s-expression with s-expression-shaped holes in it. Unfortunately,
--- we can't just replace (OpParen fa fb rest) with
--- (OpParen (SMap ... -> ...) fb rest) becase we need to replace `fa`
--- with a functor, not a type.
---
--- So what we're doing instead is using (ValTurns fa) as the functor.
--- Data of the type (ValTurns fa val) is a deeply nested data
--- structure which alternates between the functor `fa` and the functor
--- ((,) val). These `val` values sort of stand in for `fa`-shaped
--- holes.
---
--- If we manage to implement this, update all the other comments
--- marked (TODO) which talk about how we haven't implemented this yet.
---
 opParenOpenQuasi ::
-  forall fa fb rest. (Functor fa, Functor fb) =>
-  (forall rest. rest -> OpParen (ValTurns fa) fb rest) ->
-  rest ->
-    OpParen fa fb rest
+  forall fa fb lit. (Functor fa) =>
+  (forall rest. rest -> fa rest) ->
+  (forall rest. rest -> OpParen fb ((,) (SExpr fa lit)) rest)
 opParenOpenQuasi op rest = flip OpParenOpen rest $ OpParenOp $
-  \env expr -> undefined
+  \env expr -> case expr of
+    SExprLiteral esc ->
+      SExprLiteral $ EnvEscErr "Expected a quasiquoted expression"
+    SExprList (resultExpr, rest) -> case rest of
+      SExprList _ ->
+        SExprLiteral $
+          EnvEscErr "Expected no more than one quasiquoted expression"
+      SExprLiteral rest' ->
+        SExprList
+          (SExprList $ op resultExpr, SExprLiteral $ EnvEscLit rest')
+-- Here's an alternate implementation which would allow any number of
+-- expressions to occur in the quasiquoted section.
+--    mapLists (bimap (SExprList . op) id) $ fmap EnvEscLit expr
 
 opParenOpenEmpty ::
-  forall fa fb rest. (Functor fa, Functor fb) =>
+  forall fa fb. (Functor fa, Functor fb) =>
   (forall rest. rest -> OpParen fa fb rest) ->
-  rest ->
-    OpParen fa fb rest
+  (forall rest. rest -> OpParen fa fb rest)
 opParenOpenEmpty op rest = flip OpParenOpen rest $ OpParenOp $
   \env expr -> SExprLiteral $ case expr of
     SExprLiteral esc -> case esc of
@@ -527,17 +509,20 @@ opParenOpenEmpty op rest = flip OpParenOpen rest $ OpParenOp $
 -- A properly matched call to `OpParenOpen` when the parens are among
 -- text (rather than s-expressions) looks like
 -- "(...bracketedBody...)...followingBody...". Two of these operators
--- are supposed to quasiquote and unquote the `bracketedBody`, but we
--- can't seem to implement `opParenOpenQuasi`, which they depend on
--- (TODO). The other two verify `bracketedBody` is empty and then
--- behave like "(...followingBody..." or ")...followingBody...".
+-- require `bracketedBody` to form a single piece of higher-degree
+-- syntax, which they then quasiquote and unquote respectively. The
+-- other two require `bracketedBody` to be empty, and then they
+-- behave like "(...followingBody..." and ")...followingBody...".
 --
 opParenOpenQuasiquote ::
-  (Functor fa, Functor fb) =>
-  OpParenOp (ValTurns fa) fb -> rest -> OpParen fa fb rest
+  (Functor fa) =>
+  OpParenOp fa fb ->
+  rest ->
+    OpParen fc ((,) (SExpr (OpParen fa fb) Void)) rest
 opParenOpenQuasiquote op = opParenOpenQuasi $ OpParenOpen op
 opParenOpenUnquote ::
-  (Functor fa, Functor fb) => rest -> OpParen fa fb rest
+  (Functor fa) =>
+  rest -> OpParen fc ((,) (SExpr (OpParen fa fb) Void)) rest
 opParenOpenUnquote = opParenOpenQuasi $ OpParenClose
 opParenOpenEmptyOpen ::
   (Functor fa, Functor fb) =>
