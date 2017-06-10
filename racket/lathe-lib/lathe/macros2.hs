@@ -5,8 +5,8 @@
 
 
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE Rank2Types #-}
 
 
 -- We demonstrate a way to extrapolate monads so to operate on kind
@@ -47,7 +47,9 @@ class H1Monad m1 where
     (H0Monad m0, H0Monad m0') =>
     (forall a. m0 a -> m1 m0' a) -> m1 m0 a -> m1 m0' a
   h1bind1 f = h1join1 . h1map1 f
-instance (H1Monad m1, H0Monad m0) => H0Monad (m1 m0) where
+instance {-# OVERLAPPABLE #-}
+  (H1Monad m1, H0Monad m0) => H0Monad (m1 m0)
+  where
   h0map0 = h1map0
   h0return = h1return . h0return
   h0join0 = h1join0
@@ -93,7 +95,9 @@ class H2Monad m2 where
     (forall m0 a. (H0Monad m0) => m1 m0 a -> m2 m1' m0 a) ->
     (forall m0 a. (H0Monad m0) => m2 m1 m0 a -> m2 m1' m0 a)
   h2bind2 f = h2join2 . h2map2 f
-instance (H2Monad m2, H1Monad m1) => H1Monad (m2 m1) where
+instance {-# OVERLAPPABLE #-}
+  (H2Monad m2, H1Monad m1) => H1Monad (m2 m1)
+  where
   h1map0 = h2map0
   h1map1 = h2map1
   h1return = h2return . h1return
@@ -171,9 +175,9 @@ instance H2Monad H1Meta where
 -- quasiquotation. It won't be (Balanced (Balanced m0) a), because
 -- that's just two variations of parentheses where the outer variation
 -- can't occur anywhere inside the inner variation. We've started on a
--- possible generalization below (starting with `H0BalancedNonMedia`),
--- but since it probably isn't quite right, it's commented out for
--- now.
+-- possible generalization below (starting with `H0Balanced`), but we
+-- haven't quite managed to implement an instance for
+-- (H2Monad H1Balanced).
 
 data Balanced m0 a
   = BalancedNonMedia (BalancedNonMedia m0 a)
@@ -195,7 +199,7 @@ instance H1Monad Balanced where
         BalancedMedia m''' -> m'''
   
   -- NOTE: Defining `h1map1`, `h1join1`, and `h1bind1` here is
-  -- redundant, but we do it to demonstrate how it's done.
+  -- redundant, but we do it anyway as an exercise.
   h1map1 f m = case m of
     BalancedNonMedia m' -> BalancedNonMedia $ h1map1nonMedia f m'
     BalancedMedia m' ->
@@ -224,19 +228,68 @@ instance H1Monad Balanced where
         BalancedBrackets $ h1bind1 f $ h1map0 (h1bind1 f) m''
     BalancedMedia m' -> h1bind0 (h1bind1 f . BalancedNonMedia) $ f m'
 
---data H0BalancedNonMedia m0 a
---  = H0BalancedEnd (H0Id a)
---  | H0BalancedBrackets (H0Meta m0 a)
---data H1BalancedNonMedia m1 m0 a
---  = H1BalancedEnd (H1Id m0 a)
---  | H1BalancedBrackets (H1Meta m1 m0 a)
---
---data H0Balanced m0 a
---  = H0BalancedNonMedia (H0BalancedNonMedia (H0Balanced m0) a)
---  | H0BalancedMedia (m0 (H0BalancedNonMedia (H0Balanced m0) a))
---data H1Balanced m1 m0 a
---  = H1BalancedNonMedia
---      (H0BalancedNonMedia (H1Balanced m1 (H0Balanced m0)) a)
---  | H1BalancedMedia
---      (m1 (H1BalancedNonMedia (H1Balanced m1) (H0Balanced m0))
---        (H0BalancedNonMedia (H1Balanced m1 (H0Balanced m0)) a))
+
+data H0Balanced m0 a
+  = H0BalancedNonMedia (H0BalancedNonMedia m0 a)
+  | H0BalancedMedia (m0 (H0BalancedNonMedia m0 a))
+data H0BalancedNonMedia m0 a
+  = H0BalancedEnd a
+  | H0BalancedBrackets (H0Balanced m0 (H0Balanced m0 a))
+
+data H1Balanced m1 m0 a
+  = H1BalancedNonMedia (H1BalancedNonMedia m1 m0 a)
+  | H1BalancedMedia (m1 m0 (H1BalancedNonMedia m1 m0 a))
+data H1BalancedNonMedia m1 m0 a
+  = H1BalancedEnd (m0 a)
+  | H1BalancedBrackets (H1Balanced m1 (H1Balanced m1 m0) a)
+
+data H2Balanced m2 m1 m0 a
+  = H2BalancedNonMedia (H2BalancedNonMedia m2 m1 m0 a)
+  | H2BalancedMedia (m2 m1 m0 (H2BalancedNonMedia m2 m1 m0 a))
+data H2BalancedNonMedia m2 m1 m0 a
+  = H2BalancedEnd (m1 m0 a)
+  | H2BalancedBrackets (H2Balanced m2 (H2Balanced m2 m1) m0 a)
+
+instance H2Monad H1Balanced where
+  
+  h2return = H1BalancedMedia . h1map0 (H1BalancedEnd . h0return)
+  
+  h2bind0 f m = case m of
+    H1BalancedNonMedia m' -> case m' of
+      H1BalancedEnd m'' -> h1fromMedia $ h1return $ h0map0 f m''
+      H1BalancedBrackets m'' ->
+        H1BalancedNonMedia $ H1BalancedBrackets $
+        h2bind0 (h2map1 h1return . f) m''
+    H1BalancedMedia m' ->
+      h1fromMedia $ h1map0 (h1bind0 f . H1BalancedNonMedia) m'
+  
+  h2bind1 f m = case m of
+    H1BalancedNonMedia m' -> case m' of
+      H1BalancedEnd m'' -> f m''
+      H1BalancedBrackets m'' ->
+        H1BalancedNonMedia $ H1BalancedBrackets $
+        h2map1 (h2bind1 f) m''
+    H1BalancedMedia m' ->
+      -- TODO: Finish implementing this if possible. If it's not
+      -- possible, then we need to reconsider our approach here.
+      undefined
+  
+  h2bind2 f m = case m of
+    H1BalancedNonMedia m' -> H1BalancedNonMedia $ case m' of
+      H1BalancedEnd m'' -> H1BalancedEnd m''
+      H1BalancedBrackets m'' ->
+        H1BalancedBrackets $ h2bind2 f $ h2map1 (h2bind2 f) m''
+    H1BalancedMedia m' ->
+      h2bind0 (h2bind2 f . H1BalancedNonMedia) $ f m'
+
+h1fromMedia ::
+  (H1Monad m1, H0Monad m0) =>
+  m1 m0 (H1Balanced m1 m0 a) -> H1Balanced m1 m0 a
+h1fromMedia = H1BalancedMedia . h1bind0 returnNonMedia
+  where
+  returnNonMedia ::
+    (H1Monad m1, H0Monad m0) =>
+    H1Balanced m1 m0 a -> m1 m0 (H1BalancedNonMedia m1 m0 a)
+  returnNonMedia m = case m of
+    H1BalancedNonMedia m' -> h0return m'
+    H1BalancedMedia m' -> m'
