@@ -392,7 +392,7 @@ data H1MExpr s m h0
   = H1MExprMedia (m (H1MExprNonMedia s m h0))
 data H1MExprNonMedia s m h0
   = H1MExprHole0 h0
-  | H1MExprLayer0 (H0MExpr s m)
+  | H1MExprLayer0 (H1MExpr s m h0)
   | H1MExprLayer1 (H1MExpr s m s)
       (Map s (H1MExpr s m h0))
 data H2MExpr s m h1 h0
@@ -401,8 +401,8 @@ data H2MExprNonMedia s m h1 h0
   = H2MExprHole0 h0
   | H2MExprHole1 h1
       (Map s (H2MExpr s m h1 h0))
-  | H2MExprLayer0 (H0MExpr s m)
-  | H2MExprLayer1 (H1MExpr s m s)
+  | H2MExprLayer0 (H2MExpr s m h1 h0)
+  | H2MExprLayer1 (H2MExpr s m h1 s)
       (Map s (H2MExpr s m h1 h0))
   | H2MExprLayer2 (H2MExpr s m s s)
       (Map s (H2MExpr s m h1 h0))
@@ -416,10 +416,10 @@ data H3MExprNonMedia s m h2 h1 h0
   | H3MExprHole2 h2
       (Map s (H3MExpr s m h2 h1 h0))
       (Map s (H3MExpr s m h2 h1 s))
-  | H3MExprLayer0 (H0MExpr s m)
-  | H3MExprLayer1 (H1MExpr s m s)
+  | H3MExprLayer0 (H3MExpr s m h2 h1 h0)
+  | H3MExprLayer1 (H3MExpr s m h2 h1 s)
       (Map s (H3MExpr s m h2 h1 h0))
-  | H3MExprLayer2 (H2MExpr s m s s)
+  | H3MExprLayer2 (H3MExpr s m h2 s s)
       (Map s (H3MExpr s m h2 h1 h0))
       (Map s (H3MExpr s m h2 h1 s))
   | H3MExprLayer3 (H3MExpr s m s s s)
@@ -470,15 +470,15 @@ data H1TExpr m h0
   = H1TExprMedia (m (H1TExprNonMedia m h0))
 data H1TExprNonMedia m h0
   = H1TExprHole0 h0
-  | H1TExprLayer0 (H0TExpr m)
+  | H1TExprLayer0 (H1TExpr m h0)
   | H1TExprLayer1 (H1TExpr m (H1TExpr m h0))
 data H2TExpr m h1 h0
   = H2TExprMedia (m (H2TExprNonMedia m h1 h0))
 data H2TExprNonMedia m h1 h0
   = H2TExprHole0 h0
   | H2TExprHole1 (h1 (H2TExpr m h1 h0))
-  | H2TExprLayer0 (H0TExpr m)
-  | H2TExprLayer1 (H1TExpr m (H2TExpr m h1 h0))
+  | H2TExprLayer0 (H2TExpr m h1 h0)
+  | H2TExprLayer1 (H2TExpr m h1 (H2TExpr m h1 h0))
   | H2TExprLayer2 (H2TExpr m (H2TExpr m h1) (H2TExpr m h1 h0))
 data H3TExpr m h2 h1 h0
   = H3TExprMedia (m (H3TExprNonMedia m h2 h1 h0))
@@ -486,9 +486,12 @@ data H3TExprNonMedia m h2 h1 h0
   = H3TExprHole0 h0
   | H3TExprHole1 (h1 (H3TExpr m h2 h1 h0))
   | H3TExprHole2 (h2 (H3TExpr m h2 h1) (H3TExpr m h2 h1 h0))
-  | H3TExprLayer0 (H0TExpr m)
-  | H3TExprLayer1 (H1TExpr m (H3TExpr m h2 h1 h0))
-  | H3TExprLayer2 (H2TExpr m (H3TExpr m h2 h1) (H3TExpr m h2 h1 h0))
+  | H3TExprLayer0 (H3TExpr m h2 h1 h0)
+  | H3TExprLayer1 (H3TExpr m h2 h1 (H3TExpr m h2 h1 h0))
+  | H3TExprLayer2
+      (H3TExpr m h2
+        (H3TExpr m h2 h1)
+        (H3TExpr m h2 h1 h0))
   | H3TExprLayer3
       (H3TExpr m
         (H3TExpr m h2)
