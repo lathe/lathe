@@ -6,8 +6,10 @@
 
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Rank2Types #-}
 
+import Data.Functor.Compose (Compose(Compose))
 import Data.Map (Map)
 
 
@@ -499,3 +501,104 @@ data H3TExprNonMedia m h2 h1 h0
 --   instance (Monad m) => H0Monad (H1TExpr m)
 --   instance (Monad m) => H1Monad (H2TExpr m)
 --   instance (Monad m) => H2Monad (H3TExpr m)
+
+
+
+-- TODO: This is an attempt to refactor the `H0Monad` family to factor
+-- out an `H0Functor` family and an `H0Applicative` family, but we
+-- haven't finished yet.
+--
+class H0Functor m0 where
+  h0fmap :: (a -> a') -> m0 a -> m0 a'
+class H1Functor m1 where
+  h1fmap ::
+--    (H0Functor m0, H0Functor m0') =>
+    (forall a. m0 a -> m0' a) -> m1 m0 a -> m1 m0' a
+class H2Functor m2 where
+  h2fmap ::
+--    (H1Functor m1, H1Functor m1', H0Functor m0) =>
+    (forall m0 a. m1 m0 a -> m1' m0 a) -> m2 m1 m0 a -> m2 m1' m0 a
+class (H0Functor m0) => H0Applicative m0 where
+  h0fmapUnit :: a -> m0 a
+  h0fmapPair ::
+    (a -> b -> c) ->
+    (m0 a -> m0 b -> m0 c)
+class (H1Functor m1) => H1Applicative m1 where
+  h1fmapUnit :: m0 a -> m1 m0 a
+  h1fmapPair ::
+--    (H1Functor m0a, H1Functor m0b, H1Functor m0c) =>
+    (forall a. m0a a -> m0b a -> m0c a) ->
+    (m1 m0a a -> m1 m0b a -> m1 m0c a)
+class (H2Functor m2) => H2Applicative m2 where
+  h2fmapUnit :: m1 m0 a -> m2 m1 m0 a
+  h2fmapPair ::
+--    (H1Functor m1a, H1Functor m1b, H1Functor m1c, H0Functor m0) =>
+    (forall m0 a. m1a m0 a -> m1b m0 a -> m1c m0 a) ->
+    (m2 m1a m0 a -> m2 m1b m0 a -> m2 m1c m0 a)
+-- TODO: The definition of `H0Monoid` is different than the others in
+-- the `H0Monoid` family. Figure out if that's a problem. Or,
+-- actually, since the `H0Operad` family starts counting from
+-- `H1Monoid`, just drop `H0Monoid` and call this family `H0Monad`
+-- once it's ready to take the place of the `H0Monad` family we're
+-- using now.
+class H0Monoid w where
+  h0mempty :: w
+  h0mappend :: w -> w -> w
+class H1Monoid w where
+  h1mempty :: a -> w a
+  h1mappend :: w (w a) -> w a
+class H2Monoid w where
+  h2mempty :: m0 a -> w m0 a
+  h2mappend :: w (w m0) a -> w m0 a
+class H3Monoid w where
+  h3mempty :: m1 m0 a -> w m1 m0 a
+  h3mappend :: w (w m1) m0 a -> w m1 m0 a
+-- TODO: Are these even really operads? Anyway, the reason we defined
+-- these was as an attempt to extrapolate a different kind of
+-- `H0Applicative` family. Something we didn't account for in defining
+-- this `H0Operad` family was the fact that the `h0fmapPair` family
+-- can accept values of two different types, and our monoid families
+-- here are homogeneous.
+class (H1Monoid w) => H0Operad w m0 where
+  h0operad :: (w a -> a) -> w (m0 a) -> m0 a
+class (H2Monoid w) => H1Operad w m1 where
+  h1operad :: (w m0 a -> m0 a) -> w (m1 m0) a -> m1 m0 a
+class (H3Monoid w) => H2Operad w m2 where
+  h2operad :: (w m1 m0 a -> m1 m0 a) -> w (m2 m1) m0 a -> m2 m1 m0 a
+data H0FreeMonoid a = H0Nil | H0Cons a (H0FreeMonoid a)
+instance H0Monoid (H0FreeMonoid a) where
+  h0mempty = H0Nil
+  h0mappend xs ys = case xs of
+    H0Nil -> ys
+    H0Cons x xs' -> H0Cons x $ h0mappend xs' ys
+data H1FreeMonoid m0 a = H1Nil a | H1Cons (m0 (H1FreeMonoid m0 a))
+instance (H0Functor m0) => H1Monoid (H1FreeMonoid m0) where
+  h1mempty = H1Nil
+  h1mappend m = case m of
+    H1Nil a -> a
+    H1Cons m' -> H1Cons $ h0fmap h1mappend m'
+data H2FreeMonoid m1 m0 a =
+  H2Nil (m0 a) | H2Cons (m1 (H2FreeMonoid m1 m0) a)
+instance (H1Functor m1) => H2Monoid (H2FreeMonoid m1) where
+  h2mempty = H2Nil
+  h2mappend m = case m of
+    H2Nil a -> a
+    H2Cons m' -> H2Cons $ h1fmap h2mappend m'
+
+makeConcreteH0FreeMonoid :: [a] -> H0FreeMonoid a
+makeConcreteH0FreeMonoid xs = case xs of
+  [] -> H0Nil
+  x:xs' -> H0Cons x $ makeConcreteH0FreeMonoid xs'
+makeConcreteH1FreeMonoid :: ([a], b) -> H1FreeMonoid ((,) a) b
+makeConcreteH1FreeMonoid (xs, b) = case xs of
+  [] -> H1Nil b
+  x:xs' -> H1Cons $ (,) x $ makeConcreteH1FreeMonoid (xs', b)
+-- TODO: Hmm, the type ([a], b, c) seems underwhelming. Maybe
+-- `H2FreeMonoid` isn't worth much the way we've defined it. Maybe it
+-- isn't even free for `H2Monoid`.
+makeConcreteH2FreeMonoid ::
+  ([a], b, c) -> H2FreeMonoid (Compose ((,) a)) ((,) b) c
+makeConcreteH2FreeMonoid (xs, b, c) = case xs of
+  [] -> H2Nil (b, c)
+  x:xs' ->
+    H2Cons $ Compose $ (,) x $ makeConcreteH2FreeMonoid (xs', b, c)
