@@ -8,6 +8,9 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE Rank2Types #-}
 
+import Data.Map (Map)
+
+
 
 -- We demonstrate a way to extrapolate monads so to operate on kind
 -- (* -> *), kind ((* -> *) -> (* -> *)), and so on (but we stop
@@ -293,3 +296,206 @@ h1fromMedia = H1BalancedMedia . h1bind0 returnNonMedia
   returnNonMedia m = case m of
     H1BalancedNonMedia m' -> h0return m'
     H1BalancedMedia m' -> m'
+
+
+
+-- The type (H2MExpr s m h1 h0) represents a
+-- higher-quasiquotation-degree-2 `Map`-based expression for a
+-- serializable key type `s` (typically something like `String`), a
+-- syntax monad `m`, a type `h1` of stand-ins for degree-1 holes, and
+-- a type `h0` of degree-0 holes. These `Map`-based expressions aren't
+-- very strongly typed because there's no compile-time guarantee that
+-- every key appearing in a hole position will have an entry in the
+-- corresponding `Map`.
+--
+-- We arrived at this by considering an example:
+--
+-- Suppose we have a pseudocode language where Lisp s-expressions are
+-- the syntax monad, the characters ` , represent quasiquotation of
+-- degree 0, and the characters ^ $ represent quasiquotation of
+-- degree 1.
+--
+-- A degree-0-quasiquotation-shaped data structure (which we'll also
+-- call a degree-1 expression) looks like this, where the symbols `a`
+-- and `b` help to indicate how the structure nests and `--`
+-- represents a hole:
+--
+--   `(a `(b ,(a ,(--) a) (b) b) a ,(--) a (a) a)
+--
+-- The `b` structure nested inside looks like this:
+--
+--   `(b ,(--) (b) b)
+--
+-- A degree-1-quasiquotation-shaped data structure (aka a degree-2
+-- expression) looks like this:
+--
+--   ^`(a
+--       ^`(b
+--           $`(a
+--               $`(--)
+--               a ,(b (b) b) a ,(b) a `(a) a (a) a)
+--           b ,(a) b `(b) b (b) b)
+--       a ,(--) a `(a) a (a) a)
+--
+-- The `b` structure nested inside that one looks like this:
+--
+--   ^`(b
+--       $`(-- ,(b (b) b) ,(b))
+--       b ,(--) b `(b) b (b) b)
+--
+-- This time we have two kinds of holes: An occurrence of , introduces
+-- a hole of degree 0 which can be filled with an s-expression (aka a
+-- degree-0 expression). An occurrence of $` introduces a hole of
+-- degree 1, and occurrences of , inside that hole leave it again. A
+-- hole of degree 1 can be filled with a quasiquotation of degree 0
+-- (aka an expression of degree 1).
+--
+-- When we have a hole of degree 1 that hasn't been filled yet, the
+-- unquotes inside it are rather orphaned. To tell them apart, we may
+-- want to give them `String` labels. When we do, the kind of data
+-- that can be inserted into that hole becomes more specific: Instead
+-- of just any degree-0 quasiquotation, it should be a degree-0
+-- quasiquotation where the degree-0 holes are represented by `String`
+-- labels corresponding to the labels of our orphaned unquotes.
+--
+-- So this means the data type acts as a sort of container of holes,
+-- and oftentimes we'll want it to contain strings in those holes.
+--
+-- We also know a lot about the structure of this data now: For every
+-- degree, an expression of that degree is shaped like an s-expression
+-- which can contain holes of strictly lower degrees. In the same way,
+-- a hole of some degree has orphaned sections containing expressions
+-- of every strictly lower degree.
+--
+-- There's something else that can appear wherever a hole can appear:
+-- A *nested expression* of the same or lesser degree. When this
+-- nested expression reaches a hole, it resumes the original
+-- expression. So when a nested expression appears in our data
+-- structure, there's some additional data that appears in the holes
+-- within that.
+--
+-- (In this example, we didn't consider ( ) to be a variant of
+-- quasiquotation because we wouldn't have multiple orphaned closing
+-- parens to differentiate with labels. However, there should be
+-- nothing stopping us from using a label anyway, and hence nothing
+-- stopping us from designing a language where the syntax monad is
+-- (Writer String) and the characters ( ) represent degree-0
+-- quasiquotation.)
+--
+data H0MExpr s m
+  = H0MExprMedia (m (H0MExprNonMedia s m))
+data H0MExprNonMedia s m
+  = H0MExprLayer0 (H0MExpr s m)
+data H1MExpr s m h0
+  = H1MExprMedia (m (H1MExprNonMedia s m h0))
+data H1MExprNonMedia s m h0
+  = H1MExprHole0 h0
+  | H1MExprLayer0 (H0MExpr s m)
+  | H1MExprLayer1 (H1MExpr s m s)
+      (Map s (H1MExpr s m h0))
+data H2MExpr s m h1 h0
+  = H2MExprMedia (m (H2MExprNonMedia s m h1 h0))
+data H2MExprNonMedia s m h1 h0
+  = H2MExprHole0 h0
+  | H2MExprHole1 h1
+      (Map s (H2MExpr s m h1 h0))
+  | H2MExprLayer0 (H0MExpr s m)
+  | H2MExprLayer1 (H1MExpr s m s)
+      (Map s (H2MExpr s m h1 h0))
+  | H2MExprLayer2 (H2MExpr s m s s)
+      (Map s (H2MExpr s m h1 h0))
+      (Map s (H2MExpr s m h1 s))
+data H3MExpr s m h2 h1 h0
+  = H3MExprMedia (m (H3MExprNonMedia s m h2 h1 h0))
+data H3MExprNonMedia s m h2 h1 h0
+  = H3MExprHole0 h0
+  | H3MExprHole1 h1
+      (Map s (H3MExpr s m h2 h1 h0))
+  | H3MExprHole2 h2
+      (Map s (H3MExpr s m h2 h1 h0))
+      (Map s (H3MExpr s m h2 h1 s))
+  | H3MExprLayer0 (H0MExpr s m)
+  | H3MExprLayer1 (H1MExpr s m s)
+      (Map s (H3MExpr s m h2 h1 h0))
+  | H3MExprLayer2 (H2MExpr s m s s)
+      (Map s (H3MExpr s m h2 h1 h0))
+      (Map s (H3MExpr s m h2 h1 s))
+  | H3MExprLayer3 (H3MExpr s m s s s)
+      (Map s (H3MExpr s m h2 h1 h0))
+      (Map s (H3MExpr s m h2 h1 s))
+      (Map s (H3MExpr s m h2 s s))
+
+-- The type (HDExpr s m) represents a higher quasiquotation expression
+-- of dynamic degree for a serializable key type `s` (typically
+-- something like `String`) and a syntax monad `m`. This is even less
+-- strongly-typed than the `H0MExpr` family, because this doesn't even
+-- statically guarantee that holes will be filled in with expressions
+-- of appropriate degree, nor that the holes will have strictly lesser
+-- degree than the expression they appear in. These properties must be
+-- enforced dynamically to keep the higher quasiquotation structure
+-- well-formed. However, this representation will be useful for
+-- expressing algorithms that operate on expressions of arbitrary
+-- higher quasiquotation degree.
+--
+-- Note that if any holes appear in a higher quasiquotation expression
+-- encoded this way, they must be represented using the same key type
+-- that the internal (filled) holes use. So, metadata associated with
+-- those holes may need to be tracked in an external `Map`.
+--
+-- We arrived at this design by conflating the constructors of the
+-- `H0MExpr` family so that they could be differentiated using nothing
+-- but list length.
+--
+data HDExpr s m
+  = HDExprMedia (m (HDExprNonMedia s m))
+data HDExprNonMedia s m
+  = HDExprHole s [Map s (HDExpr s m)]
+  | HDExprLayer (HDExpr s m) [Map s (HDExpr s m)]
+
+-- The type (H2TExpr m h1 h0) represents a
+-- higher-quasiquotation-degree-2 strongly typed expression for a
+-- syntax monad `m`, a family of types `h1` for degree-1 holes, and a
+-- type `h0` of degree-0 holes.
+--
+-- We arrived at these by simplifying the `H0MExpr` family to remove
+-- all uses of `s`.
+--
+data H0TExpr m
+  = H0TExprMedia (m (H0TExprNonMedia m))
+data H0TExprNonMedia m
+  = H0TExprLayer0 (H0TExpr m)
+data H1TExpr m h0
+  = H1TExprMedia (m (H1TExprNonMedia m h0))
+data H1TExprNonMedia m h0
+  = H1TExprHole0 h0
+  | H1TExprLayer0 (H0TExpr m)
+  | H1TExprLayer1 (H1TExpr m (H1TExpr m h0))
+data H2TExpr m h1 h0
+  = H2TExprMedia (m (H2TExprNonMedia m h1 h0))
+data H2TExprNonMedia m h1 h0
+  = H2TExprHole0 h0
+  | H2TExprHole1 (h1 (H2TExpr m h1 h0))
+  | H2TExprLayer0 (H0TExpr m)
+  | H2TExprLayer1 (H1TExpr m (H2TExpr m h1 h0))
+  | H2TExprLayer2 (H2TExpr m (H2TExpr m h1) (H2TExpr m h1 h0))
+data H3TExpr m h2 h1 h0
+  = H3TExprMedia (m (H3TExprNonMedia m h2 h1 h0))
+data H3TExprNonMedia m h2 h1 h0
+  = H3TExprHole0 h0
+  | H3TExprHole1 (h1 (H3TExpr m h2 h1 h0))
+  | H3TExprHole2 (h2 (H3TExpr m h2 h1) (H3TExpr m h2 h1 h0))
+  | H3TExprLayer0 (H0TExpr m)
+  | H3TExprLayer1 (H1TExpr m (H3TExpr m h2 h1 h0))
+  | H3TExprLayer2 (H2TExpr m (H3TExpr m h2 h1) (H3TExpr m h2 h1 h0))
+  | H3TExprLayer3
+      (H3TExpr m
+        (H3TExpr m h2)
+        (H3TExpr m h2 h1)
+        (H3TExpr m h2 h1 h0))
+
+-- TODO: There's an encouraging resemblance between the definitions of
+-- `H1TExpr` and `Balanced`. See if we can make instances like so:
+--
+--   instance (Monad m) => H0Monad (H1TExpr m)
+--   instance (Monad m) => H1Monad (H2TExpr m)
+--   instance (Monad m) => H2Monad (H3TExpr m)
