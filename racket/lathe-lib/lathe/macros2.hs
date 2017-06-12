@@ -499,11 +499,73 @@ data H3TExprNonMedia m h2 h1 h0
         (H3TExpr m h2 h1 h0))
 
 -- TODO: There's an encouraging resemblance between the definitions of
--- `H1TExpr` and `Balanced`. See if we can make instances like so:
+-- `H1TExpr` and `Balanced`. So now we're seeing if we can make
+-- instances like so:
 --
 --   instance (Monad m) => H0Monad (H1TExpr m)
 --   instance (Monad m) => H1Monad (H2TExpr m)
 --   instance (Monad m) => H2Monad (H3TExpr m)
+
+newtype H1TExprList a = H1TExprList { deH1TExprList :: H1TExpr [] a }
+asH1TExprList ::
+  (H1TExprList a -> H1TExprList b) -> H1TExpr [] a -> H1TExpr [] b
+asH1TExprList f = deH1TExprList . f . H1TExprList
+-- NOTE: Welp, overlapping instances don't help because we get
+-- instance incoherence anyway. So we define a newtype specialized to
+-- lists as a proof of concept.
+--instance {-# OVERLAPPING #-} (Monad m) => H0Monad (H1TExpr m) where
+instance H0Monad H1TExprList where
+  h0return = H1TExprList . H1TExprMedia . return . H1TExprHole0
+  h0map0 f (H1TExprList (H1TExprMedia m)) =
+    H1TExprList $ H1TExprMedia $ flip fmap m $ \m' -> case m' of
+      H1TExprHole0 h0 -> H1TExprHole0 $ f h0
+      H1TExprLayer0 layer ->
+        H1TExprLayer0 $ asH1TExprList (h0map0 f) layer
+      H1TExprLayer1 layer ->
+        H1TExprLayer1 $
+        (asH1TExprList $ h0map0 $ asH1TExprList $ h0map0 f) $
+        layer
+  h0join0 (H1TExprList (H1TExprMedia m)) =
+    H1TExprList $ H1TExprMedia $ m >>= \m' -> deMedia $ case m' of
+      H1TExprHole0 h0 -> h0
+      H1TExprLayer0 layer -> h0join0 $ H1TExprList layer
+      H1TExprLayer1 layer ->
+        h0bind0 (h0join0 . H1TExprList) $ H1TExprList layer
+    where
+    deMedia :: H1TExprList a -> [H1TExprNonMedia [] a]
+    deMedia (H1TExprList (H1TExprMedia nonMedia)) = nonMedia
+
+newtype H2TExprList m0 a =
+  H2TExprList { deH2TExprList :: H2TExpr [] m0 a }
+asH2TExprList ::
+  (H2TExprList m0a a -> H2TExprList m0b b) ->
+  (H2TExpr [] m0a a -> H2TExpr [] m0b b)
+asH2TExprList f = deH2TExprList . f . H2TExprList
+-- NOTE: Welp, overlapping instances don't help because we get
+-- instance incoherence anyway. So we define a newtype specialized to
+-- lists as a proof of concept.
+--instance {-# OVERLAPPING #-} (Monad m) => H1Monad (H2TExpr m) where
+instance H1Monad H2TExprList where
+  h1return =
+    H2TExprList . H2TExprMedia . return . H2TExprHole1 .
+    h0bind0 (h0return . H2TExprMedia . return . H2TExprHole0)
+  h1map0 f (H2TExprList (H2TExprMedia m)) =
+    H2TExprList $ H2TExprMedia $ flip fmap m $ \m' -> case m' of
+      H2TExprHole0 h0 -> H2TExprHole0 $ f h0
+      H2TExprHole1 h1 ->
+        H2TExprHole1 $ h0map0 (asH2TExprList (h1map0 f)) h1
+      H2TExprLayer0 layer ->
+        H2TExprLayer0 $ asH2TExprList (h1map0 f) layer
+      H2TExprLayer1 layer -> undefined -- TODO
+      H2TExprLayer2 layer ->
+        H2TExprLayer2 $
+        -- TODO: Hmm, this doesn't even seem possible. Perhaps the
+        -- design of the `H0Monad` family isn't actually helpful for
+        -- this data structure.
+        undefined $
+        layer
+  h1join0 (H2TExprList (H2TExprMedia m)) = undefined  -- TODO
+  h1join1 (H2TExprList (H2TExprMedia m)) = undefined  -- TODO
 
 
 
