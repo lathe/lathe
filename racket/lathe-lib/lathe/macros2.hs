@@ -567,6 +567,110 @@ instance H1Monad H2TExprList where
   h1join0 (H2TExprList (H2TExprMedia m)) = undefined  -- TODO
   h1join1 (H2TExprList (H2TExprMedia m)) = undefined  -- TODO
 
+h2texprReturn0 :: (Monad m) => h0 -> H2TExpr m h1 h0
+h2texprReturn0 = H2TExprMedia . return . H2TExprHole0
+h2texprReturn1 :: (Monad m, Functor h1) => h1 h0 -> H2TExpr m h1 h0
+h2texprReturn1 =
+  H2TExprMedia . return . H2TExprHole1 . fmap h2texprReturn0
+h2texprMap0 ::
+  (Monad m) =>
+  (forall h0 h0'. (h0 -> h0') -> h1 h0 -> h1 h0') ->
+  ((h0 -> h0') -> H2TExpr m h1 h0 -> H2TExpr m h1 h0')
+h2texprMap0 fmaph1 f (H2TExprMedia m) =
+  H2TExprMedia $ flip fmap m $ \m' -> case m' of
+    H2TExprHole0 h0 -> H2TExprHole0 $ f h0
+    H2TExprHole1 h1 -> H2TExprHole1 $ fmaph1 (h2texprMap0 fmaph1 f) h1
+    H2TExprLayer0 layer -> H2TExprLayer0 $ h2texprMap0 fmaph1 f layer
+    H2TExprLayer1 layer ->
+      H2TExprLayer1 $ h2texprMap0 fmaph1 (h2texprMap0 fmaph1 f) layer
+    H2TExprLayer2 layer ->
+      H2TExprLayer2 $
+      h2texprMap0 (h2texprMap0 fmaph1) (h2texprMap0 fmaph1 f) layer
+h2texprBind0 ::
+  (Monad m) =>
+  (forall h0 h0'. (h0 -> h0') -> h1 h0 -> h1 h0') ->
+  ((h0 -> H2TExpr m h1 h0') -> H2TExpr m h1 h0 -> H2TExpr m h1 h0')
+h2texprBind0 fmaph1 f (H2TExprMedia m) =
+  H2TExprMedia $ m >>= \m' -> case m' of
+    H2TExprHole0 h0 -> let H2TExprMedia h0' = f h0 in h0'
+    H2TExprHole1 h1 ->
+      return $ H2TExprHole1 $ fmaph1 (h2texprBind0 fmaph1 f) h1
+    H2TExprLayer0 layer ->
+      return $ H2TExprLayer0 $ h2texprBind0 fmaph1 f layer
+    H2TExprLayer1 layer ->
+      return $ H2TExprLayer1 $
+      h2texprBind0 fmaph1 (h2texprReturn0 . h2texprBind0 fmaph1 f)
+        layer
+    H2TExprLayer2 layer ->
+      return $ H2TExprLayer2 $
+      h2texprBind0 (h2texprBind0 fmaph1 . (h2texprReturn0 .))
+        (h2texprReturn0 . h2texprBind0 fmaph1 f)
+        layer
+h2texprJoin0 ::
+  (Monad m) =>
+  (forall h0 h0'. (h0 -> h0') -> h1 h0 -> h1 h0') ->
+  (H2TExpr m h1 (H2TExpr m h1 h0) -> H2TExpr m h1 h0)
+h2texprJoin0 fmaph1 (H2TExprMedia m) =
+  H2TExprMedia $ m >>= \m' -> case m' of
+    H2TExprHole0 h0 -> let H2TExprMedia h0' = h0 in h0'
+    H2TExprHole1 h1 ->
+      return $ H2TExprHole1 $ fmaph1 (h2texprJoin0 fmaph1) h1
+    H2TExprLayer0 layer ->
+      return $ H2TExprLayer0 $ h2texprJoin0 fmaph1 layer
+    H2TExprLayer1 layer ->
+      return $ H2TExprLayer1 $
+      h2texprMap0 fmaph1 (h2texprJoin0 fmaph1) layer
+    H2TExprLayer2 layer ->
+      return $ H2TExprLayer2 $
+      h2texprMap0 (h2texprMap0 fmaph1) (h2texprJoin0 fmaph1) layer
+h2texprBind1 ::
+  (Monad m) =>
+  (forall h0 h0'. (h0 -> h0') -> h1 h0 -> h1 h0') ->
+  ((h1 h0 -> H2TExpr m h1' h0) -> H2TExpr m h1 h0 -> H2TExpr m h1' h0)
+h2texprBind1 fmaph1 f (H2TExprMedia m) =
+  H2TExprMedia $ m >>= \m' -> case m' of
+    H2TExprHole0 h0 -> undefined -- let H2TExprMedia h0' = f h0 in h0'
+    H2TExprHole1 h1 ->
+      undefined
+--      return $ H2TExprHole1 $ fmaph1 (h2texprBind0 fmaph1 f) h1
+    H2TExprLayer0 layer ->
+      undefined
+--      return $ H2TExprLayer0 $ h2texprBind0 fmaph1 f layer
+    H2TExprLayer1 layer ->
+      undefined
+--      return $ H2TExprLayer1 $
+--      h2texprBind0 fmaph1 (h2texprReturn0 . h2texprBind0 fmaph1 f)
+--        layer
+    H2TExprLayer2 layer ->
+      undefined
+--      return $ H2TExprLayer2 $
+--      h2texprBind0 (h2texprBind0 fmaph1 . (h2texprReturn0 .))
+--        (h2texprReturn0 . h2texprBind0 fmaph1 f)
+--        layer
+h2texprJoin1 ::
+  (Monad m) =>
+  (forall h0 h0'. (h0 -> h0') -> h1 h0 -> h1 h0') ->
+  (H2TExpr m (H2TExpr m h1) (H2TExpr m h1 h0) ->
+    H2TExpr m h1 (H2TExpr m h1 h0))
+h2texprJoin1 fmaph1 (H2TExprMedia m) =
+  H2TExprMedia $ m >>= \m' -> case m' of
+    H2TExprHole0 h0 -> return $ H2TExprHole0 $ h0
+    H2TExprHole1 (H2TExprMedia h1) -> h1 >>= \h1' -> case h1' of
+      H2TExprHole0 h0 ->
+        let H2TExprMedia m' = h2texprJoin1 fmaph1 h0 in m'
+      H2TExprHole1 h1 ->
+        return $ H2TExprHole1 $
+        fmaph1 (h2texprBind0 fmaph1 $ h2texprJoin1 fmaph1) h1
+    H2TExprLayer0 layer ->
+      return $ H2TExprLayer0 $ h2texprJoin1 fmaph1 layer
+    H2TExprLayer1 layer ->
+      return $ H2TExprLayer1 $
+      h2texprJoin1 fmaph1 $
+      h2texprMap0 (h2texprMap0 fmaph1) (h2texprJoin1 fmaph1) layer
+    H2TExprLayer2 layer ->
+      return $ H2TExprLayer2 $
+      h2texprMap0 (h2texprMap0 fmaph1) (h2texprJoin1 fmaph1) $
+      h2texprJoin1 (h2texprMap0 fmaph1) layer
 
 
 -- TODO: This is an attempt to refactor the `H0Monad` family to factor
