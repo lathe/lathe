@@ -4,6 +4,7 @@
 
 (provide (all-defined-out))
 
+(require (for-meta 1 (only-in racket/list append-map)))
 (require (for-meta 1 (only-in racket/match match)))
 
 
@@ -67,3 +68,66 @@
 ; whether to unwind "up to" or "past" a label's introduction. Part of
 ; the goal of this Racket library is to work through all of those
 ; design topics as a proof of concept for improving Cene.
+
+
+
+(begin-for-syntax
+  ; TODO: Use `qexpr-hole`.
+  (struct qexpr-hole (name fills) #:prefab)
+  (struct qexpr-layer (qexpr fills) #:prefab)
+  
+  ; TODO: See if we'll use this.
+  (define (qexpr? x)
+    (or (qexpr-hole? x) (qexpr-layer? x)))
+  
+  ; TODO: Implement this for real.
+  (define (bracroexpand stx)
+    (datum->syntax stx
+    #/qexpr-layer (qexpr-hole 'a #/list) #/list #/hasheq 'a 1))
+  
+  (define (hasheq-fmap hash func)
+    (apply hasheq #/append-map
+      (lambda (pair) #/match pair #/(cons k v) (list k #/func v))
+      (hash->list hash)))
+  
+  (struct initiate-bracket-syntax (impl)
+    ; TODO: Add a new struct property indicating this syntax's
+    ; behavior as a q-expression-building macro.
+    
+    ; Calling an `initiate-bracket-syntax` as a Racket macro makes it
+    ; run the bracroexpander.
+    #:property prop:procedure
+    (lambda (this stx)
+      (match this
+        [ (initiate-bracket-syntax impl)
+          (match (impl stx)
+            [ (qexpr-layer make-qexpr (list fills))
+              (make-qexpr #/hasheq-fmap fills bracroexpand)]
+            [_ (error "Expected an initiate-bracket-syntax result that was a qexpr-layer")])]
+        [_ (error "Expected this to be an initiate-bracket-syntax")])))
+  )
+
+(define-syntax -quasiquote #/initiate-bracket-syntax #/lambda (stx)
+  (syntax-case stx () #/ (_ body)
+  #/qexpr-layer
+    (lambda (fills) #`#/quasiquote-q #,#/hash-ref fills 'body)
+  #/list #/hasheq 'body #'body))
+
+; TODO: Implement this for real.
+(define-syntax quasiquote-q #/lambda (stx)
+  (syntax-case stx () #/ (_ #s(qexpr-layer body rests))
+    #''(body rests)))
+
+(define-syntax -quasisyntax #/initiate-bracket-syntax #/lambda (stx)
+  (syntax-case stx () #/ (_ body)
+  #/qexpr-layer
+    (lambda (fills) #`#/quasisyntax-q #,#/hash-ref fills 'body)
+  #/list #/hasheq 'body #'body))
+
+; TODO: Implement this for real.
+(define-syntax quasisyntax-q #/lambda (stx)
+  (syntax-case stx () #/ (_ #s(qexpr-layer body rests))
+    #''(body rests)))
+
+; Test
+(-quasiquote woo)
