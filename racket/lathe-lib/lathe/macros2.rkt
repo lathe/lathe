@@ -16,8 +16,8 @@
 ; syntaxes:
 ;   (quasiquote-q
 ;     #s(qexpr-layer q-expr-as-s-expr
-;         (#hasheq( (var1 . #(splicing s-expr))
-;                   (var1 . #(non-splicing s-expr))
+;         (#hasheq( (var1 . #s(splicing s-expr))
+;                   (var2 . #s(non-splicing s-expr))
 ;                   ...))))
 ;   (quasisyntax-q #s(qexpr-layer q-expr-as-s-expr (#hasheq(...))))
 ;
@@ -28,7 +28,7 @@
 ; TODO: Define q-expression-building macros that help with expressing
 ; s-expressions:
 ;   (escape-s-expr s-expr)
-;   (escape-s-expr-splicing s-exprs)
+;   (splice-s-expr s-exprs)
 ; (If the syntax monad were (Writer String) rather than s-expressions,
 ; we'd also want friendly character escapes for Unicode characters,
 ; friendly character escapes for brackets, whitespace normalization
