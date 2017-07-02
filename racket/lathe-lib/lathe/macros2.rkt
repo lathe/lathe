@@ -292,5 +292,12 @@
   (syntax-case stx () #/ (_ #s(qexpr-layer body rests))
     #''(body rests)))
 
-; Test
+
+; Tests
+
 (-quasiquote (foo (bar baz) () qux))
+
+; This test currently fails: The result of bracroexpanding
+; (-quasiquote ()) is (quasiquote-q ()), but it should be of the form
+; (quasiquote-q #s(qexpr-layer ...)).
+(-quasiquote (foo (bar baz) (-quasiquote ()) qux))
