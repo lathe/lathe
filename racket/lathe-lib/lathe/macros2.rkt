@@ -15,19 +15,19 @@
 ; s-expression-encoded q-expressions and imitate Racket's existing
 ; syntaxes:
 ;   (quasiquote-q
-;     #s(qexpr-layer q-expr-as-s-expr
+;     #s(q-expr-layer q-expr-as-s-expr
 ;         (
 ;           #hasheq(
 ;                    (var1 .
-;                      #s(qexpr-layer
+;                      #s(q-expr-layer
 ;                          #<lambda (fills) #s(splicing s-expr)>
 ;                          ()))
 ;                    (var2 .
-;                      #s(qexpr-layer
+;                      #s(q-expr-layer
 ;                          #<lambda (fills) #s(non-splicing s-expr)>
 ;                          ()))
 ;                   ...))))
-;   (quasisyntax-q #s(qexpr-layer q-expr-as-s-expr (#hasheq(...))))
+;   (quasisyntax-q #s(q-expr-layer q-expr-as-s-expr (#hasheq(...))))
 ;
 ; TODO: Define q-expression-building macros that loosely imitate
 ; Racket's existing syntaxes: quasiquote, unquote, unquote-splicing,
@@ -78,7 +78,7 @@
 
 
 (begin-for-syntax
-  (struct qexpr-layer (make-qexpr fills) #:prefab)
+  (struct q-expr-layer (make-q-expr fills) #:prefab)
   
   (define (syntax-local-maybe identifier)
     (if (identifier? identifier)
@@ -93,12 +93,12 @@
   
   ; This struct property indicates a syntax's behavior as a
   ; q-expression-building macro.
-  (define-values (prop:qexpr-syntax qexpr-syntax? qexpr-syntax-ref)
-    (make-struct-type-property 'qexpr-syntax))
+  (define-values (prop:q-expr-syntax q-expr-syntax? q-expr-syntax-ref)
+    (make-struct-type-property 'q-expr-syntax))
   
-  (define (qexpr-syntax-maybe x)
-    (if (qexpr-syntax? x)
-      (list #/qexpr-syntax-ref x)
+  (define (q-expr-syntax-maybe x)
+    (if (q-expr-syntax? x)
+      (list #/q-expr-syntax-ref x)
       (list)))
   
   (define (simplify-holes holes)
@@ -110,8 +110,8 @@
   
   (define (simplify-layer layer err)
     (match layer
-      [(qexpr-layer qexpr fills)
-      #/qexpr-layer qexpr #/simplify-holes fills]
+      [(q-expr-layer q-expr fills)
+      #/q-expr-layer q-expr #/simplify-holes fills]
       [_ #/err]))
   
   (define (fill-out-holes n holes)
@@ -123,8 +123,8 @@
   
   (define (fill-out-layer n layer err)
     (match (simplify-layer layer err)
-      [(qexpr-layer qexpr fills)
-      #/qexpr-layer qexpr #/fill-out-holes n fills]
+      [(q-expr-layer q-expr fills)
+      #/q-expr-layer q-expr #/fill-out-holes n fills]
       [_ #/error "Internal error"]))
   
   (define (merge-holes as bs)
@@ -146,18 +146,18 @@
       [(cons first rest)
       ; TODO: Support splicing.
       #/match (bracroexpand first)
-        [(qexpr-layer make-first first-holes)
+        [(q-expr-layer make-first first-holes)
         #/match (bracroexpand-list stx rest)
-          [(qexpr-layer make-rest rest-holes)
-          #/qexpr-layer
+          [(q-expr-layer make-rest rest-holes)
+          #/q-expr-layer
             (lambda (fills)
               (datum->syntax stx
               #/cons (make-first fills) (make-rest fills)))
           #/merge-holes first-holes rest-holes]
           [_ #/error "Internal error"]]
-        [_ #/error "Expected a bracroexpand result that was a qexpr-layer"]]
+        [_ #/error "Expected a bracroexpand result that was a q-expr-layer"]]
       [(list)
-      #/qexpr-layer (lambda (fills) #/datum->syntax stx lst) #/list]
+      #/q-expr-layer (lambda (fills) #/datum->syntax stx lst) #/list]
       [_ #/error "Expected a list"]))
   
   (define (bracroexpand stx)
@@ -165,14 +165,14 @@
       [(cons first rest)
       #/match (syntax-local-maybe first)
         [(list local)
-        #/match (qexpr-syntax-maybe local)
-          [(list qexpr-syntax) #/qexpr-syntax local stx]
+        #/match (q-expr-syntax-maybe local)
+          [(list q-expr-syntax) #/q-expr-syntax local stx]
           [_ #/bracroexpand-list stx stx]]
         [_ #/bracroexpand-list stx stx]]
       ; TODO: We support lists, but let's also support vectors and
       ; prefabricated structs, like Racket's `quasiquote` and
       ; `quasisyntax` do.
-      [_ #/qexpr-layer (lambda (fills) stx) #/list]))
+      [_ #/q-expr-layer (lambda (fills) stx) #/list]))
   
   (define (hasheq-kv-map hash func)
     (make-immutable-hasheq #/map
@@ -182,51 +182,51 @@
   (define (hasheq-fmap hash func)
     (hasheq-kv-map hash #/lambda (k v) #/func v))
   
-  (struct initiating-open #/degree sexpr)
+  (struct initiating-open #/degree s-expr)
   
   (struct initiate-bracket-syntax (impl)
     
     ; Calling an `initiate-bracket-syntax` as a q-expression-building
     ; macro makes it (TODO: Finish this sentence.).
-    #:property prop:qexpr-syntax
+    #:property prop:q-expr-syntax
     (lambda (this stx)
       (match this
         [(initiate-bracket-syntax impl)
         #/match
           (fill-out-layer 1 (impl stx) #/lambda ()
-            (error "Expected an initiate-bracket-syntax result that was a qexpr-layer"))
-          [ (qexpr-layer make-qexpr #/list fills)
+            (error "Expected an initiate-bracket-syntax result that was a q-expr-layer"))
+          [ (q-expr-layer make-q-expr #/list fills)
             (define bracroexpanded-fills
               (hasheq-fmap fills #/match-lambda
-                [(qexpr-layer make-fill #/list)
+                [(q-expr-layer make-fill #/list)
                 #/match (make-fill #/list)
-                  [(initiating-open degree sexpr)
+                  [(initiating-open degree s-expr)
                   ; TODO: Figure out if we should be using `degree`
                   ; for something additional here, like verifying that
                   ; the result has no more than `degree` degrees of
                   ; holes.
-                  #/fill-out-layer degree (bracroexpand sexpr)
+                  #/fill-out-layer degree (bracroexpand s-expr)
                   #/lambda ()
-                    (error "Expected a bracroexpand result that was a qexpr-layer")]
+                    (error "Expected a bracroexpand result that was a q-expr-layer")]
                   [_ #/error "Expected an initiate-bracket-syntax result where each fill was an initiating-open"]]
-                [_ #/error "Expected an initiate-bracket-syntax result where each fill was a qexpr-layer with no holes"]))
+                [_ #/error "Expected an initiate-bracket-syntax result where each fill was a q-expr-layer with no holes"]))
             (define bracroexpanded-makers
               (hasheq-fmap bracroexpanded-fills #/match-lambda
-                [(qexpr-layer make-qexpr sub-fills) make-qexpr]
-                [_ #/error "Expected a bracroexpand result that was a qexpr-layer"]))
+                [(q-expr-layer make-q-expr sub-fills) make-q-expr]
+                [_ #/error "Expected a bracroexpand result that was a q-expr-layer"]))
             (define bracroexpanded-sub-fills
               (hasheq-fmap bracroexpanded-fills #/match-lambda
-                [(qexpr-layer make-qexpr sub-fills) sub-fills]
-                [_ #/error "Expected a bracroexpand result that was a qexpr-layer"]))
-            (qexpr-layer
+                [(q-expr-layer make-q-expr sub-fills) sub-fills]
+                [_ #/error "Expected a bracroexpand result that was a q-expr-layer"]))
+            (q-expr-layer
               (lambda (fills)
                 ; TODO: See if we should transform some of the
                 ; low-degree fills in some way, rather than just
                 ; passing them all through like this. After all, there
                 ; should be some way we account for the increased
                 ; depth in these `initate-open` sections.
-                (make-qexpr #/list #/hasheq-fmap bracroexpanded-makers
-                #/lambda (make-qexpr) #/make-qexpr fills))
+                (make-q-expr #/list #/hasheq-fmap bracroexpanded-makers
+                #/lambda (make-q-expr) #/make-q-expr fills))
             #/foldl merge-holes (list)
             #/hash-values bracroexpanded-sub-fills)]
           [_ #/error "Expected an initiate-bracket-syntax result with no more than one degree of fills"]]
@@ -240,19 +240,20 @@
         [(initiate-bracket-syntax impl)
         #/match
           (fill-out-layer 1 (impl stx) #/lambda ()
-            (error "Expected an initiate-bracket-syntax result that was a qexpr-layer"))
-          [(qexpr-layer make-qexpr #/list fills)
-          #/make-qexpr #/list #/hasheq-fmap fills #/match-lambda
-            [(qexpr-layer make-fill #/list)
+            (error "Expected an initiate-bracket-syntax result that was a q-expr-layer"))
+          [(q-expr-layer make-q-expr #/list fills)
+          #/make-q-expr #/list #/hasheq-fmap fills #/match-lambda
+            [(q-expr-layer make-fill #/list)
             #/match (make-fill #/list)
-              [(initiating-open degree sexpr)
+              [(initiating-open degree s-expr)
               ; TODO: Figure out if we should be using `degree` for
               ; something additional here, like verifying that the
               ; result has no more than `degree` degrees of holes.
-              #/fill-out-layer degree (bracroexpand sexpr) #/lambda ()
-                (error "Expected a bracroexpand result that was a qexpr-layer")]
+              #/fill-out-layer degree (bracroexpand s-expr)
+              #/lambda ()
+                (error "Expected a bracroexpand result that was a q-expr-layer")]
               [_ #/error "Expected an initiate-bracket-syntax result where each fill was an initiating-open"]]
-            [_ #/error "Expected an initiate-bracket-syntax result where each fill was a qexpr-layer with no holes"]]
+            [_ #/error "Expected an initiate-bracket-syntax result where each fill was a q-expr-layer with no holes"]]
           [_ #/error "Expected an initiate-bracket-syntax result with no more than one degree of fills"]]
         [_ #/error "Expected this to be an initiate-bracket-syntax"]))
     
@@ -261,47 +262,47 @@
 
 (define-syntax -quasiquote #/initiate-bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
-  #/qexpr-layer
+  #/q-expr-layer
     (lambda (fills)
       #`(quasiquote-q #,#/hash-ref (list-ref fills 0) 'body))
   #/list
   #/hasheq 'body
-  #/qexpr-layer (lambda (fills) #/initiating-open 1 #'body) #/list))
+  #/q-expr-layer (lambda (fills) #/initiating-open 1 #'body) #/list))
 
 ; TODO: Implement this for real. This currently doesn't have unquotes,
 ; let alone splicing.
 (define-syntax quasiquote-q #/lambda (stx)
-;  (syntax-case stx () #/ (_ #s(qexpr-layer body rests))
+;  (syntax-case stx () #/ (_ #s(q-expr-layer body rests))
 ;    #''(body rests)))
   (syntax-case stx () #/ (_ body)
-  #/match (syntax-e #'body) #/ (qexpr-layer body rests)
+  #/match (syntax-e #'body) #/ (q-expr-layer body rests)
   #/match (fill-out-holes 1 #/syntax-e rests) #/ (list rests)
     (struct foreign #/val)
-    (define (expand-qq sexpr)
+    (define (expand-qq s-expr)
       ; TODO: Implement splicing.
-      (if (syntax? sexpr)
-        (expand-qq #/syntax-e sexpr)
-      #/match sexpr
-        [(foreign sexpr) sexpr]
+      (if (syntax? s-expr)
+        (expand-qq #/syntax-e s-expr)
+      #/match s-expr
+        [(foreign s-expr) s-expr]
         [(cons first rest)
         #`#/cons #,(expand-qq first) #,(expand-qq rest)]
         [(list) #'#/list]
-        [_ #`'#,sexpr]))
+        [_ #`'#,s-expr]))
     (expand-qq #/ (syntax-e body)
     #/list #/hasheq-fmap (syntax-e rests) foreign)))
 
 (define-syntax -quasisyntax #/initiate-bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
-  #/qexpr-layer
+  #/q-expr-layer
     (lambda (fills)
       #`#(quasisyntax-q #,#/hash-ref (list-ref fills 0) 'body))
   #/list
   #/hasheq 'body
-  #/qexpr-layer (lambda (fills) #/initiating-open 1 #'body) #/list))
+  #/q-expr-layer (lambda (fills) #/initiating-open 1 #'body) #/list))
 
 ; TODO: Implement this for real.
 (define-syntax quasisyntax-q #/lambda (stx)
-  (syntax-case stx () #/ (_ #s(qexpr-layer body rests))
+  (syntax-case stx () #/ (_ #s(q-expr-layer body rests))
     #''(body rests)))
 
 
@@ -311,5 +312,5 @@
 
 ; This test currently fails: The result of bracroexpanding
 ; (-quasiquote ()) is (quasiquote-q ()), but it should be of the form
-; (quasiquote-q #s(qexpr-layer ...)).
+; (quasiquote-q #s(q-expr-layer ...)).
 (-quasiquote (foo (bar baz) (-quasiquote ()) qux))
