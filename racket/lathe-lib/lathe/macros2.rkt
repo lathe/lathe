@@ -196,6 +196,8 @@
           (fill-out-layer 1 (impl stx) #/lambda ()
             (error "Expected an initiate-bracket-syntax result that was a q-expr-layer"))
           [ (q-expr-layer make-q-expr #/list fills)
+            (struct bracroexpanded-fill
+            #/degree make-q-expr sub-fills)
             (define bracroexpanded-fills
               (hasheq-fmap fills #/match-lambda
                 [(q-expr-layer make-fill #/list)
@@ -205,30 +207,30 @@
                   ; for something additional here, like verifying that
                   ; the result has no more than `degree` degrees of
                   ; holes.
-                  #/fill-out-layer degree (bracroexpand s-expr)
-                  #/lambda ()
-                    (error "Expected a bracroexpand result that was a q-expr-layer")]
+                  #/match
+                    (fill-out-layer degree (bracroexpand s-expr)
+                    #/lambda ()
+                    #/error "Expected a bracroexpand result that was a q-expr-layer")
+                  #/ (q-expr-layer make-q-expr sub-fills)
+                  #/bracroexpanded-fill degree make-q-expr sub-fills]
                   [_ #/error "Expected an initiate-bracket-syntax result where each fill was an initiating-open"]]
                 [_ #/error "Expected an initiate-bracket-syntax result where each fill was a q-expr-layer with no holes"]))
-            (define bracroexpanded-makers
-              (hasheq-fmap bracroexpanded-fills #/match-lambda
-                [(q-expr-layer make-q-expr sub-fills) make-q-expr]
-                [_ #/error "Expected a bracroexpand result that was a q-expr-layer"]))
-            (define bracroexpanded-sub-fills
-              (hasheq-fmap bracroexpanded-fills #/match-lambda
-                [(q-expr-layer make-q-expr sub-fills) sub-fills]
-                [_ #/error "Expected a bracroexpand result that was a q-expr-layer"]))
             (q-expr-layer
               (lambda (fills)
+                (make-q-expr #/list #/hasheq-fmap bracroexpanded-fills
+                #/match-lambda #/
+                  (bracroexpanded-fill degree make-q-expr sub-fills)
                 ; TODO: See if we should transform some of the
                 ; low-degree fills in some way, rather than just
                 ; passing them all through like this. After all, there
                 ; should be some way we account for the increased
-                ; depth in these `initate-open` sections.
-                (make-q-expr #/list #/hasheq-fmap bracroexpanded-makers
-                #/lambda (make-q-expr) #/make-q-expr fills))
+                ; depth in these `initiate-open` sections.
+                #/make-q-expr fills))
             #/foldl merge-holes (list)
-            #/hash-values bracroexpanded-sub-fills)]
+            #/hash-values #/hasheq-fmap bracroexpanded-fills
+            #/match-lambda #/
+              (bracroexpanded-fill degree make-q-expr sub-fills)
+              sub-fills)]
           [_ #/error "Expected an initiate-bracket-syntax result with no more than one degree of fills"]]
         [_ #/error "Expected this to be an initiate-bracket-syntax"]))
     
