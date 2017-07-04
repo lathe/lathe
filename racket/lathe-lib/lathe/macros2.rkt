@@ -16,8 +16,16 @@
 ; syntaxes:
 ;   (quasiquote-q
 ;     #s(qexpr-layer q-expr-as-s-expr
-;         (#hasheq( (var1 . #s(splicing s-expr))
-;                   (var2 . #s(non-splicing s-expr))
+;         (
+;           #hasheq(
+;                    (var1 .
+;                      #s(qexpr-layer
+;                          #<lambda (fills) #s(splicing s-expr)>
+;                          ()))
+;                    (var2 .
+;                      #s(qexpr-layer
+;                          #<lambda (fills) #s(non-splicing s-expr)>
+;                          ()))
 ;                   ...))))
 ;   (quasisyntax-q #s(qexpr-layer q-expr-as-s-expr (#hasheq(...))))
 ;
@@ -70,13 +78,7 @@
 
 
 (begin-for-syntax
-  ; TODO: Use `qexpr-hole`.
-  (struct qexpr-hole (name fills) #:prefab)
-  (struct qexpr-layer (qexpr fills) #:prefab)
-  
-  ; TODO: See if we'll use this.
-  (define (qexpr? x)
-    (or (qexpr-hole? x) (qexpr-layer? x)))
+  (struct qexpr-layer (make-qexpr fills) #:prefab)
   
   (define (syntax-local-maybe identifier)
     (if (identifier? identifier)
@@ -171,9 +173,6 @@
       ; prefabricated structs, like Racket's `quasiquote` and
       ; `quasisyntax` do.
       [_ #/qexpr-layer (lambda (fills) stx) #/list]))
-  ; TODO: Remove this fake implementation.
-;    (datum->syntax stx
-;    #/qexpr-layer (qexpr-hole 'a #/list) #/list #/hasheq 'a 1))
   
   (define (hasheq-kv-map hash func)
     (make-immutable-hasheq #/map
@@ -199,14 +198,18 @@
           [ (qexpr-layer make-qexpr #/list fills)
             (define bracroexpanded-fills
               (hasheq-fmap fills #/match-lambda
-                [(initiating-open degree sexpr)
-                ; TODO: Figure out if we should be using `degree` for
-                ; something additional here, like verifying that the
-                ; result has no more than `degree` degrees of holes.
-                #/fill-out-layer degree (bracroexpand sexpr)
-                #/lambda ()
-                  (error "Expected a bracroexpand result that was a qexpr-layer")]
-                [_ #/error "Expected an initiate-bracket-syntax result where each fill was an initiating-open"]))
+                [(qexpr-layer make-fill #/list)
+                #/match (make-fill #/list)
+                  [(initiating-open degree sexpr)
+                  ; TODO: Figure out if we should be using `degree`
+                  ; for something additional here, like verifying that
+                  ; the result has no more than `degree` degrees of
+                  ; holes.
+                  #/fill-out-layer degree (bracroexpand sexpr)
+                  #/lambda ()
+                    (error "Expected a bracroexpand result that was a qexpr-layer")]
+                  [_ #/error "Expected an initiate-bracket-syntax result where each fill was an initiating-open"]]
+                [_ #/error "Expected an initiate-bracket-syntax result where each fill was a qexpr-layer with no holes"]))
             (define bracroexpanded-makers
               (hasheq-fmap bracroexpanded-fills #/match-lambda
                 [(qexpr-layer make-qexpr sub-fills) make-qexpr]
@@ -222,7 +225,7 @@
                 ; passing them all through like this. After all, there
                 ; should be some way we account for the increased
                 ; depth in these `initate-open` sections.
-                (make-qexpr #/hasheq-fmap bracroexpanded-makers
+                (make-qexpr #/list #/hasheq-fmap bracroexpanded-makers
                 #/lambda (make-qexpr) #/make-qexpr fills))
             #/foldl merge-holes (list)
             #/hash-values bracroexpanded-sub-fills)]
@@ -239,14 +242,17 @@
           (fill-out-layer 1 (impl stx) #/lambda ()
             (error "Expected an initiate-bracket-syntax result that was a qexpr-layer"))
           [(qexpr-layer make-qexpr #/list fills)
-          #/make-qexpr #/hasheq-fmap fills #/match-lambda
-            [(initiating-open degree sexpr)
-            ; TODO: Figure out if we should be using `degree` for
-            ; something additional here, like verifying that the
-            ; result has no more than `degree` degrees of holes.
-            #/fill-out-layer degree (bracroexpand sexpr) #/lambda ()
-              (error "Expected a bracroexpand result that was a qexpr-layer")]
-            [_ #/error "Expected an initiate-bracket-syntax result where each fill was an initiating-open"]]
+          #/make-qexpr #/list #/hasheq-fmap fills #/match-lambda
+            [(qexpr-layer make-fill #/list)
+            #/match (make-fill #/list)
+              [(initiating-open degree sexpr)
+              ; TODO: Figure out if we should be using `degree` for
+              ; something additional here, like verifying that the
+              ; result has no more than `degree` degrees of holes.
+              #/fill-out-layer degree (bracroexpand sexpr) #/lambda ()
+                (error "Expected a bracroexpand result that was a qexpr-layer")]
+              [_ #/error "Expected an initiate-bracket-syntax result where each fill was an initiating-open"]]
+            [_ #/error "Expected an initiate-bracket-syntax result where each fill was a qexpr-layer with no holes"]]
           [_ #/error "Expected an initiate-bracket-syntax result with no more than one degree of fills"]]
         [_ #/error "Expected this to be an initiate-bracket-syntax"]))
     
@@ -256,8 +262,11 @@
 (define-syntax -quasiquote #/initiate-bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
   #/qexpr-layer
-    (lambda (fills) #`#/quasiquote-q #,#/hash-ref fills 'body)
-  #/list #/hasheq 'body #/initiating-open 1 #'body))
+    (lambda (fills)
+      #`(quasiquote-q #,#/hash-ref (list-ref fills 0) 'body))
+  #/list
+  #/hasheq 'body
+  #/qexpr-layer (lambda (fills) #/initiating-open 1 #'body) #/list))
 
 ; TODO: Implement this for real. This currently doesn't have unquotes,
 ; let alone splicing.
@@ -279,13 +288,16 @@
         [(list) #'#/list]
         [_ #`'#,sexpr]))
     (expand-qq #/ (syntax-e body)
-    #/hasheq-fmap (syntax-e rests) foreign)))
+    #/list #/hasheq-fmap (syntax-e rests) foreign)))
 
 (define-syntax -quasisyntax #/initiate-bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
   #/qexpr-layer
-    (lambda (fills) #`#/quasisyntax-q #,#/hash-ref fills 'body)
-  #/list #/hasheq 'body #/initiating-open 1 #'body))
+    (lambda (fills)
+      #`#(quasisyntax-q #,#/hash-ref (list-ref fills 0) 'body))
+  #/list
+  #/hasheq 'body
+  #/qexpr-layer (lambda (fills) #/initiating-open 1 #'body) #/list))
 
 ; TODO: Implement this for real.
 (define-syntax quasisyntax-q #/lambda (stx)
