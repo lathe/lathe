@@ -5,6 +5,8 @@
 (provide (all-defined-out))
 
 (require (for-meta 1 (only-in racket/hash hash-union)))
+(require
+  (for-meta 1 (only-in racket/list append-map make-list split-at)))
 (require (for-meta 1 (only-in racket/match match match-lambda)))
 
 
@@ -110,22 +112,36 @@
   
   (define (simplify-layer layer err)
     (match layer
-      [(q-expr-layer q-expr fills)
-      #/q-expr-layer q-expr #/simplify-holes fills]
+      [(q-expr-layer make-q-expr fills)
+      #/q-expr-layer make-q-expr #/simplify-holes fills]
       [_ #/err]))
   
   (define (fill-out-holes n holes)
     (if (= 0 n)
       holes
     #/match holes
-      [(cons first rest) #/cons first #/fill-out-holes (- n 1) rest]
-      [_ #/cons (hasheq) #/fill-out-holes (- n 1) holes]))
+      [(cons first rest) #/cons first #/fill-out-holes (sub1 n) rest]
+      [_ #/cons (hasheq) #/fill-out-holes (sub1 n) holes]))
   
   (define (fill-out-layer n layer err)
     (match (simplify-layer layer err)
-      [(q-expr-layer q-expr fills)
-      #/q-expr-layer q-expr #/fill-out-holes n fills]
+      [(q-expr-layer make-q-expr fills)
+      #/q-expr-layer make-q-expr #/fill-out-holes n fills]
       [_ #/error "Internal error"]))
+  
+  (define (length-lte lst n)
+    (if (< n 0)
+      #f
+    #/match lst
+      [(cons first rest) #/length-lte rest #/sub1 n]
+      [_ #t]))
+  
+  (define (fill-out-restrict-layer n layer err)
+    (define result (fill-out-layer n layer err))
+    (match result #/ (q-expr-layer make-q-expr fills)
+    #/if (length-lte fills n)
+      result
+      (err)))
   
   (define (merge-holes as bs)
     (match as
@@ -182,6 +198,13 @@
   (define (hasheq-fmap hash func)
     (hasheq-kv-map hash #/lambda (k v) #/func v))
   
+  ; TODO: Use this.
+  (define (holes-values holes)
+    (append-map (lambda (holes) #/hash-values holes) holes))
+  
+  (define (holes-fmap holes func)
+    (map (lambda (holes) #/hasheq-fmap holes func) holes))
+  
   (struct initiating-open #/degree s-expr)
   
   (struct initiate-bracket-syntax (impl)
@@ -193,45 +216,74 @@
       (match this
         [(initiate-bracket-syntax impl)
         #/match
-          (fill-out-layer 1 (impl stx) #/lambda ()
-            (error "Expected an initiate-bracket-syntax result that was a q-expr-layer"))
-          [ (q-expr-layer make-q-expr #/list fills)
-            (struct bracroexpanded-fill
-            #/degree make-q-expr sub-fills)
-            (define bracroexpanded-fills
-              (hasheq-fmap fills #/match-lambda
-                [(q-expr-layer make-fill #/list)
-                #/match (make-fill #/list)
-                  [(initiating-open degree s-expr)
-                  ; TODO: Figure out if we should be using `degree`
-                  ; for something additional here, like verifying that
-                  ; the result has no more than `degree` degrees of
-                  ; holes.
-                  #/match
-                    (fill-out-layer degree (bracroexpand s-expr)
-                    #/lambda ()
-                    #/error "Expected a bracroexpand result that was a q-expr-layer")
-                  #/ (q-expr-layer make-q-expr sub-fills)
-                  #/bracroexpanded-fill degree make-q-expr sub-fills]
-                  [_ #/error "Expected an initiate-bracket-syntax result where each fill was an initiating-open"]]
-                [_ #/error "Expected an initiate-bracket-syntax result where each fill was a q-expr-layer with no holes"]))
-            (q-expr-layer
-              (lambda (fills)
-                (make-q-expr #/list #/hasheq-fmap bracroexpanded-fills
-                #/match-lambda #/
-                  (bracroexpanded-fill degree make-q-expr sub-fills)
-                ; TODO: See if we should transform some of the
-                ; low-degree fills in some way, rather than just
-                ; passing them all through like this. After all, there
-                ; should be some way we account for the increased
-                ; depth in these `initiate-open` sections.
-                #/make-q-expr fills))
-            #/foldl merge-holes (list)
-            #/hash-values #/hasheq-fmap bracroexpanded-fills
-            #/match-lambda #/
-              (bracroexpanded-fill degree make-q-expr sub-fills)
-              sub-fills)]
-          [_ #/error "Expected an initiate-bracket-syntax result with no more than one degree of fills"]]
+          (fill-out-restrict-layer 1 (impl stx) #/lambda ()
+            (error "Expected an initiate-bracket-syntax result that was a q-expr-layer with no more than one degree of fills"))
+        #/ (q-expr-layer make-q-expr #/list fills)
+           (struct bracroexpanded-fill #/
+             degree
+             make-q-expr
+             bracroexpanded-low-degree-fills
+             remaining-fills)
+           (define bracroexpanded-fills
+             (hasheq-fmap fills #/match-lambda
+               [(q-expr-layer make-fill #/list)
+               #/match (make-fill #/list)
+                 [(initiating-open degree s-expr)
+                 #/match
+                   (fill-out-layer degree (bracroexpand s-expr)
+                   #/lambda ()
+                   #/error "Expected a bracroexpand result that was a q-expr-layer")
+                 #/ (q-expr-layer make-q-expr fills)
+                    (define-values
+                      (low-degree-fills high-degree-fills)
+                      (split-at fills degree))
+                    (define bracroexpanded-low-degree-fills
+                      (holes-fmap low-degree-fills #/match-lambda
+                        [(q-expr-layer make-fill sub-fills)
+                        ; TODO: Bracroexpand these low-degree fills in
+                        ; some way. This makes the most sense for
+                        ; fills which have no holes, but somehow we
+                        ; should be able to deal with holes as well.
+                        #/q-expr-layer make-fill sub-fills]
+                        [_ #/error "Expected a fill that was a q-expr-layer"]))
+                    (define remaining-fills
+                      ; TODO: Somehow merge this with the holes we
+                      ; encounter when bracroexpanding the low-degree
+                      ; fills. We'll probably want to use
+                      ; `holes-values` in the implementation of this
+                      ; merge.
+                      (append (make-list degree #/hasheq)
+                        high-degree-fills))
+                    (bracroexpanded-fill
+                      degree
+                      make-q-expr
+                      bracroexpanded-low-degree-fills
+                      remaining-fills)]
+                 [_ #/error "Expected an initiate-bracket-syntax result where each fill was an initiating-open"]]
+               [_ #/error "Expected an initiate-bracket-syntax result where each fill was a q-expr-layer with no holes"]))
+           (q-expr-layer
+             (lambda (fills)
+               (make-q-expr #/list #/hasheq-fmap bracroexpanded-fills
+               #/match-lambda #/
+                 (bracroexpanded-fill
+                   degree
+                   make-q-expr
+                   bracroexpanded-low-degree-fills
+                   remaining-fills)
+               ; TODO: Incorporate the
+               ; `bracroexpanded-low-degree-fills` in some way, rather
+               ; than just passing all the fills we get through like
+               ; this.
+               #/make-q-expr fills))
+           #/foldl merge-holes (list)
+           #/hash-values #/hasheq-fmap bracroexpanded-fills
+           #/match-lambda #/
+             (bracroexpanded-fill
+               degree
+               make-q-expr
+               bracroexpanded-low-degree-fills
+               remaining-fills)
+             remaining-fills)]
         [_ #/error "Expected this to be an initiate-bracket-syntax"]))
     
     ; Calling an `initiate-bracket-syntax` as a Racket macro makes it
@@ -241,22 +293,18 @@
       (match this
         [(initiate-bracket-syntax impl)
         #/match
-          (fill-out-layer 1 (impl stx) #/lambda ()
-            (error "Expected an initiate-bracket-syntax result that was a q-expr-layer"))
-          [(q-expr-layer make-q-expr #/list fills)
-          #/make-q-expr #/list #/hasheq-fmap fills #/match-lambda
-            [(q-expr-layer make-fill #/list)
-            #/match (make-fill #/list)
-              [(initiating-open degree s-expr)
-              ; TODO: Figure out if we should be using `degree` for
-              ; something additional here, like verifying that the
-              ; result has no more than `degree` degrees of holes.
-              #/fill-out-layer degree (bracroexpand s-expr)
-              #/lambda ()
-                (error "Expected a bracroexpand result that was a q-expr-layer")]
-              [_ #/error "Expected an initiate-bracket-syntax result where each fill was an initiating-open"]]
-            [_ #/error "Expected an initiate-bracket-syntax result where each fill was a q-expr-layer with no holes"]]
-          [_ #/error "Expected an initiate-bracket-syntax result with no more than one degree of fills"]]
+          (fill-out-restrict-layer 1 (impl stx) #/lambda ()
+            (error "Expected an initiate-bracket-syntax result that was a q-expr-layer with no more than one degree of fills"))
+        #/ (q-expr-layer make-q-expr #/list fills)
+        #/make-q-expr #/list #/hasheq-fmap fills #/match-lambda
+          [(q-expr-layer make-fill #/list)
+          #/match (make-fill #/list)
+            [(initiating-open degree s-expr)
+            #/fill-out-restrict-layer degree (bracroexpand s-expr)
+            #/lambda ()
+              (error "Expected a bracroexpand result that was a q-expr-layer with no more than the specified number of degrees of holes")]
+            [_ #/error "Expected an initiate-bracket-syntax result where each fill was an initiating-open"]]
+          [_ #/error "Expected an initiate-bracket-syntax result where each fill was a q-expr-layer with no holes"]]
         [_ #/error "Expected this to be an initiate-bracket-syntax"]))
     
     )
