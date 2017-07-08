@@ -80,6 +80,11 @@
 
 
 (begin-for-syntax
+  
+  ; TODO: Give this a better write syntax (and not necessarily a
+  ; readable one). We'll finally need to remove the #:prefab option,
+  ; but we were going to need to remove that anyway in order to
+  ; bracroexpand prefab structs.
   (struct q-expr-layer (make-q-expr fills) #:prefab)
   
   (define (syntax-local-maybe identifier)
@@ -190,27 +195,32 @@
       ; `quasisyntax` do.
       [_ #/q-expr-layer (lambda (fills) stx) #/list]))
   
+  (define (list-fmap lst func)
+    (map func lst))
+  
   (define (hasheq-kv-map hash func)
-    (make-immutable-hasheq #/map
-      (match-lambda #/ (cons k v) #/cons k #/func k v)
-    #/hash->list hash))
+    (make-immutable-hasheq #/list-fmap (hash->list hash)
+    #/match-lambda #/ (cons k v) #/cons k #/func k v))
   
   (define (hasheq-fmap hash func)
     (hasheq-kv-map hash #/lambda (k v) #/func v))
   
-  ; TODO: Use this.
   (define (holes-values holes)
     (append-map (lambda (holes) #/hash-values holes) holes))
   
   (define (holes-fmap holes func)
-    (map (lambda (holes) #/hasheq-fmap holes func) holes))
+    (list-fmap holes #/lambda (holes) #/hasheq-fmap holes func))
   
   (struct initiating-open #/degree s-expr)
   
   (struct initiate-bracket-syntax (impl)
     
     ; Calling an `initiate-bracket-syntax` as a q-expression-building
-    ; macro makes it (TODO: Finish this sentence.).
+    ; macro (aka a bracro) makes it run the bracroexpander
+    ; recursively. If the intermediate bracroexpansion result has any
+    ; holes, high-degree holes are propagated as holes in the return
+    ; value, but low-degree holes are turned into
+    ; `#s(q-expr-layer ...)` nodes in the s-expression.
     #:property prop:q-expr-syntax
     (lambda (this stx)
       (match this
@@ -222,7 +232,7 @@
            (struct bracroexpanded-fill #/
              degree
              make-q-expr
-             bracroexpanded-low-degree-fills
+             low-degree-fills
              remaining-fills)
            (define bracroexpanded-fills
              (hasheq-fmap fills #/match-lambda
@@ -237,27 +247,20 @@
                     (define-values
                       (low-degree-fills high-degree-fills)
                       (split-at fills degree))
-                    (define bracroexpanded-low-degree-fills
-                      (holes-fmap low-degree-fills #/match-lambda
-                        [(q-expr-layer make-fill sub-fills)
-                        ; TODO: Bracroexpand these low-degree fills in
-                        ; some way. This makes the most sense for
-                        ; fills which have no holes, but somehow we
-                        ; should be able to deal with holes as well.
-                        #/q-expr-layer make-fill sub-fills]
-                        [_ #/error "Expected a fill that was a q-expr-layer"]))
                     (define remaining-fills
-                      ; TODO: Somehow merge this with the holes we
-                      ; encounter when bracroexpanding the low-degree
-                      ; fills. We'll probably want to use
-                      ; `holes-values` in the implementation of this
-                      ; merge.
-                      (append (make-list degree #/hasheq)
-                        high-degree-fills))
+                      ; We merge the high-degree fills with the holes
+                      ; that occur in the low-degree fills.
+                      (foldl merge-holes
+                        (append (make-list degree #/hasheq)
+                          high-degree-fills)
+                      #/list-fmap (holes-values low-degree-fills)
+                      #/match-lambda #/
+                        (q-expr-layer make-fill sub-fills)
+                        sub-fills))
                     (bracroexpanded-fill
                       degree
                       make-q-expr
-                      bracroexpanded-low-degree-fills
+                      low-degree-fills
                       remaining-fills)]
                  [_ #/error "Expected an initiate-bracket-syntax result where each fill was an initiating-open"]]
                [_ #/error "Expected an initiate-bracket-syntax result where each fill was a q-expr-layer with no holes"]))
@@ -268,26 +271,35 @@
                  (bracroexpanded-fill
                    degree
                    make-q-expr
-                   bracroexpanded-low-degree-fills
+                   low-degree-fills
                    remaining-fills)
-               ; TODO: Incorporate the
-               ; `bracroexpanded-low-degree-fills` in some way, rather
-               ; than just passing all the fills we get through like
-               ; this.
-               #/make-q-expr fills))
+               #/q-expr-layer
+                 (lambda (sub-fills)
+                   (make-q-expr #/merge-holes fills sub-fills))
+               #/holes-fmap low-degree-fills #/match-lambda #/
+                 (q-expr-layer make-fill sub-fills)
+                 ; TODO: Let's make sure that every implementation of
+                 ; `make-fill` returns another `q-expr-layer` rather
+                 ; than an something like an s-expression. This seems
+                 ; tricky. Will we want all the degrees of fills to
+                 ; return `q-expr-layer` values or just the low
+                 ; degrees? Once we begin to implement unquotes, we'll
+                 ; start to see whether this is wrong.
+                 (make-fill fills)))
            #/foldl merge-holes (list)
            #/hash-values #/hasheq-fmap bracroexpanded-fills
            #/match-lambda #/
              (bracroexpanded-fill
                degree
                make-q-expr
-               bracroexpanded-low-degree-fills
+               low-degree-fills
                remaining-fills)
              remaining-fills)]
         [_ #/error "Expected this to be an initiate-bracket-syntax"]))
     
     ; Calling an `initiate-bracket-syntax` as a Racket macro makes it
-    ; run the bracroexpander.
+    ; run the bracroexpander from start to finish on the body. If this
+    ; overall bracroexpansion result has any holes, there's an error.
     #:property prop:procedure
     (lambda (this stx)
       (match this
@@ -359,8 +371,4 @@
 ; Tests
 
 (-quasiquote (foo (bar baz) () qux))
-
-; This test currently fails: The result of bracroexpanding
-; (-quasiquote ()) is (quasiquote-q ()), but it should be of the form
-; (quasiquote-q #s(q-expr-layer ...)).
 (-quasiquote (foo (bar baz) (-quasiquote ()) qux))
