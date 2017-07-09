@@ -4,10 +4,11 @@
 
 (provide (all-defined-out))
 
-(require (for-meta 1 (only-in racket/hash hash-union)))
 (require
-  (for-meta 1 (only-in racket/list append-map make-list split-at)))
-(require (for-meta 1 (only-in racket/match match match-lambda)))
+  (for-meta 1
+    (only-in racket/hash hash-union)
+    (only-in racket/list append-map make-list range split-at)
+    (only-in racket/match match match-lambda)))
 
 
 ; TODO: Finish defining Racket s-expression syntaxes that initiate
@@ -17,19 +18,19 @@
 ; s-expression-encoded q-expressions and imitate Racket's existing
 ; syntaxes:
 ;   (quasiquote-q
-;     #s(q-expr-layer q-expr-as-s-expr
+;     #<q-expr-layer q-expr-as-s-expr
 ;         (
 ;           #hasheq(
 ;                    (var1 .
-;                      #s(q-expr-layer
+;                      #<q-expr-layer
 ;                          #<lambda (fills) #s(splicing s-expr)>
-;                          ()))
+;                          ()>)
 ;                    (var2 .
-;                      #s(q-expr-layer
+;                      #<q-expr-layer
 ;                          #<lambda (fills) #s(non-splicing s-expr)>
-;                          ()))
-;                   ...))))
-;   (quasisyntax-q #s(q-expr-layer q-expr-as-s-expr (#hasheq(...))))
+;                          ()>)
+;                   ...))>)
+;   (quasisyntax-q #<q-expr-layer q-expr-as-s-expr (#hasheq(...))>)
 ;
 ; TODO: Define q-expression-building macros that loosely imitate
 ; Racket's existing syntaxes: quasiquote, unquote, unquote-splicing,
@@ -81,11 +82,85 @@
 
 (begin-for-syntax
   
-  ; TODO: Give this a better write syntax (and not necessarily a
-  ; readable one). We'll finally need to remove the #:prefab option,
-  ; but we were going to need to remove that anyway in order to
-  ; bracroexpand prefab structs.
-  (struct q-expr-layer (make-q-expr fills) #:prefab)
+  (define (list-kv-map lst func)
+    (map func (range #/length lst) lst))
+  
+  (define (list-fmap lst func)
+    (map func lst))
+  
+  (define (hasheq-kv-map hash func)
+    (make-immutable-hasheq #/list-fmap (hash->list hash)
+    #/match-lambda #/ (cons k v) #/cons k #/func k v))
+  
+  (define (hasheq-fmap hash func)
+    (hasheq-kv-map hash #/lambda (k v) #/func v))
+  
+  (define (holes-values holes)
+    (append-map (lambda (holes) #/hash-values holes) holes))
+  
+  (define (holes-dkv-map holes func)
+    (list-kv-map holes #/lambda (degree holes)
+    #/hasheq-kv-map holes #/lambda (key value)
+    #/func degree key value))
+  
+  (define (holes-fmap holes func)
+    (list-fmap holes #/lambda (holes) #/hasheq-fmap holes func))
+  
+  (define (holes-ref holes degree k)
+    (hash-ref (list-ref holes degree) k))
+  
+  (define (print-for-custom value port mode)
+    (if (eq? #t mode) (write value port)
+    #/if (eq? #f mode) (display value port)
+    #/print value port mode))
+  
+  (struct q-expr-layer (make-q-expr fills)
+    #:methods gen:custom-write
+  #/ #/define (write-proc this port mode)
+    ; TODO: Remove this branch. It's kinda useful if we need to debug
+    ; the this write behavior itself.
+    (if #f (write-string "#<q-expr-layer ?>" port)
+    #/match this
+      [ (q-expr-layer make-q-expr fills)
+        
+        (define (print-holes holes)
+          (for-each
+            (lambda (holes)
+              (write-string " " port)
+              (print-for-custom
+                (append-map (match-lambda #/ (cons k v) #/list k v)
+                #/sort (hash->list holes) symbol<? #:key car)
+                port
+                mode))
+            holes))
+        
+        (struct hole (degree key fills)
+          #:methods gen:custom-write
+        #/ #/define (write-proc this port mode)
+          (match this
+            [ (hole degree key fills)
+              (write-string "#<hole " port)
+              (print-for-custom key port mode)
+              (write-string " " port)
+              (print-for-custom degree port mode)
+              (print-holes fills)
+              (write-string ">" port)]
+            [_ #/error "Expected this to be a hole"]))
+        (write-string "#<q-expr-layer" port)
+        (print-holes fills)
+        (write-string " " port)
+        (print-for-custom
+          (make-q-expr #/holes-dkv-map fills
+          #/lambda (degree key fill)
+            (match fill
+              [(q-expr-layer make-fill sub-fills)
+              #/q-expr-layer (lambda (fills) #/hole degree key fills)
+                sub-fills]
+              [_ #/error "Expected a fill that was a q-expr-layer"]))
+          port
+          mode)
+        (write-string ">" port)]
+      [_ #/error "Expected this to be a q-expr-layer"]))
   
   (define (syntax-local-maybe identifier)
     (if (identifier? identifier)
@@ -150,13 +225,13 @@
   
   (define (merge-holes as bs)
     (match as
-      [(cons a as)
+      [(cons a a-rest)
       #/match bs
-        [(cons b bs)
+        [(cons b b-rest)
         #/cons
           (hash-union a b #:combine #/lambda (a b)
             (error "Expected the hole names of multiple bracroexpand calls to be mutually exclusive"))
-        #/merge-holes as bs]
+        #/merge-holes a-rest b-rest]
         [_ as]]
       [_ bs]))
   
@@ -195,21 +270,12 @@
       ; `quasisyntax` do.
       [_ #/q-expr-layer (lambda (fills) stx) #/list]))
   
-  (define (list-fmap lst func)
-    (map func lst))
-  
-  (define (hasheq-kv-map hash func)
-    (make-immutable-hasheq #/list-fmap (hash->list hash)
-    #/match-lambda #/ (cons k v) #/cons k #/func k v))
-  
-  (define (hasheq-fmap hash func)
-    (hasheq-kv-map hash #/lambda (k v) #/func v))
-  
-  (define (holes-values holes)
-    (append-map (lambda (holes) #/hash-values holes) holes))
-  
-  (define (holes-fmap holes func)
-    (list-fmap holes #/lambda (holes) #/hasheq-fmap holes func))
+  (struct bracket-syntax (impl)
+    #:property prop:q-expr-syntax
+    (lambda (this stx)
+      (match this
+        [(bracket-syntax impl) (impl stx)]
+        [_ #/error "Expected this to be a bracket-syntax"])))
   
   (struct initiating-open #/degree s-expr)
   
@@ -220,7 +286,7 @@
     ; recursively. If the intermediate bracroexpansion result has any
     ; holes, high-degree holes are propagated as holes in the return
     ; value, but low-degree holes are turned into
-    ; `#s(q-expr-layer ...)` nodes in the s-expression.
+    ; `#<q-expr-layer ...>` nodes in the s-expression.
     #:property prop:q-expr-syntax
     (lambda (this stx)
       (match this
@@ -283,8 +349,10 @@
                  ; than an something like an s-expression. This seems
                  ; tricky. Will we want all the degrees of fills to
                  ; return `q-expr-layer` values or just the low
-                 ; degrees? Once we begin to implement unquotes, we'll
-                 ; start to see whether this is wrong.
+                 ; degrees? Once we begin to implement closing
+                 ; brackets of higher degree than 0, we'll start to
+                 ; see whether this is wrong. Right now, we only have
+                 ; degree-0 closing brackets (unquotes).
                  (make-fill fills)))
            #/foldl merge-holes (list)
            #/hash-values #/hasheq-fmap bracroexpanded-fills
@@ -325,21 +393,17 @@
 (define-syntax -quasiquote #/initiate-bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
   #/q-expr-layer
-    (lambda (fills)
-      #`(quasiquote-q #,#/hash-ref (list-ref fills 0) 'body))
+    (lambda (fills) #`#/quasiquote-q #,#/holes-ref fills 0 'body)
   #/list
   #/hasheq 'body
   #/q-expr-layer (lambda (fills) #/initiating-open 1 #'body) #/list))
 
-; TODO: Implement this for real. This currently doesn't have unquotes,
-; let alone splicing.
+; TODO: Implement this for real. This currently doesn't have splicing.
 (define-syntax quasiquote-q #/lambda (stx)
-;  (syntax-case stx () #/ (_ #s(q-expr-layer body rests))
-;    #''(body rests)))
   (syntax-case stx () #/ (_ body)
   #/match (syntax-e #'body) #/ (q-expr-layer body rests)
-  #/match (fill-out-holes 1 #/syntax-e rests) #/ (list rests)
-    (struct foreign #/val)
+  #/match (fill-out-holes 1 rests) #/ (list rests)
+    (struct foreign (val) #:prefab)
     (define (expand-qq s-expr)
       ; TODO: Implement splicing.
       (if (syntax? s-expr)
@@ -350,25 +414,52 @@
         #`#/cons #,(expand-qq first) #,(expand-qq rest)]
         [(list) #'#/list]
         [_ #`'#,s-expr]))
-    (expand-qq #/ (syntax-e body)
-    #/list #/hasheq-fmap (syntax-e rests) foreign)))
+    (expand-qq #/body
+    #/list
+    #/hasheq-fmap rests #/match-lambda #/
+      (q-expr-layer make-rest sub-rests)
+      (q-expr-layer (lambda (fills) #/foreign #/make-rest fills)
+        sub-rests))))
+
+(define-syntax -unquote #/bracket-syntax #/lambda (stx)
+  (syntax-case stx () #/ (_ body)
+  #/q-expr-layer
+    (lambda (fills)
+      (match (holes-ref fills 0 'body)
+        [(q-expr-layer make-fill #/list) #/make-fill #/list]
+        [_ #/error "Expected a fill that was a q-expr-layer with no sub-fills"]))
+  #/list
+  #/hasheq 'body
+  #/q-expr-layer
+    (lambda (fills)
+      ; TODO: Bracroexpand the body like so. Currently, this causes an
+      ; error.
+;      (bracroexpand #'body))
+      #'body)
+  #/list))
 
 (define-syntax -quasisyntax #/initiate-bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
   #/q-expr-layer
-    (lambda (fills)
-      #`#(quasisyntax-q #,#/hash-ref (list-ref fills 0) 'body))
+    (lambda (fills) #`#/quasisyntax-q #,#/holes-ref fills 0 'body)
   #/list
   #/hasheq 'body
   #/q-expr-layer (lambda (fills) #/initiating-open 1 #'body) #/list))
 
 ; TODO: Implement this for real.
 (define-syntax quasisyntax-q #/lambda (stx)
-  (syntax-case stx () #/ (_ #s(q-expr-layer body rests))
-    #''(body rests)))
+  (syntax-case stx () #/ (_ body)
+  #/match (syntax-e #'body) #/ (q-expr-layer body rests)
+    #`'(#,body #,rests)))
 
 
 ; Tests
 
 (-quasiquote (foo (bar baz) () qux))
 (-quasiquote (foo (bar baz) (-quasiquote ()) qux))
+(-quasiquote (foo (bar baz) (-unquote (* 1 123456)) qux))
+
+; TODO: See why this test fails with an error. It probably has to do
+; with how we're not yet bracroexpanding the body of -unquote.
+(-quasiquote
+  (foo (-quasiquote (bar (-unquote (baz (-unquote (* 1 123456))))))))
