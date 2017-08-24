@@ -391,10 +391,11 @@
 
 (define-syntax -quasiquote #/initiate-bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
+  #/let [#/g-body #/gensym "body"]
   #/q-expr-layer
-    (lambda (fills) #`#/quasiquote-q #,#/holes-ref fills 0 'body)
+    (lambda (fills) #`#/quasiquote-q #,#/holes-ref fills 0 g-body)
   #/list
-  #/hasheq 'body
+  #/hasheq g-body
   #/q-expr-layer (lambda (fills) #/initiating-open 1 #'body) #/list))
 
 ; TODO: Implement this for real. This currently doesn't have splicing.
@@ -422,27 +423,28 @@
 
 (define-syntax -unquote #/bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
+  #/let [#/g-body #/gensym "body"]
   #/q-expr-layer
     (lambda (fills)
-      (match (holes-ref fills 0 'body)
+      (match (holes-ref fills 0 g-body)
         [(q-expr-layer make-fill #/list) #/make-fill #/list]
         [_ #/error "Expected a fill that was a q-expr-layer with no sub-fills"]))
   #/list
-  #/hasheq 'body
+  #/hasheq g-body
+  #/match (bracroexpand #'body) #/ (q-expr-layer make-q-expr fills)
   #/q-expr-layer
     (lambda (fills)
-      ; TODO: Bracroexpand the body like so. Currently, this causes an
-      ; error.
-;      (bracroexpand #'body))
-      #'body)
-  #/list))
+      (let ([result (make-q-expr fills)])
+      #/q-expr-layer (lambda (fills-2) result) #/list))
+    fills))
 
 (define-syntax -quasisyntax #/initiate-bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
+  #/let [#/g-body #/gensym "body"]
   #/q-expr-layer
-    (lambda (fills) #`#/quasisyntax-q #,#/holes-ref fills 0 'body)
+    (lambda (fills) #`#/quasisyntax-q #,#/holes-ref fills 0 g-body)
   #/list
-  #/hasheq 'body
+  #/hasheq g-body
   #/q-expr-layer (lambda (fills) #/initiating-open 1 #'body) #/list))
 
 ; TODO: Implement this for real.
@@ -454,11 +456,37 @@
 
 ; Tests
 
+(print-syntax-width 10000)
+
 (-quasiquote (foo (bar baz) () qux))
 (-quasiquote (foo (bar baz) (-quasiquote ()) qux))
 (-quasiquote (foo (bar baz) (-unquote (* 1 123456)) qux))
 
-; TODO: See why this test fails with an error. It probably has to do
-; with how we're not yet bracroexpanding the body of -unquote.
+; TODO: Fix this test. Right now, it has the result shown. The problem
+; is that the implementation of `expand-qq` doesn't descend into
+; `q-expr-layer` structs at all, which leaves behind an unprocessed
+; `foreign` struct.
 (-quasiquote
   (foo (-quasiquote (bar (-unquote (baz (-unquote (* 1 123456))))))))
+#|
+
+Result:
+
+'(foo
+   (quasiquote-q
+     #<q-expr-layer
+        (body1016
+          #<q-expr-layer
+             #<syntax
+                (baz
+                  #s(foreign
+                      #<q-expr-layer #<syntax (* 1 123456)>>))>>)
+        #<syntax (bar #<hole body1016 0>)>>))
+
+Expected (roughly):
+
+'(foo
+   (quasiquote-q
+     #<q-expr-layer (body1016 #<q-expr-layer #<syntax (baz 123456)>>)
+        #<syntax (bar #<hole body1016 0>)>>))
+|#
