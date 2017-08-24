@@ -118,20 +118,19 @@
     #:methods gen:custom-write
   #/ #/define (write-proc this port mode)
     ; TODO: Remove this branch. It's kinda useful if we need to debug
-    ; the this write behavior itself.
+    ; this write behavior itself.
     (if #f (write-string "#<q-expr-layer ?>" port)
     #/match this
       [ (q-expr-layer make-q-expr fills)
         
-        (define (print-holes holes)
+        (define (print-holes holes port mode)
           (for-each
             (lambda (holes)
               (write-string " " port)
-              (print-for-custom
+              (define holes-list
                 (append-map (match-lambda #/ (cons k v) #/list k v)
-                #/sort (hash->list holes) symbol<? #:key car)
-                port
-                mode))
+                #/sort (hash->list holes) symbol<? #:key car))
+              (print-for-custom holes-list port mode))
             holes))
         
         (struct hole (degree key fills)
@@ -143,22 +142,22 @@
               (print-for-custom key port mode)
               (write-string " " port)
               (print-for-custom degree port mode)
-              (print-holes fills)
+              (print-holes fills port mode)
               (write-string ">" port)]
             [_ #/error "Expected this to be a hole"]))
+        
         (write-string "#<q-expr-layer" port)
-        (print-holes fills)
+        (print-holes fills port mode)
         (write-string " " port)
-        (print-for-custom
+        (define body
           (make-q-expr #/holes-dkv-map fills
           #/lambda (degree key fill)
             (match fill
               [(q-expr-layer make-fill sub-fills)
               #/q-expr-layer (lambda (fills) #/hole degree key fills)
                 sub-fills]
-              [_ #/error "Expected a fill that was a q-expr-layer"]))
-          port
-          mode)
+              [_ #/error "Expected a fill that was a q-expr-layer"])))
+        (print-for-custom body port mode)
         (write-string ">" port)]
       [_ #/error "Expected this to be a q-expr-layer"]))
   
