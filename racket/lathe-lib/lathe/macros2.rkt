@@ -88,6 +88,9 @@
   (define (list-fmap lst func)
     (map func lst))
   
+  (define (list-bind lst func)
+    (append-map func lst))
+  
   (define (hasheq-kv-map hash func)
     (make-immutable-hasheq #/list-fmap (hash->list hash)
     #/match-lambda #/ (cons k v) #/cons k #/func k v))
@@ -154,12 +157,38 @@
           #/lambda (degree key fill)
             (match fill
               [(q-expr-layer make-fill sub-fills)
-              #/q-expr-layer (lambda (fills) #/hole degree key fills)
+              #/careful-q-expr-layer
+                (lambda (fills) #/hole degree key fills)
                 sub-fills]
               [_ #/error "Expected a fill that was a q-expr-layer"])))
         (print-for-custom body port mode)
         (write-string ">" port)]
       [_ #/error "Expected this to be a q-expr-layer"]))
+  
+  (define (hash-keys-eq? a b)
+    (and (= (hash-count a) (hash-count b)) #/hash-keys-subset? a b))
+  
+  (define (holes-match? as bs)
+    (define (verify-all-empty as)
+      (match as
+        [(cons a a-rest)
+        #/and (hash-empty? a) #/verify-all-empty a-rest]
+        [_ #t]))
+    (match as
+      [(cons a a-rest)
+      #/match bs
+        [(cons b b-rest)
+        #/and (hash-keys-eq? a b) #/holes-match? a-rest b-rest]
+        [_ #/verify-all-empty as]]
+      [_ #/verify-all-empty bs]))
+  
+  (define (careful-q-expr-layer make-q-expr fills)
+    (q-expr-layer
+      (lambda (holes)
+        (unless (holes-match? holes fills)
+          (error "Expected holes and fills to match"))
+        (make-q-expr holes))
+      fills))
   
   (define (syntax-local-maybe identifier)
     (if (identifier? identifier)
@@ -192,7 +221,7 @@
   (define (simplify-layer layer err)
     (match layer
       [(q-expr-layer make-q-expr fills)
-      #/q-expr-layer make-q-expr #/simplify-holes fills]
+      #/careful-q-expr-layer make-q-expr #/simplify-holes fills]
       [_ #/err]))
   
   (define (fill-out-holes n holes)
@@ -205,7 +234,7 @@
   (define (fill-out-layer n layer err)
     (match (simplify-layer layer err)
       [(q-expr-layer make-q-expr fills)
-      #/q-expr-layer make-q-expr #/fill-out-holes n fills]
+      #/careful-q-expr-layer make-q-expr #/fill-out-holes n fills]
       [_ #/error "Internal error"]))
   
   (define (length-lte lst n)
@@ -234,6 +263,25 @@
         [_ as]]
       [_ bs]))
   
+  (define (filter-hash hash example-hash)
+    (make-immutable-hasheq #/list-bind (hash->list hash)
+    #/match-lambda #/ (cons k v)
+      (if (hash-has-key? example-hash k)
+        (list #/cons k v)
+        (list))))
+  
+  (define (filter-holes holes example-holes)
+    (define (loop holes example-holes)
+      (match holes
+        [(cons hole hole-rest)
+        #/match example-holes
+          [(cons example-hole example-hole-rest)
+          #/cons (filter-hash hole example-hole)
+          #/filter-holes hole-rest example-hole-rest]
+          [_ #/list]]
+        [_ #/list]))
+    (simplify-holes #/loop holes example-holes))
+  
   (define (bracroexpand-list stx lst)
     (if (syntax? lst)
       (bracroexpand-list lst #/syntax-e lst)
@@ -244,15 +292,18 @@
         [(q-expr-layer make-first first-holes)
         #/match (bracroexpand-list stx rest)
           [(q-expr-layer make-rest rest-holes)
-          #/q-expr-layer
+          #/careful-q-expr-layer
             (lambda (fills)
               (datum->syntax stx
-              #/cons (make-first fills) (make-rest fills)))
+              #/cons
+                (make-first #/filter-holes fills first-holes)
+                (make-rest #/filter-holes fills rest-holes)))
           #/merge-holes first-holes rest-holes]
           [_ #/error "Internal error"]]
         [_ #/error "Expected a bracroexpand result that was a q-expr-layer"]]
       [(list)
-      #/q-expr-layer (lambda (fills) #/datum->syntax stx lst) #/list]
+      #/careful-q-expr-layer (lambda (fills) #/datum->syntax stx lst)
+      #/list]
       [_ #/error "Expected a list"]))
   
   (define (bracroexpand stx)
@@ -267,7 +318,7 @@
       ; TODO: We support lists, but let's also support vectors and
       ; prefabricated structs, like Racket's `quasiquote` and
       ; `quasisyntax` do.
-      [_ #/q-expr-layer (lambda (fills) stx) #/list]))
+      [_ #/careful-q-expr-layer (lambda (fills) stx) #/list]))
   
   (struct bracket-syntax (impl)
     #:property prop:q-expr-syntax
@@ -329,7 +380,7 @@
                       remaining-fills)]
                  [_ #/error "Expected an initiate-bracket-syntax result where each fill was an initiating-open"]]
                [_ #/error "Expected an initiate-bracket-syntax result where each fill was a q-expr-layer with no holes"]))
-           (q-expr-layer
+           (careful-q-expr-layer
              (lambda (fills)
                (make-q-expr #/list #/hasheq-fmap bracroexpanded-fills
                #/match-lambda #/
@@ -338,9 +389,11 @@
                    make-q-expr
                    low-degree-fills
                    remaining-fills)
-               #/q-expr-layer
+               #/careful-q-expr-layer
                  (lambda (sub-fills)
-                   (make-q-expr #/merge-holes fills sub-fills))
+                   ; TODO: We used to merge `fills` in like this. See why.
+;                   (make-q-expr #/merge-holes fills sub-fills))
+                   (make-q-expr sub-fills))
                #/holes-fmap low-degree-fills #/match-lambda #/
                  (q-expr-layer make-fill sub-fills)
                  ; TODO: Let's make sure that every implementation of
@@ -392,11 +445,12 @@
 (define-syntax -quasiquote #/initiate-bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
   #/let [#/g-body #/gensym "body"]
-  #/q-expr-layer
+  #/careful-q-expr-layer
     (lambda (fills) #`#/quasiquote-q #,#/holes-ref fills 0 g-body)
   #/list
   #/hasheq g-body
-  #/q-expr-layer (lambda (fills) #/initiating-open 1 #'body) #/list))
+  #/careful-q-expr-layer (lambda (fills) #/initiating-open 1 #'body)
+  #/list))
 
 ; TODO: Implement this for real. This currently doesn't have splicing.
 (define-syntax quasiquote-q #/lambda (stx)
@@ -418,13 +472,14 @@
     #/list
     #/hasheq-fmap rests #/match-lambda #/
       (q-expr-layer make-rest sub-rests)
-      (q-expr-layer (lambda (fills) #/foreign #/make-rest fills)
+      (careful-q-expr-layer
+        (lambda (fills) #/foreign #/make-rest fills)
         sub-rests))))
 
 (define-syntax -unquote #/bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
   #/let [#/g-body #/gensym "body"]
-  #/q-expr-layer
+  #/careful-q-expr-layer
     (lambda (fills)
       (match (holes-ref fills 0 g-body)
         [(q-expr-layer make-fill #/list) #/make-fill #/list]
@@ -432,20 +487,21 @@
   #/list
   #/hasheq g-body
   #/match (bracroexpand #'body) #/ (q-expr-layer make-q-expr fills)
-  #/q-expr-layer
+  #/careful-q-expr-layer
     (lambda (fills)
       (let ([result (make-q-expr fills)])
-      #/q-expr-layer (lambda (fills-2) result) #/list))
+      #/careful-q-expr-layer (lambda (fills-2) result) #/list))
     fills))
 
 (define-syntax -quasisyntax #/initiate-bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
   #/let [#/g-body #/gensym "body"]
-  #/q-expr-layer
+  #/careful-q-expr-layer
     (lambda (fills) #`#/quasisyntax-q #,#/holes-ref fills 0 g-body)
   #/list
   #/hasheq g-body
-  #/q-expr-layer (lambda (fills) #/initiating-open 1 #'body) #/list))
+  #/careful-q-expr-layer (lambda (fills) #/initiating-open 1 #'body)
+  #/list))
 
 ; TODO: Implement this for real.
 (define-syntax quasisyntax-q #/lambda (stx)
