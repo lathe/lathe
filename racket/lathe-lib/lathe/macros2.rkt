@@ -1,6 +1,7 @@
 #lang parendown racket
 
 (require "main.rkt")
+(require (for-meta 1 "main.rkt"))
 
 (provide (all-defined-out))
 
@@ -123,64 +124,55 @@
     ; TODO: Remove this branch. It's kinda useful if we need to debug
     ; this write behavior itself.
     (if #f (write-string "#<q-expr-layer ?>" port)
-    #/match this
-      [ (q-expr-layer make-q-expr fills)
-        
-        (define (print-holes holes port mode)
-          (for-each
-            (lambda (holes)
-              (write-string " " port)
-              (define holes-list
-                (append-map (match-lambda #/ (cons k v) #/list k v)
-                #/sort (hash->list holes) symbol<? #:key car))
-              (print-for-custom holes-list port mode))
-            holes))
-        
-        (struct hole (degree key fills)
-          #:methods gen:custom-write
-        #/ #/define (write-proc this port mode)
-          (match this
-            [ (hole degree key fills)
-              (write-string "#<hole " port)
-              (print-for-custom key port mode)
-              (write-string " " port)
-              (print-for-custom degree port mode)
-              (print-holes fills port mode)
-              (write-string ">" port)]
-            [_ #/error "Expected this to be a hole"]))
-        
-        (write-string "#<q-expr-layer" port)
-        (print-holes fills port mode)
-        (write-string " " port)
-        (define body
-          (make-q-expr #/holes-dkv-map fills
-          #/lambda (degree key fill)
-            (match fill
-              [(q-expr-layer make-fill sub-fills)
-              #/careful-q-expr-layer
-                (lambda (fills) #/hole degree key fills)
-                sub-fills]
-              [_ #/error "Expected a fill that was a q-expr-layer"])))
-        (print-for-custom body port mode)
-        (write-string ">" port)]
-      [_ #/error "Expected this to be a q-expr-layer"]))
+    #/expect this (q-expr-layer make-q-expr fills)
+      (error "Expected this to be a q-expr-layer")
+      
+      (define (print-holes holes port mode)
+        (for-each
+          (lambda (holes)
+            (write-string " " port)
+            (define holes-list
+              (append-map (match-lambda #/ (cons k v) #/list k v)
+              #/sort (hash->list holes) symbol<? #:key car))
+            (print-for-custom holes-list port mode))
+          holes))
+      
+      (struct hole (degree key fills)
+        #:methods gen:custom-write
+      #/ #/define (write-proc this port mode)
+        (expect this (hole degree key fills)
+          (error "Expected this to be a hole")
+          (write-string "#<hole " port)
+          (print-for-custom key port mode)
+          (write-string " " port)
+          (print-for-custom degree port mode)
+          (print-holes fills port mode)
+          (write-string ">" port)))
+      
+      (write-string "#<q-expr-layer" port)
+      (print-holes fills port mode)
+      (write-string " " port)
+      (define body
+        (make-q-expr #/holes-dkv-map fills
+        #/lambda (degree key fill)
+          (expect fill (q-expr-layer make-fill sub-fills)
+            (error "Expected a fill that was a q-expr-layer")
+          #/careful-q-expr-layer
+            (lambda (fills) #/hole degree key fills)
+            sub-fills)))
+      (print-for-custom body port mode)
+      (write-string ">" port)))
   
   (define (hash-keys-eq? a b)
     (and (= (hash-count a) (hash-count b)) #/hash-keys-subset? a b))
   
   (define (holes-match? as bs)
     (define (verify-all-empty as)
-      (match as
-        [(cons a a-rest)
-        #/and (hash-empty? a) #/verify-all-empty a-rest]
-        [_ #t]))
-    (match as
-      [(cons a a-rest)
-      #/match bs
-        [(cons b b-rest)
-        #/and (hash-keys-eq? a b) #/holes-match? a-rest b-rest]
-        [_ #/verify-all-empty as]]
-      [_ #/verify-all-empty bs]))
+      (expect as (cons a a-rest) #t
+      #/and (hash-empty? a) #/verify-all-empty a-rest))
+    (expect as (cons a a-rest) (verify-all-empty bs)
+    #/expect bs (cons b b-rest) (verify-all-empty as)
+    #/and (hash-keys-eq? a b) #/holes-match? a-rest b-rest))
   
   (define (careful-q-expr-layer make-q-expr fills)
     (q-expr-layer
@@ -212,37 +204,35 @@
       (list)))
   
   (define (simplify-holes holes)
-    (match holes
-      [(cons first rest)
-      #/match (simplify-holes rest)
-        [(list) #/if (hash-empty? first) (list) (list first)]]
-      [_ holes]))
+    (expect holes (cons first rest) holes
+    ; TODO: Whoops, add another match case for if the simplified
+    ; `rest` is a cons.
+    #/match (simplify-holes rest) #/ (list)
+    #/if (hash-empty? first) (list) (list first)))
   
   (define (simplify-layer layer err)
-    (match layer
-      [(q-expr-layer make-q-expr fills)
-      #/careful-q-expr-layer make-q-expr #/simplify-holes fills]
-      [_ #/err]))
+    (expect layer (q-expr-layer make-q-expr fills) (err)
+    #/careful-q-expr-layer make-q-expr #/simplify-holes fills))
   
   (define (fill-out-holes n holes)
     (if (= 0 n)
       holes
-    #/match holes
-      [(cons first rest) #/cons first #/fill-out-holes (sub1 n) rest]
-      [_ #/cons (hasheq) #/fill-out-holes (sub1 n) holes]))
+    #/expect holes (cons first rest)
+      (cons (hasheq) #/fill-out-holes (sub1 n) holes)
+      (cons first #/fill-out-holes (sub1 n) rest)))
   
   (define (fill-out-layer n layer err)
-    (match (simplify-layer layer err)
-      [(q-expr-layer make-q-expr fills)
-      #/careful-q-expr-layer make-q-expr #/fill-out-holes n fills]
-      [_ #/error "Internal error"]))
+    ; TODO: Write this as a one-branch `match`.
+    (expect (simplify-layer layer err)
+      (q-expr-layer make-q-expr fills)
+      (error "Internal error")
+    #/careful-q-expr-layer make-q-expr #/fill-out-holes n fills))
   
   (define (length-lte lst n)
     (if (< n 0)
       #f
-    #/match lst
-      [(cons first rest) #/length-lte rest #/sub1 n]
-      [_ #t]))
+    #/expect lst (cons first rest) #t
+    #/length-lte rest #/sub1 n))
   
   (define (fill-out-restrict-layer n layer err)
     (define result (fill-out-layer n layer err))
@@ -252,16 +242,12 @@
       (err)))
   
   (define (merge-holes as bs)
-    (match as
-      [(cons a a-rest)
-      #/match bs
-        [(cons b b-rest)
-        #/cons
-          (hash-union a b #:combine #/lambda (a b)
-            (error "Expected the hole names of multiple bracroexpand calls to be mutually exclusive"))
-        #/merge-holes a-rest b-rest]
-        [_ as]]
-      [_ bs]))
+    (expect as (cons a a-rest) bs
+    #/expect bs (cons b b-rest) as
+    #/cons
+      (hash-union a b #:combine #/lambda (a b)
+        (error "Expected the hole names of multiple bracroexpand calls to be mutually exclusive"))
+    #/merge-holes a-rest b-rest))
   
   (define (filter-hash hash example-hash)
     (make-immutable-hasheq #/list-bind (hash->list hash)
@@ -272,14 +258,11 @@
   
   (define (filter-holes holes example-holes)
     (define (loop holes example-holes)
-      (match holes
-        [(cons hole hole-rest)
-        #/match example-holes
-          [(cons example-hole example-hole-rest)
-          #/cons (filter-hash hole example-hole)
-          #/filter-holes hole-rest example-hole-rest]
-          [_ #/list]]
-        [_ #/list]))
+      (expect holes (cons hole hole-rest) (list)
+      #/expect example-holes (cons example-hole example-hole-rest)
+        (list)
+      #/cons (filter-hash hole example-hole)
+      #/filter-holes hole-rest example-hole-rest))
     (simplify-holes #/loop holes example-holes))
   
   (define (bracroexpand-list stx lst)
@@ -288,19 +271,19 @@
     #/match lst
       [(cons first rest)
       ; TODO: Support splicing.
-      #/match (bracroexpand first)
-        [(q-expr-layer make-first first-holes)
-        #/match (bracroexpand-list stx rest)
-          [(q-expr-layer make-rest rest-holes)
-          #/careful-q-expr-layer
-            (lambda (fills)
-              (datum->syntax stx
-              #/cons
-                (make-first #/filter-holes fills first-holes)
-                (make-rest #/filter-holes fills rest-holes)))
-          #/merge-holes first-holes rest-holes]
-          [_ #/error "Internal error"]]
-        [_ #/error "Expected a bracroexpand result that was a q-expr-layer"]]
+      #/expect (bracroexpand first)
+        (q-expr-layer make-first first-holes)
+        (error "Expected a bracroexpand result that was a q-expr-layer")
+      #/expect (bracroexpand-list stx rest)
+        (q-expr-layer make-rest rest-holes)
+        (error "Internal error")
+      #/careful-q-expr-layer
+        (lambda (fills)
+          (datum->syntax stx
+          #/cons
+            (make-first #/filter-holes fills first-holes)
+            (make-rest #/filter-holes fills rest-holes)))
+      #/merge-holes first-holes rest-holes]
       [(list)
       #/careful-q-expr-layer (lambda (fills) #/datum->syntax stx lst)
       #/list]
@@ -309,12 +292,11 @@
   (define (bracroexpand stx)
     (match (syntax-e stx)
       [(cons first rest)
-      #/match (syntax-local-maybe first)
-        [(list local)
-        #/match (q-expr-syntax-maybe local)
-          [(list q-expr-syntax) #/q-expr-syntax local stx]
-          [_ #/bracroexpand-list stx stx]]
-        [_ #/bracroexpand-list stx stx]]
+      #/expect (syntax-local-maybe first) (list local)
+        (bracroexpand-list stx stx)
+      #/expect (q-expr-syntax-maybe local) (list q-expr-syntax)
+        (bracroexpand-list stx stx)
+      #/q-expr-syntax local stx]
       ; TODO: We support lists, but let's also support vectors and
       ; prefabricated structs, like Racket's `quasiquote` and
       ; `quasisyntax` do.
@@ -323,9 +305,9 @@
   (struct bracket-syntax (impl)
     #:property prop:q-expr-syntax
     (lambda (this stx)
-      (match this
-        [(bracket-syntax impl) (impl stx)]
-        [_ #/error "Expected this to be a bracket-syntax"])))
+      (expect this (bracket-syntax impl)
+        (error "Expected this to be a bracket-syntax")
+      #/impl stx)))
   
   (struct initiating-open #/degree s-expr)
   
@@ -339,106 +321,100 @@
     ; `#<q-expr-layer ...>` nodes in the s-expression.
     #:property prop:q-expr-syntax
     (lambda (this stx)
-      (match this
-        [(initiate-bracket-syntax impl)
-        #/match
-          (fill-out-restrict-layer 1 (impl stx) #/lambda ()
-            (error "Expected an initiate-bracket-syntax result that was a q-expr-layer with no more than one degree of fills"))
-        #/ (q-expr-layer make-q-expr #/list fills)
-           (struct bracroexpanded-fill #/
+      (expect this (initiate-bracket-syntax impl)
+        (error "Expected this to be an initiate-bracket-syntax")
+      #/match
+        (fill-out-restrict-layer 1 (impl stx) #/lambda ()
+          (error "Expected an initiate-bracket-syntax result that was a q-expr-layer with no more than one degree of fills"))
+      #/ (q-expr-layer make-q-expr #/list fills)
+         (struct bracroexpanded-fill #/
+           degree
+           make-q-expr
+           low-degree-fills
+           remaining-fills)
+         (define bracroexpanded-fills
+           (hasheq-fmap fills #/expectfn
+             (q-expr-layer make-fill #/list)
+             (error "Expected an initiate-bracket-syntax result where each fill was a q-expr-layer with no holes")
+           #/expect (make-fill #/list)
+             (initiating-open degree s-expr)
+             (error "Expected an initiate-bracket-syntax result where each fill was an initiating-open")
+           #/match
+             (fill-out-layer degree (bracroexpand s-expr) #/lambda ()
+             #/error "Expected a bracroexpand result that was a q-expr-layer")
+           #/ (q-expr-layer make-q-expr fills)
+              (define-values (low-degree-fills high-degree-fills)
+                (split-at fills degree))
+              (define remaining-fills
+                ; We merge the high-degree fills with the holes that
+                ; occur in the low-degree fills.
+                (foldl merge-holes
+                  (append (make-list degree #/hasheq)
+                    high-degree-fills)
+                #/list-fmap (holes-values low-degree-fills)
+                #/match-lambda #/ (q-expr-layer make-fill sub-fills)
+                  sub-fills))
+              (bracroexpanded-fill
+                degree
+                make-q-expr
+                low-degree-fills
+                remaining-fills)))
+         (careful-q-expr-layer
+           (lambda (fills)
+             (make-q-expr #/list #/hasheq-fmap bracroexpanded-fills
+             #/match-lambda #/
+               (bracroexpanded-fill
+                 degree
+                 make-q-expr
+                 low-degree-fills
+                 remaining-fills)
+             #/careful-q-expr-layer
+               (lambda (sub-fills)
+                 ; TODO: We used to merge `fills` in like this. See
+                 ; why.
+;                 (make-q-expr #/merge-holes fills sub-fills))
+                 (make-q-expr sub-fills))
+             #/holes-fmap low-degree-fills #/match-lambda #/
+               (q-expr-layer make-fill sub-fills)
+               ; TODO: Let's make sure that every implementation of
+               ; `make-fill` returns another `q-expr-layer` rather
+               ; than an something like an s-expression. This seems
+               ; tricky. Will we want all the degrees of fills to
+               ; return `q-expr-layer` values or just the low degrees?
+               ; Once we begin to implement closing brackets of higher
+               ; degree than 0, we'll start to see whether this is
+               ; wrong. Right now, we only have degree-0 closing
+               ; brackets (unquotes).
+               (make-fill fills)))
+         #/foldl merge-holes (list)
+         #/hash-values #/hasheq-fmap bracroexpanded-fills
+         #/match-lambda #/
+           (bracroexpanded-fill
              degree
              make-q-expr
              low-degree-fills
              remaining-fills)
-           (define bracroexpanded-fills
-             (hasheq-fmap fills #/match-lambda
-               [(q-expr-layer make-fill #/list)
-               #/match (make-fill #/list)
-                 [(initiating-open degree s-expr)
-                 #/match
-                   (fill-out-layer degree (bracroexpand s-expr)
-                   #/lambda ()
-                   #/error "Expected a bracroexpand result that was a q-expr-layer")
-                 #/ (q-expr-layer make-q-expr fills)
-                    (define-values
-                      (low-degree-fills high-degree-fills)
-                      (split-at fills degree))
-                    (define remaining-fills
-                      ; We merge the high-degree fills with the holes
-                      ; that occur in the low-degree fills.
-                      (foldl merge-holes
-                        (append (make-list degree #/hasheq)
-                          high-degree-fills)
-                      #/list-fmap (holes-values low-degree-fills)
-                      #/match-lambda #/
-                        (q-expr-layer make-fill sub-fills)
-                        sub-fills))
-                    (bracroexpanded-fill
-                      degree
-                      make-q-expr
-                      low-degree-fills
-                      remaining-fills)]
-                 [_ #/error "Expected an initiate-bracket-syntax result where each fill was an initiating-open"]]
-               [_ #/error "Expected an initiate-bracket-syntax result where each fill was a q-expr-layer with no holes"]))
-           (careful-q-expr-layer
-             (lambda (fills)
-               (make-q-expr #/list #/hasheq-fmap bracroexpanded-fills
-               #/match-lambda #/
-                 (bracroexpanded-fill
-                   degree
-                   make-q-expr
-                   low-degree-fills
-                   remaining-fills)
-               #/careful-q-expr-layer
-                 (lambda (sub-fills)
-                   ; TODO: We used to merge `fills` in like this. See
-                   ; why.
-;                   (make-q-expr #/merge-holes fills sub-fills))
-                   (make-q-expr sub-fills))
-               #/holes-fmap low-degree-fills #/match-lambda #/
-                 (q-expr-layer make-fill sub-fills)
-                 ; TODO: Let's make sure that every implementation of
-                 ; `make-fill` returns another `q-expr-layer` rather
-                 ; than an something like an s-expression. This seems
-                 ; tricky. Will we want all the degrees of fills to
-                 ; return `q-expr-layer` values or just the low
-                 ; degrees? Once we begin to implement closing
-                 ; brackets of higher degree than 0, we'll start to
-                 ; see whether this is wrong. Right now, we only have
-                 ; degree-0 closing brackets (unquotes).
-                 (make-fill fills)))
-           #/foldl merge-holes (list)
-           #/hash-values #/hasheq-fmap bracroexpanded-fills
-           #/match-lambda #/
-             (bracroexpanded-fill
-               degree
-               make-q-expr
-               low-degree-fills
-               remaining-fills)
-             remaining-fills)]
-        [_ #/error "Expected this to be an initiate-bracket-syntax"]))
+           remaining-fills)))
     
     ; Calling an `initiate-bracket-syntax` as a Racket macro makes it
     ; run the bracroexpander from start to finish on the body. If this
     ; overall bracroexpansion result has any holes, there's an error.
     #:property prop:procedure
     (lambda (this stx)
-      (match this
-        [(initiate-bracket-syntax impl)
-        #/match
-          (fill-out-restrict-layer 1 (impl stx) #/lambda ()
-            (error "Expected an initiate-bracket-syntax result that was a q-expr-layer with no more than one degree of fills"))
-        #/ (q-expr-layer make-q-expr #/list fills)
-        #/make-q-expr #/list #/hasheq-fmap fills #/match-lambda
-          [(q-expr-layer make-fill #/list)
-          #/match (make-fill #/list)
-            [(initiating-open degree s-expr)
-            #/fill-out-restrict-layer degree (bracroexpand s-expr)
-            #/lambda ()
-              (error "Expected a bracroexpand result that was a q-expr-layer with no more than the specified number of degrees of holes")]
-            [_ #/error "Expected an initiate-bracket-syntax result where each fill was an initiating-open"]]
-          [_ #/error "Expected an initiate-bracket-syntax result where each fill was a q-expr-layer with no holes"]]
-        [_ #/error "Expected this to be an initiate-bracket-syntax"]))
+      (expect this (initiate-bracket-syntax impl)
+        (error "Expected this to be an initiate-bracket-syntax")
+      #/match
+        (fill-out-restrict-layer 1 (impl stx) #/lambda ()
+          (error "Expected an initiate-bracket-syntax result that was a q-expr-layer with no more than one degree of fills"))
+      #/ (q-expr-layer make-q-expr #/list fills)
+      #/make-q-expr #/list #/hasheq-fmap fills #/expectfn
+        (q-expr-layer make-fill #/list)
+        (error "Expected an initiate-bracket-syntax result where each fill was an initiating-open")
+      #/expect (make-fill #/list) (initiating-open degree s-expr)
+        (error "Expected an initiate-bracket-syntax result where each fill was a q-expr-layer with no holes")
+      #/fill-out-restrict-layer degree (bracroexpand s-expr)
+      #/lambda ()
+        (error "Expected a bracroexpand result that was a q-expr-layer with no more than the specified number of degrees of holes")))
     
     )
   )
@@ -482,9 +458,10 @@
   #/let [#/g-body #/gensym "body"]
   #/careful-q-expr-layer
     (lambda (fills)
-      (match (holes-ref fills 0 g-body)
-        [(q-expr-layer make-fill #/list) #/make-fill #/list]
-        [_ #/error "Expected a fill that was a q-expr-layer with no sub-fills"]))
+      (expect (holes-ref fills 0 g-body)
+        (q-expr-layer make-fill #/list)
+        (error "Expected a fill that was a q-expr-layer with no sub-fills")
+      #/make-fill #/list))
   #/list
   #/hasheq g-body
   #/match (bracroexpand #'body) #/ (q-expr-layer make-q-expr fills)
