@@ -184,13 +184,12 @@
   
   (define (syntax-local-maybe identifier)
     (if (identifier? identifier)
-      (let ()
-        (define dummy #/list #/list)
-        (define local
-          (syntax-local-value identifier #/lambda () dummy))
-        (if (eq? local dummy)
-          (list)
-          (list local)))
+      (w-
+        dummy (list #/list)
+        local (syntax-local-value identifier #/lambda () dummy)
+      #/if (eq? local dummy)
+        (list)
+        (list local))
       (list)))
   
   ; This struct property indicates a syntax's behavior as a
@@ -232,8 +231,8 @@
     #/length-lte rest #/sub1 n))
   
   (define (fill-out-restrict-layer n layer err)
-    (define result (fill-out-layer n layer err))
-    (dissect result (q-expr-layer make-q-expr fills)
+    (w- result (fill-out-layer n layer err)
+    #/dissect result (q-expr-layer make-q-expr fills)
     #/if (length-lte fills n)
       result
       (err)))
@@ -417,7 +416,7 @@
 
 (define-syntax -quasiquote #/initiate-bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
-  #/let [#/g-body #/gensym "body"]
+  #/w- g-body (gensym "body")
   #/careful-q-expr-layer
     (lambda (fills) #`#/quasiquote-q #,#/holes-ref fills 0 g-body)
   #/list
@@ -450,7 +449,7 @@
 
 (define-syntax -unquote #/bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
-  #/let [#/g-body #/gensym "body"]
+  #/w- g-body (gensym "body")
   #/careful-q-expr-layer
     (lambda (fills)
       (expect (holes-ref fills 0 g-body)
@@ -462,7 +461,7 @@
   #/dissect (bracroexpand #'body) (q-expr-layer make-q-expr fills)
   #/careful-q-expr-layer
     (lambda (fills)
-      (let ([result (make-q-expr fills)])
+      (w- result (make-q-expr fills)
         ; TODO: This change could fix one of the tests, but it would
         ; further break another. See what we should be doing here.
 ;        result))
@@ -471,7 +470,7 @@
 
 (define-syntax -quasisyntax #/initiate-bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
-  #/let [#/g-body #/gensym "body"]
+  #/w- g-body (gensym "body")
   #/careful-q-expr-layer
     (lambda (fills) #`#/quasisyntax-q #,#/holes-ref fills 0 g-body)
   #/list
