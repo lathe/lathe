@@ -205,9 +205,8 @@
   
   (define (simplify-holes holes)
     (expect holes (cons first rest) holes
-    ; TODO: Whoops, add another match case for if the simplified
-    ; `rest` is a cons.
-    #/match (simplify-holes rest) #/ (list)
+    #/w- rest (simplify-holes rest)
+    #/mat rest (cons _ _) (cons first rest)
     #/if (hash-empty? first) (list) (list first)))
   
   (define (simplify-layer layer err)
@@ -375,7 +374,7 @@
               (q-expr-layer make-fill sub-fills)
               ; TODO: Let's make sure that every implementation of
               ; `make-fill` returns another `q-expr-layer` rather than
-              ; an something like an s-expression. This seems tricky.
+              ; something like an s-expression. This seems tricky.
               ; Will we want all the degrees of fills to return
               ; `q-expr-layer` values or just the low degrees? Once we
               ; begin to implement closing brackets of higher degree
