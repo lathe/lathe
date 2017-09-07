@@ -391,7 +391,8 @@
                    remaining-fills)
                #/careful-q-expr-layer
                  (lambda (sub-fills)
-                   ; TODO: We used to merge `fills` in like this. See why.
+                   ; TODO: We used to merge `fills` in like this. See
+                   ; why.
 ;                   (make-q-expr #/merge-holes fills sub-fills))
                    (make-q-expr sub-fills))
                #/holes-fmap low-degree-fills #/match-lambda #/
@@ -490,6 +491,9 @@
   #/careful-q-expr-layer
     (lambda (fills)
       (let ([result (make-q-expr fills)])
+        ; TODO: This change could fix one of the tests, but it would
+        ; further break another. See what we should be doing here.
+;        result))
       #/careful-q-expr-layer (lambda (fills-2) result) #/list))
     fills))
 
@@ -516,7 +520,22 @@
 
 (-quasiquote (foo (bar baz) () qux))
 (-quasiquote (foo (bar baz) (-quasiquote ()) qux))
+
+
+; TODO: Fix this test.
 (-quasiquote (foo (bar baz) (-unquote (* 1 123456)) qux))
+#|
+
+Result:
+
+'(foo (bar baz) #<q-expr-layer #<syntax (* 1 123456)>> qux)
+
+Expected:
+
+'(foo (bar baz) 123456 qux)
+
+|#
+
 
 ; TODO: Fix this test. Right now, it has the result shown. The problem
 ; is that the implementation of `expand-qq` doesn't descend into
