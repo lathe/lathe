@@ -100,12 +100,12 @@
     (hasheq-kv-map hash #/lambda (k v) #/func v))
   
   (define (holes-values holes)
-    (append-map (lambda (holes) #/hash-values holes) holes))
+    (list-bind holes hash-values))
   
   (define (holes-dkv-map holes func)
     (list-kv-map holes #/lambda (degree holes)
-    #/hasheq-kv-map holes #/lambda (key value)
-    #/func degree key value))
+      (hasheq-kv-map holes #/lambda (key value)
+        (func degree key value))))
   
   (define (holes-fmap holes func)
     (list-fmap holes #/lambda (holes) #/hasheq-fmap holes func))
@@ -113,7 +113,7 @@
   (define (holes-ref holes degree k)
     (hash-ref (list-ref holes degree) k))
   
-  (define (print-for-custom value port mode)
+  (define (print-for-custom port mode value)
     (if (eq? #t mode) (write value port)
     #/if (eq? #f mode) (display value port)
     #/print value port mode))
@@ -132,9 +132,9 @@
           (lambda (holes)
             (write-string " " port)
             (define holes-list
-              (append-map (dissectfn (cons k v) #/list k v)
-              #/sort (hash->list holes) symbol<? #:key car))
-            (print-for-custom holes-list port mode))
+              (list-bind (sort (hash->list holes) symbol<? #:key car)
+              #/dissectfn (cons k v) #/list k v))
+            (print-for-custom port mode holes-list))
           holes))
       
       (struct hole (degree key fills)
@@ -143,9 +143,9 @@
         (expect this (hole degree key fills)
           (error "Expected this to be a hole")
           (write-string "#<hole " port)
-          (print-for-custom key port mode)
+          (print-for-custom port mode key)
           (write-string " " port)
-          (print-for-custom degree port mode)
+          (print-for-custom port mode degree)
           (print-holes fills port mode)
           (write-string ">" port)))
       
@@ -160,7 +160,7 @@
           #/careful-q-expr-layer
             (lambda (fills) #/hole degree key fills)
             sub-fills)))
-      (print-for-custom body port mode)
+      (print-for-custom port mode body)
       (write-string ">" port)))
   
   (define (hash-keys-eq? a b)
@@ -245,7 +245,7 @@
         (error "Expected the hole names of multiple bracroexpand calls to be mutually exclusive"))
     #/merge-holes a-rest b-rest))
   
-  (define (filter-hash hash example-hash)
+  (define (hasheq-filter hash example-hash)
     (make-immutable-hasheq #/list-bind (hash->list hash)
     #/dissectfn (cons k v)
       (if (hash-has-key? example-hash k)
@@ -257,7 +257,7 @@
       (expect holes (cons hole hole-rest) (list)
       #/expect example-holes (cons example-hole example-hole-rest)
         (list)
-      #/cons (filter-hash hole example-hole)
+      #/cons (hasheq-filter hole example-hole)
       #/filter-holes hole-rest example-hole-rest))
     (simplify-holes #/loop holes example-holes))
   
