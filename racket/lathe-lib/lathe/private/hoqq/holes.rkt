@@ -260,6 +260,11 @@
     (error "Tried to instantiate a hoqq-producer which still had holes in it")
   #/func #/hoqq-carrier (hoqq-siglike #/list) #/hoqq-siglike #/list))
 
+; TODO: See if we should write some kind of `hoqq-producer-compose`
+; that combines two hole-having data structures seamlessly. We could
+; use this followed by `hoqq-producer-instantiate` to make calls in a
+; certain sense.
+
 
 ; ===== Collections which can fill in higher-order holes =============
 
@@ -291,29 +296,6 @@
     #/unless (hoqq-sig-eq? subsig producer-subsig)
       (error "Expected the producers contained in a careful-hoqq-carrier to have sigs matching the overall sig")))
   (hoqq-carrier sig producers))
-
-; TODO: Update the following comment. I wrote most of it in preparation for writing the "===== Bracroexpansion results =====" section below, and now many parts are redundant.
-
-; TODO: Idle thoughts...
-;
-;  - There should be some way to compose two hole-having data structures seamlessly.
-;  - Perhaps there should be an opening and a closing node. There definitely need to be for certain parts of this.
-;  - The unquote bracro (`-unquote`) should take a Racket s-expression and return a rather complex thing:
-;    - It should have a single hole in it which, when filled with something with zero holes, creates a Racket s-expression with expanded higher-order quasiquotations encoded within it.
-;    - It should also be able to expand to itself if it turns out to be quoted.
-
-; bracro ::= pre-b-sexp -> bracro-result
-; bracro-result ::- RightSideOut post-b-sexp
-; bracro-result ::- InsideOut (post-b-sexp [post-b-sexp h= closing-bracket])
-;
-; Those two are really the same thing...
-; bracro ::= pre-b-sexp -> (post-b-sexp [post-b-sexp h= closing-bracket])
-;
-; Gloss as "A bracro takes a pre-bracroexpanded Racket s-expression and returns a post-bracroexpanded Racket s-expression with possible holes where post-bracroexpanded Racket s-expressions would go. Those holes are annotated with information identifying them as closing brackets." If there are any closing brackets, then the root of the pre-bracroexpanded Racket s-expression will ultimately correspond to a node *deeper* than the sections appearing after those closing brackets will ultimately correspond to.
-;
-; Closing bracket information looks like this: Something to say what the bracket's label, label rebindings, bracket strength, and handshake-macro are, and something to say what degree this closing bracket's enclosed region is. Also, since a closing bracket also opens a section of degree one lower than the section it closes, we might as well track opening brackets as well using an opening/closing flag.
-;
-; Tracking the degree explicitly (rather than implying it with the structure of the other holes) is probably necessary.
 
 
 ; ===== Bracroexpansion results ======================================
