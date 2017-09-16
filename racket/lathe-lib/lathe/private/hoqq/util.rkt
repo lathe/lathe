@@ -84,6 +84,11 @@
   #/if (eq? #f mode) (display value port)
   #/print value port mode))
 
+(define (print-all-for-custom port mode vals)
+  (list-each vals #/lambda (value)
+    (write-string " " port)
+    (print-for-custom port mode value)))
+
 
 (define (syntax-local-maybe identifier)
   (if (identifier? identifier)

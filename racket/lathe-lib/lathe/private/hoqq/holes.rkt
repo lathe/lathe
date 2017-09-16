@@ -97,6 +97,12 @@
     (hash-kv-all table #/lambda (key value)
       (func degree key value))))
 
+(define (hoqq-siglike-dkv-each siglike body)
+  (hoqq-siglike-dkv-all #/lambda (d k v)
+    (body d k v)
+    #t)
+  (void))
+
 (define (hoqq-siglike-keys-eq? a b)
   (expect a (hoqq-siglike a-tables)
     (error "Expected a to be a hoqq-siglike")
@@ -112,7 +118,7 @@
     (error "Expected a to be a hoqq-siglike")
   #/expect b (hoqq-siglike b-tables)
     (error "Expected b to be a hoqq-siglike")
-  #/list-all (map list a-tables b-tables)
+  #/list-each (map list a-tables b-tables)
   #/dissectfn (list a-table b-table)
     (hash-kv-each a-table #/lambda (k a-v)
       (body a-v #/hash-ref b-table k))))
@@ -200,6 +206,8 @@
   (equal? a b))
 
 
+; ===== Fake nodes for printing things with higher-order holes =======
+
 (struct example (val)
   #:methods gen:custom-write
 #/ #/define (write-proc this port mode)
@@ -244,8 +252,18 @@
       (error "Expected a careful-hoqq-producer and the carrier it was given to have the same sig")
     #/func carrier)))
 
+; TODO: See if we'll use this.
+(define (hoqq-producer-instantiate producer)
+  (expect producer (hoqq-producer sig func)
+    (error "Expected producer to be a hoqq-producer")
+  #/if (hoqq-siglike-has-degree? sig 0)
+    (error "Tried to instantiate a hoqq-producer which still had holes in it")
+  #/func #/hoqq-carrier (hoqq-siglike #/list) #/hoqq-siglike #/list))
+
 
 ; ===== Collections which can fill in higher-order holes =============
+
+; TODO: See if we'll use this section.
 
 (struct hoqq-carrier (sig producers)
   #:methods gen:custom-write
@@ -273,3 +291,208 @@
     #/unless (hoqq-sig-eq? subsig producer-subsig)
       (error "Expected the producers contained in a careful-hoqq-carrier to have sigs matching the overall sig")))
   (hoqq-carrier sig producers))
+
+; TODO: Update the following comment. I wrote most of it in preparation for writing the "===== Bracroexpansion results =====" section below, and now many parts are redundant.
+
+; TODO: Idle thoughts...
+;
+;  - There should be some way to compose two hole-having data structures seamlessly.
+;  - Perhaps there should be an opening and a closing node. There definitely need to be for certain parts of this.
+;  - The unquote bracro (`-unquote`) should take a Racket s-expression and return a rather complex thing:
+;    - It should have a single hole in it which, when filled with something with zero holes, creates a Racket s-expression with expanded higher-order quasiquotations encoded within it.
+;    - It should also be able to expand to itself if it turns out to be quoted.
+
+; bracro ::= pre-b-sexp -> bracro-result
+; bracro-result ::- RightSideOut post-b-sexp
+; bracro-result ::- InsideOut (post-b-sexp [post-b-sexp h= closing-bracket])
+;
+; Those two are really the same thing...
+; bracro ::= pre-b-sexp -> (post-b-sexp [post-b-sexp h= closing-bracket])
+;
+; Gloss as "A bracro takes a pre-bracroexpanded Racket s-expression and returns a post-bracroexpanded Racket s-expression with possible holes where post-bracroexpanded Racket s-expressions would go. Those holes are annotated with information identifying them as closing brackets." If there are any closing brackets, then the root of the pre-bracroexpanded Racket s-expression will ultimately correspond to a node *deeper* than the sections appearing after those closing brackets will ultimately correspond to.
+;
+; Closing bracket information looks like this: Something to say what the bracket's label, label rebindings, bracket strength, and handshake-macro are, and something to say what degree this closing bracket's enclosed region is. Also, since a closing bracket also opens a section of degree one lower than the section it closes, we might as well track opening brackets as well using an opening/closing flag.
+;
+; Tracking the degree explicitly (rather than implying it with the structure of the other holes) is probably necessary.
+
+
+; ===== Bracroexpansion results ======================================
+
+
+; A bracro takes a pre-bracroexpanded Racket s-expression as input,
+; and it returns a `hoqq-producer-with-closing-brackets`. Most bracros
+; will introduce zero closing brackets in their results, with the
+; exception being operations that are dedicated to being closing
+; brackets, such as unquote operations.
+;
+; Many bracros will call the bracroexpander again as they do their
+; processing, in order to process subexpressions of their input that
+; should be passed through almost directly into the output. When they
+; call the bracroexpander this way, there is always the chance that
+; the intermediate result contains closing brackets, due to closing
+; bracket operations occurring deep within that subexpression.
+
+
+; A pre-bracroexpanded Racket s-expression is the kind of s-expression
+; a user maintains, where higher quasiquotation operations are still
+; represented as a bunch of disjointed opening bracket and closing
+; bracket operators like `-quasiquote` and `-unquote`.
+;
+; A post-bracroexpanded Racket s-expression is an s-expression where
+; the nested structure of higher quasiquotation has been deduced from
+; the bracket operators and re-encoded as a nested tree. This is the
+; proper form to pass the rest of the work through Racket's
+; macroexpander, since the encapsulation strategy Racket pursues in
+; the orm of its syntax taint system assumes that the nesting of
+; s-expression syntax corresponds to the lexical nesting of macro
+; calls.
+
+
+; An escapable expression is a data structure that can create one of
+; two things:
+;
+;   - A post-bracroexpanded s-expression.
+;
+;   - An unencapsulated, pre-bracroexpanded Racket s-expression.
+;
+; The point is that these represent operations that come in handy as
+; delimiters or formatters for syntax literals, such as an operator
+; that acts as a string delimiter or a string escape sequence
+; initiator. When they occur in a context that properly suppresses
+; them, these operators can appear inside a string with the same
+; syntax they have outside it but without being construed as anything
+; other than chunks of syntax. This is handy for code generation,
+; since it means we can write syntax literals that mention these
+; operators without escaping each operator each time it occurs.
+
+
+; The fields of `hoqq-producer-with-closing-brackets` are as follows:
+;
+;   `producer`: A `hoqq-producer` generating an escapable expression.
+;
+;   `closing-brackets`: A `hoqq-siglike` of `hoqq-closing-bracket`
+;     values.
+;
+; The sigs of the `closing-brackets` values put together must match
+; the sig of `producer`.
+;
+(struct hoqq-producer-with-closing-brackets
+  (producer closing-brackets)
+  #:methods gen:custom-write
+#/ #/define (write-proc this port mode)
+  (expect this
+    (hoqq-producer-with-closing-brackets producer closing-brackets)
+    (error "Expected this to be a hoqq-producer-with-closing-brackets")
+    
+    (write-string "#<hoqq-producer-with-closing-brackets" port)
+    (print-all-for-custom port mode #/list producer closing-brackets)
+    (write-string ">" port)))
+
+(define
+  (careful-hoqq-producer-with-closing-brackets
+    producer closing-brackets)
+  (expect producer (hoqq-producer sig func)
+    (error "Expected producer to be a hoqq-producer")
+  #/expect (hoqq-siglike? closing-brackets) #t
+    (error "Expected closing-brackets to be a hoqq-siglike")
+  #/expect (hoqq-siglike-keys-eq? sig closing-brackets) #t
+    (error "Expected sig and closing-brackets to have compatible keys")
+    
+    (hoqq-siglike-zip-each sig closing-brackets
+    #/lambda (subsig closing-bracket)
+      (expect closing-bracket
+        (hoqq-closing-bracket
+          data degree outer-section inner-sections)
+        (error "Expected closing-bracket to be a hoqq-closing-bracket")
+      #/expect outer-section (hoqq-producer sig func)
+        (error "Expected outer-section to be a hoqq-producer")
+      #/expect (hoqq-sig-eq? subsig sig) #t
+        (error "Expected producer and closing-brackets to have matching sigs")))
+  #/hoqq-producer-with-closing-brackets producer closing-brackets))
+
+; The fields of `hoqq-closing-bracket` are as follows:
+;
+;   `data`: Miscellaneous information about the bracket, potentially
+;     including things like this:
+;
+;     ; TODO: Implement each part of this. Consult other design notes
+;     ; first because this list was a rough reconstruction from
+;     ; memory.
+;
+;     - A bracket strength, determining which of the brackets are
+;       consumed when two brackets match and which of them continue on
+;       to match with other brackets beyond.
+;
+;     - A label, to identify corresponding brackets by.
+;
+;     - Let bindings, allowing labels to be renamed as their lookups
+;       cross this bracket.
+;
+;     - A macro to call when processing this set of matched brackets.
+;
+;   `degree`: The quasiquotation degree of the section bounded by this
+;     closing bracket. A closing bracket can only match an opening
+;     bracket of the same degree, and its label bindings would only
+;     affect matchings between labels of that degree as well.
+;
+;   `outer-section`: A `hoqq-producer` generating an escapable
+;     expression, corresponding to all content that could be enclosed
+;     by this closing bracket's opening bracket if not for this
+;     closing bracket being where it is.
+;
+;   `inner-sections`: A `hoqq-siglike` of
+;     `hoqq-producer-with-closing-brackets` values. These inner
+;     sections represent the parts that were nested inside of the
+;     closing bracket's opening brackets in the pre-bracroexpanded
+;     Racket s-expression, but which should ultimately be nested
+;     outside of the closing bracket's enclosed section in the overall
+;     post-bracroexpanded Racket s-expression.
+;
+; The sigs of the `inner-sections` values put together must match the
+; sig of `outer-section`, and that sig they have in common must not
+; have any hole with degree equal to or greater than `degree`.
+;
+; Although it seems to be an arbitrary choice (TODO: Is it?), we allow
+; closing brackets to have no holes. This effectively lets the region
+; outside the closing bracket continue all the way to the end of a
+; document. If we instead required there to be at least one hole of
+; the highest possible degree, then we could compute `degree` from the
+; sig.
+;
+(struct hoqq-closing-bracket
+  (data degree outer-section inner-sections)
+  #:methods gen:custom-write
+#/ #/define (write-proc this port mode)
+  (expect this
+    (hoqq-closing-bracket data degree outer-section inner-sections)
+    (error "Expected this to be a hoqq-closing-bracket")
+    
+    (write-string "#<hoqq-closing-bracket" port)
+    (print-all-for-custom port mode
+    #/list data degree outer-section inner-sections)
+    (write-string ">" port)))
+
+(define
+  (careful-hoqq-closing-bracket
+    data degree outer-section inner-sections)
+  (expect (exact-nonnegative-integer? degree) #t
+    (error "Expected degree to be an exact nonnegative integer")
+  #/expect outer-section (hoqq-producer sig func)
+    (error "Expected outer-section to be a hoqq-producer")
+  #/expect inner-sections (hoqq-siglike tables)
+    (error "Expected inner-sections to be a hoqq-siglike")
+  #/if (hoqq-siglike-has-degree? inner-sections degree)
+    (error "Expected inner-sections to have sections only of degree less than the inner section's degree")
+  #/expect (hoqq-siglike-keys-eq? sig inner-sections) #t
+    (error "Expected outer-section and inner-sections to have corresponding keys")
+    
+    (hoqq-siglike-zip-each sig inner-sections
+    #/lambda (subsig inner-section)
+      (expect inner-section
+        (hoqq-producer-with-closing-brackets producer closing-brackets)
+        (error "Expected inner-section to be a hoqq-producer-with-closing-brackets")
+      #/expect producer (hoqq-producer sig func)
+        (error "Expected producer to be a hoqq-producer")
+      #/expect (hoqq-sig-eq? subsig sig) #t
+        (error "Expected outer-section and inner-sections to have matching sigs")))
+  #/hoqq-closing-bracket data degree outer-section inner-sections))
