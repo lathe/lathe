@@ -126,19 +126,19 @@
   (func arg))
 
 (define-syntax-rule (mat subject pattern then else ...)
-  (match subject [pattern then] [_ else ...]))
+  (match subject [pattern then] [_ (void) else ...]))
 
 (define-syntax-rule (matfns pattern then elsefn)
   (match-lambda [pattern then] [subject (elsefn subject)]))
 
 (define-syntax-rule (expect subject pattern else then ...)
-  (match subject [pattern then ...] [_ else]))
+  (match subject [pattern (void) then ...] [_ else]))
 
 (define-syntax-rule (expectfn pattern else then ...)
-  (match-lambda [pattern then ...] [_ else]))
+  (match-lambda [pattern (void) then ...] [_ else]))
 
 (define-syntax-rule (dissect subject pattern then ...)
-  (match subject [pattern then ...]))
+  (match subject [pattern (void) then ...]))
 
 (define-syntax-rule (dissectfn pattern then ...)
-  (match-lambda [pattern then ...]))
+  (match-lambda [pattern (void) then ...]))
