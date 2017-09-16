@@ -353,7 +353,11 @@
 ;   `producer`: A `hoqq-producer` generating an escapable expression.
 ;
 ;   `closing-brackets`: A `hoqq-siglike` of `hoqq-closing-bracket`
-;     values.
+;     values. The section enclosed by each of these closing brackets
+;     will be of degree one greater than its own degree, and its own
+;     degree is its position in this `hoqq-seqlike`. Brackets
+;     only interact with other brackets of the same enclosed section
+;     degree.
 ;
 ; The sigs of the `closing-brackets` values put together must match
 ; the sig of `producer`.
@@ -383,8 +387,7 @@
     (hoqq-siglike-zip-each sig closing-brackets
     #/lambda (subsig closing-bracket)
       (expect closing-bracket
-        (hoqq-closing-bracket
-          data degree outer-section inner-sections)
+        (hoqq-closing-bracket data outer-section inner-sections)
         (error "Expected closing-bracket to be a hoqq-closing-bracket")
       #/expect outer-section (hoqq-producer sig func)
         (error "Expected outer-section to be a hoqq-producer")
@@ -412,11 +415,6 @@
 ;
 ;     - A macro to call when processing this set of matched brackets.
 ;
-;   `degree`: The quasiquotation degree of the section bounded by this
-;     closing bracket. A closing bracket can only match an opening
-;     bracket of the same degree, and its label bindings would only
-;     affect matchings between labels of that degree as well.
-;
 ;   `outer-section`: A `hoqq-producer` generating an escapable
 ;     expression, corresponding to all content that could be enclosed
 ;     by this closing bracket's opening bracket if not for this
@@ -431,40 +429,28 @@
 ;     post-bracroexpanded Racket s-expression.
 ;
 ; The sigs of the `inner-sections` values put together must match the
-; sig of `outer-section`, and that sig they have in common must not
-; have any hole with degree equal to or greater than `degree`.
+; sig of `outer-section`.
 ;
-; Although it seems to be an arbitrary choice (TODO: Is it?), we allow
-; closing brackets to have no holes. This effectively lets the region
-; outside the closing bracket continue all the way to the end of a
-; document. If we instead required there to be at least one hole of
-; the highest possible degree, then we could compute `degree` from the
-; sig.
+; If a closing bracket has no holes, the enclosed region continues all
+; the way to the end of the document.
 ;
-(struct hoqq-closing-bracket
-  (data degree outer-section inner-sections)
+(struct hoqq-closing-bracket (data outer-section inner-sections)
   #:methods gen:custom-write
 #/ #/define (write-proc this port mode)
-  (expect this
-    (hoqq-closing-bracket data degree outer-section inner-sections)
+  (expect this (hoqq-closing-bracket data outer-section inner-sections)
     (error "Expected this to be a hoqq-closing-bracket")
     
     (write-string "#<hoqq-closing-bracket" port)
     (print-all-for-custom port mode
-    #/list data degree outer-section inner-sections)
+    #/list data outer-section inner-sections)
     (write-string ">" port)))
 
 (define
-  (careful-hoqq-closing-bracket
-    data degree outer-section inner-sections)
-  (expect (exact-nonnegative-integer? degree) #t
-    (error "Expected degree to be an exact nonnegative integer")
-  #/expect outer-section (hoqq-producer sig func)
+  (careful-hoqq-closing-bracket data outer-section inner-sections)
+  (expect outer-section (hoqq-producer sig func)
     (error "Expected outer-section to be a hoqq-producer")
   #/expect inner-sections (hoqq-siglike tables)
     (error "Expected inner-sections to be a hoqq-siglike")
-  #/if (hoqq-siglike-has-degree? inner-sections degree)
-    (error "Expected inner-sections to have sections only of degree less than the inner section's degree")
   #/expect (hoqq-siglike-keys-eq? sig inner-sections) #t
     (error "Expected outer-section and inner-sections to have corresponding keys")
     
@@ -477,4 +463,4 @@
         (error "Expected producer to be a hoqq-producer")
       #/expect (hoqq-sig-eq? subsig sig) #t
         (error "Expected outer-section and inner-sections to have matching sigs")))
-  #/hoqq-closing-bracket data degree outer-section inner-sections))
+  #/hoqq-closing-bracket data outer-section inner-sections))
