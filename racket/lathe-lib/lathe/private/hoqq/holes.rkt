@@ -252,7 +252,6 @@
       (error "Expected a careful-hoqq-producer and the carrier it was given to have the same sig")
     #/func carrier)))
 
-; TODO: See if we'll use this.
 (define (hoqq-producer-instantiate producer)
   (expect producer (hoqq-producer sig func)
     (error "Expected producer to be a hoqq-producer")
@@ -464,3 +463,9 @@
       #/expect (hoqq-sig-eq? subsig sig) #t
         (error "Expected outer-section and inner-sections to have matching sigs")))
   #/hoqq-closing-bracket data outer-section inner-sections))
+
+(define (hoqq-producer-with-closing-brackets-simple post-b-sexp)
+  (hoqq-producer-with-closing-brackets
+    (hoqq-producer (hoqq-siglike #/list) #/lambda (carrier)
+      post-b-sexp)
+  #/hoqq-siglike #/list))
