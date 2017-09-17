@@ -300,6 +300,71 @@
 ; ===== Bracroexpansion results ======================================
 
 
+; TODO: This data structure is actually rather wrong. As a guiding
+; example, consider a pattern of closing brackets like this:
+;
+;    ,( ,( ) )  )  ,( )  )
+;
+; Currently it would be illegal to have ,() occur in the outer-section
+; of ) like that. In fact, it would also be illegal for ) to appear in
+; the outer-section of ) like that as well.
+;
+; Something we should notice about this is that if we prepend ,( to
+; that pattern, it completes another closing bracket out of ). Because
+; of this, we can't find all the nearest closing brackets of a certain
+; degree (to match an opening bracket of that degree) without first
+; having eliminated all the closing brackets of a lesser degree.
+;
+; So, the locality structure of that syntax, from root to tip of the
+; representation, should be something like this for representing only
+; the brackets themselves:
+;
+;    ,( ,( ) )  )  ,( )  )
+;               A
+;     .--------' '------.
+;    C                   B
+;     '.            .---'
+;       D          E
+;
+; Before we get too carried away, we also have to represent the
+; syntactic data in between those brackets. We don't necessarily have
+; any full segments here, because they're all bordered by a closing
+; bracket that might be closing a higher-degree hole with more of the
+; segment on the other side. But we can see specific sections with
+; specific degrees of closing bracket which could continue them:
+;
+;    ,( ,( ) )  )  ,( )  )
+;   0  1_____ 0_ 0_  1 0_ 0
+;         1
+;
+; Or perhaps...
+;
+;    ,( ,( ) )  )  ,( )  )
+;   0___________ 0_______ 0
+;      1_____        1
+;         1
+;
+; The latter lets us associate each one of these partial segments
+; one-for-one with the closing bracket it's outside of, except for one
+; partial segment at the start with no closing bracket before it.
+;
+; Note that a partial segment of a certain degree can't have any
+; unmatched closing brackets of a lesser degree.
+;
+; It's almost like this follows the opposite rule that completed
+; higher quasiquotation structures do: In those, a hole can only have
+; holes of its own if they're of strictly lower degree. In this case,
+; a closing bracket can only have closing brackets after it if they're
+; of equal or greater degree.
+;
+; Is that rule enough to classify what's going on here? How should we
+; understand what happens when an opening bracket operator (like
+; `-quasiquote`) seeks out and matches a set of closing brackets? Do
+; we understand it by adding opening brackets to this representation,
+; and would adding those be equivalent to letting the "equal or
+; greater degree" rule relax in some way?
+
+
 ; A bracro takes a pre-bracroexpanded Racket s-expression as input,
 ; and it returns a `hoqq-producer-with-closing-brackets`. Most bracros
 ; will introduce zero closing brackets in their results, with the
