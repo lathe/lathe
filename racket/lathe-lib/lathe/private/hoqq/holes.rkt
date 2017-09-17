@@ -363,6 +363,22 @@
 ; we understand it by adding opening brackets to this representation,
 ; and would adding those be equivalent to letting the "equal or
 ; greater degree" rule relax in some way?
+;
+; Some thoughts about an answer:
+;
+; To add an opening bracket, it must be of degree equal to or lesser
+; than the lowest degree that has closing brackets in the structure.
+; If the opening bracket combines to act as an opening bracket of
+; higher degree, then first we bundle all the structure's
+; higher-degree and equal-degree holes into something that we attach
+; to the beginning of the next partial segments after the
+; lowest-degree holes, letting the same-degree holes after those shine
+; through. Then we repeat the process, now adding this higher-degree
+; opening bracket to a structure which we are now sure has none of
+; those lower-degree holes. If on the other hand, the opening bracket
+; combines with closing brackets to make a higher-degree *closing*
+; bracket, we instead add a new higher-degree hole for it and put all
+; the bundled content in there somehow.
 
 
 ; A bracro takes a pre-bracroexpanded Racket s-expression as input,
