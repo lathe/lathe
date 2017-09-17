@@ -1,9 +1,9 @@
 #lang parendown racket
 
-; holes.rkt
+; expanders.rkt
 ;
-; Data structures and syntaxes for encoding the kind of higher-order
-; holes that occur in higher quasiquotation.
+; Syntax expanders for q-expression-building macros (aka bracros) as
+; well as an implementation of bracroexpansion.
 
 (require "../../main.rkt")
 (require "util.rkt")
@@ -82,12 +82,19 @@
     #/hoqq-producer-with-closing-brackets
       (hoqq-producer (hoqq-siglike-merge-force first-sig rest-sig)
       #/lambda (carrier)
-        (datum->syntax stx
-        #/cons
+        (expect
           (first-func
           #/hoqq-siglike-restrict carrier first-closing-brackets)
+          (escapable-expression first-escaped first-expr)
+          (error "Expected the hoqq-producer result to be an escapable-expression")
+        #/expect
           (rest-func
-          #/hoqq-siglike-restrict carrier rest-closing-brackets)))
+          #/hoqq-siglike-restrict carrier rest-closing-brackets)
+          (escapable-expression rest-escaped rest-expr)
+          (error "Expected the hoqq-producer result to be an escapable-expression")
+        #/escapable-expression
+          #`(cons #,first-escaped #,rest-escaped)
+        #/datum->syntax stx #/cons first-expr rest-expr))
     #/hoqq-siglike-merge-force
       first-closing-brackets rest-closing-brackets]
     [(list)

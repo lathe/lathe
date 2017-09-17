@@ -332,9 +332,10 @@
 ; An escapable expression is a data structure that can create one of
 ; two things:
 ;
-;   - A post-bracroexpanded s-expression.
+;   `literal`: An unencapsulated, pre-bracroexpanded Racket
+;     s-expression.
 ;
-;   - An unencapsulated, pre-bracroexpanded Racket s-expression.
+;   `expr`: A post-bracroexpanded s-expression.
 ;
 ; The point is that these represent operations that come in handy as
 ; delimiters or formatters for syntax literals, such as an operator
@@ -345,6 +346,8 @@
 ; other than chunks of syntax. This is handy for code generation,
 ; since it means we can write syntax literals that mention these
 ; operators without escaping each operator each time it occurs.
+;
+(struct escapable-expression #/literal expr)
 
 
 ; The fields of `hoqq-producer-with-closing-brackets` are as follows:
@@ -464,8 +467,8 @@
         (error "Expected outer-section and inner-sections to have matching sigs")))
   #/hoqq-closing-bracket data outer-section inner-sections))
 
-(define (hoqq-producer-with-closing-brackets-simple post-b-sexp)
+(define (hoqq-producer-with-closing-brackets-simple val)
   (hoqq-producer-with-closing-brackets
     (hoqq-producer (hoqq-siglike #/list) #/lambda (carrier)
-      post-b-sexp)
+      (escapable-expression #`#'#,val val))
   #/hoqq-siglike #/list))
