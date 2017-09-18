@@ -351,34 +351,42 @@
 ; Note that a partial segment of a certain degree can't have any
 ; unmatched closing brackets of a lesser degree.
 ;
-; It's almost like this follows the opposite rule that completed
-; higher quasiquotation structures do: In those, a hole can only have
-; holes of its own if they're of strictly lower degree. In this case,
-; a closing bracket can only have closing brackets after it if they're
+; It seems this follows the opposite rule that completed higher
+; quasiquotation structures do: In those, a hole can only have holes
+; of its own if they're of strictly lower degree. In this case, a
+; closing bracket can only have closing brackets after it if they're
 ; of equal or greater degree.
 ;
-; Is that rule enough to classify what's going on here? How should we
-; understand what happens when an opening bracket operator (like
-; `-quasiquote`) seeks out and matches a set of closing brackets? Do
-; we understand it by adding opening brackets to this representation,
-; and would adding those be equivalent to letting the "equal or
-; greater degree" rule relax in some way?
+; Let's go with that rule. It seems to classify what's going on here
+; very well.
 ;
-; Some thoughts about an answer:
+; When we encode the data between the brackets, what we want is
+; something we can use to *build* a `hoqq-producer`, much like we use
+; the `func` of a `hoqq-producer` to build a post-bracroexpansion
+; Racket s-expression. Let's encode it simply by using a very similar
+; `func`.
 ;
-; To add an opening bracket, it must be of degree equal to or lesser
-; than the lowest degree that has closing brackets in the structure.
-; If the opening bracket combines to act as an opening bracket of
-; higher degree, then first we bundle all the structure's
-; higher-degree and equal-degree holes into something that we attach
-; to the beginning of the next partial segments after the
-; lowest-degree holes, letting the same-degree holes after those shine
-; through. Then we repeat the process, now adding this higher-degree
-; opening bracket to a structure which we are now sure has none of
-; those lower-degree holes. If on the other hand, the opening bracket
-; combines with closing brackets to make a higher-degree *closing*
-; bracket, we instead add a new higher-degree hole for it and put all
-; the bundled content in there somehow.
+; We will have no opening brackets in this format. When we
+; bracroexpand a call to an opening bracket, we'll do so by
+; eliminating it on the spot. We bracroexpand the body of the opening
+; bracket call. If the lowest degree of closing bracket in the
+; bracroexpanded body is of lower degree than the opening bracket,
+; there's an error. Otherwise, we create a new bracroexpansion
+; result that has the expanded body's closing brackets of higher
+; degree than the opening bracket, as well as all the closing brackets
+; of the partial segments *behind* the equal-degree closing brackets,
+; because those are the brackets we've matched.
+;
+; The `func` of the new bracroexpansion result is a combination of the
+; `func` of the bracroexpanded body (invoked to create the interior of
+; a hole) and the `func` of each partial segment behind the
+; equal-degree closing brackets (invoked to create the partial
+; sections around the hole's holes). Some opening brackets may
+; alternatively become closing brackets of a higher degree when they
+; match up (such as ,( as an opening bracket), in which case that
+; higher-degree closing bracket is one of the closing brackets in the
+; result. And some may become opening brackets of a higher degree when
+; they match up, in which case we repeat this process.
 
 
 ; A bracro takes a pre-bracroexpanded Racket s-expression as input,
