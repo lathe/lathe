@@ -236,65 +236,34 @@
     (error "Expected producer to be a hoqq-producer")
     
     (write-string " " port)
-    (print-for-custom #/func #/careful-hoqq-carrier sig
-    #/list-fmap sig #/lambda (table)
-      (hasheq-fmap table #/lambda  (subsig)
-        (careful-hoqq-producer subsig
-        #/dissectfn (hoqq-carrier subsig producers)
-          (example producers))))))
+    (print-for-custom #/func #/hoqq-siglike-fmap sig #/lambda (subsig)
+      (careful-hoqq-producer subsig #/lambda (producers)
+        (example producers)))))
 
 (define (careful-hoqq-producer sig func)
   (unless (hoqq-sig? sig)
     (error "Expected sig to be a well-formed hoqq sig"))
-  (hoqq-producer sig #/lambda (carrier)
-    (dissect carrier (hoqq-carrier carrier-sig producers)
-    #/expect (hoqq-sig-eq? sig carrier-sig) #t
-      (error "Expected a careful-hoqq-producer and the carrier it was given to have the same sig")
-    #/func carrier)))
+  (hoqq-producer sig #/lambda (producers)
+    (unless (hoqq-siglike? producers)
+      (error "Expected producers to be a hoqq-siglike"))
+    (hoqq-siglike-zip-each sig producers #/lambda (subsig producer)
+      (expect producers (hoqq-producer producer-subsig func)
+        (error "Expected producer to be a producer")
+      #/expect (hoqq-sig-eq? subsig producer-subsig) #t
+        (error "Expected a careful-hoqq-producer and the siglike of producers it was given to have the same sig")))
+    (func producers)))
 
 (define (hoqq-producer-instantiate producer)
   (expect producer (hoqq-producer sig func)
     (error "Expected producer to be a hoqq-producer")
   #/if (hoqq-siglike-has-degree? sig 0)
     (error "Tried to instantiate a hoqq-producer which still had holes in it")
-  #/func #/hoqq-carrier (hoqq-siglike #/list) #/hoqq-siglike #/list))
+  #/func #/hoqq-siglike #/list))
 
 ; TODO: See if we should write some kind of `hoqq-producer-compose`
 ; that combines two hole-having data structures seamlessly. We could
 ; use this followed by `hoqq-producer-instantiate` to make calls in a
 ; certain sense.
-
-
-; ===== Collections which can fill in higher-order holes =============
-
-; TODO: See if we'll use this section.
-
-(struct hoqq-carrier (sig producers)
-  #:methods gen:custom-write
-#/ #/define (write-proc this port mode)
-  (expect this (hoqq-carrier sig producers)
-    (error "Expected this to be a hoqq-carrier")
-    
-    (write-string "#<hoqq-carrier" port)
-    (print-hoqq-sig port mode sig)
-    (write-string " :" port)
-    (print-hoqq-siglike port mode producers #/lambda (producer)
-      (print-hoqq-producer-example port mode producer))
-    (write-string ">" port)))
-
-(define (careful-hoqq-carrier sig producers)
-  (unless (hoqq-sig? sig)
-    (error "Expected sig to be a well-formed hoqq sig"))
-  (unless (hoqq-siglike? producers)
-    (error "Expected producers to be a hoqq-siglike"))
-  (unless (hoqq-siglike-keys-eq? sig producers)
-    (error "Expected sig and producers to have the same keys"))
-  (hoqq-siglike-zip-each sig producers #/lambda (subsig producer)
-    (expect producer (hoqq-producer producer-subsig func)
-      (error "Expected producer to be a hoqq-producer")
-    #/unless (hoqq-sig-eq? subsig producer-subsig)
-      (error "Expected the producers contained in a careful-hoqq-carrier to have sigs matching the overall sig")))
-  (hoqq-carrier sig producers))
 
 
 ; ===== Bracroexpansion results ======================================
@@ -558,6 +527,6 @@
 
 (define (hoqq-producer-with-closing-brackets-simple val)
   (hoqq-producer-with-closing-brackets
-    (hoqq-producer (hoqq-siglike #/list) #/lambda (carrier)
+    (hoqq-producer (hoqq-siglike #/list) #/lambda (producers)
       (escapable-expression #`#'#,val val))
   #/hoqq-siglike #/list))

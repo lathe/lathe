@@ -81,15 +81,15 @@
     ; keys so that they don't have conflicts.
     #/hoqq-producer-with-closing-brackets
       (hoqq-producer (hoqq-siglike-merge-force first-sig rest-sig)
-      #/lambda (carrier)
+      #/lambda (producers)
         (expect
           (first-func
-          #/hoqq-siglike-restrict carrier first-closing-brackets)
+          #/hoqq-siglike-restrict producers first-closing-brackets)
           (escapable-expression first-escaped first-expr)
           (error "Expected the hoqq-producer result to be an escapable-expression")
         #/expect
           (rest-func
-          #/hoqq-siglike-restrict carrier rest-closing-brackets)
+          #/hoqq-siglike-restrict producers rest-closing-brackets)
           (escapable-expression rest-escaped rest-expr)
           (error "Expected the hoqq-producer result to be an escapable-expression")
         #/escapable-expression
