@@ -34,37 +34,37 @@
 
 ; ===== Collections corresponding to higher-order holes ==============
 
-(struct hoqq-siglike (tables)
+(struct hoqq-spanlike (tables)
   #:methods gen:equal+hash
   [
     (define (equal-proc a b recursive-equal?)
-      (expect a (hoqq-siglike a-tables)
-        (error "Expected a to be a hoqq-siglike")
-      #/expect b (hoqq-siglike b-tables)
-        (error "Expected b to be a hoqq-siglike")
+      (expect a (hoqq-spanlike a-tables)
+        (error "Expected a to be a hoqq-spanlike")
+      #/expect b (hoqq-spanlike b-tables)
+        (error "Expected b to be a hoqq-spanlike")
       #/recursive-equal? a-tables b-tables))
     (define (hash-proc this recursive-equal-hash-code)
-      (expect this (hoqq-siglike tables)
-        (error "Expected this to be a hoqq-siglike")
+      (expect this (hoqq-spanlike tables)
+        (error "Expected this to be a hoqq-spanlike")
       #/recursive-equal-hash-code tables))
     (define (hash2-proc this recursive-equal-secondary-hash-code)
-      (expect this (hoqq-siglike tables)
-        (error "Expected this to be a hoqq-siglike")
+      (expect this (hoqq-spanlike tables)
+        (error "Expected this to be a hoqq-spanlike")
       #/recursive-equal-secondary-hash-code tables))]
   #:methods gen:custom-write
   [
     (define (write-proc this port mode)
-      (expect this (hoqq-siglike tables)
-        (error "Expected this to be a hoqq-siglike")
+      (expect this (hoqq-spanlike tables)
+        (error "Expected this to be a hoqq-spanlike")
         
-        (write-string "#<hoqq-siglike" port)
-        (print-hoqq-siglike port mode this #/lambda (v)
+        (write-string "#<hoqq-spanlike" port)
+        (print-hoqq-spanlike port mode this #/lambda (v)
           (print-for-custom port mode v))
         (write-string ">" port)))])
 
-(define (print-hoqq-siglike port mode siglike print-v)
-  (expect siglike (hoqq-siglike tables)
-    (error "Expected siglike to be a hoqq-siglike")
+(define (print-hoqq-spanlike port mode spanlike print-v)
+  (expect spanlike (hoqq-spanlike tables)
+    (error "Expected spanlike to be a hoqq-spanlike")
   #/list-each tables #/lambda (table)
     (write-string " (" port)
     (hash-kv-each-sorted symbol<? table #/lambda (k v)
@@ -74,7 +74,7 @@
       (write-string "]" port))
     (write-string ")" port)))
 
-(define (careful-hoqq-siglike tables)
+(define (careful-hoqq-spanlike tables)
   (unless (list? tables)
     (error "Expected tables to be a list"))
   (list-each tables #/lambda (table)
@@ -88,118 +88,118 @@
     #/w- tables (simplify tables)
     #/mat tables (cons _ _) (cons table tables)
     #/if (hash-empty? table) (list) (list tables)))
-  (hoqq-siglike #/simplify tables))
+  (hoqq-spanlike #/simplify tables))
 
-(define (hoqq-siglike-dkv-all siglike func)
-  (expect siglike (hoqq-siglike tables)
-    (error "Expected siglike to be a hoqq-siglike")
+(define (hoqq-spanlike-dkv-all spanlike func)
+  (expect spanlike (hoqq-spanlike tables)
+    (error "Expected spanlike to be a hoqq-spanlike")
   #/list-kv-all tables #/lambda (degree table)
     (hash-kv-all table #/lambda (key value)
       (func degree key value))))
 
-(define (hoqq-siglike-dkv-each siglike body)
-  (hoqq-siglike-dkv-all #/lambda (d k v)
+(define (hoqq-spanlike-dkv-each spanlike body)
+  (hoqq-spanlike-dkv-all #/lambda (d k v)
     (body d k v)
     #t)
   (void))
 
-(define (hoqq-siglike-keys-eq? a b)
-  (expect a (hoqq-siglike a-tables)
-    (error "Expected a to be a hoqq-siglike")
-  #/expect b (hoqq-siglike b-tables)
-    (error "Expected b to be a hoqq-siglike")
+(define (hoqq-spanlike-keys-eq? a b)
+  (expect a (hoqq-spanlike a-tables)
+    (error "Expected a to be a hoqq-spanlike")
+  #/expect b (hoqq-spanlike b-tables)
+    (error "Expected b to be a hoqq-spanlike")
   #/and (= (length a-tables) (length b-tables))
   #/list-all (map list a-tables b-tables)
   #/dissectfn (list a-table b-table)
     (hash-keys-eq? a-table b-table)))
 
-(define (hoqq-siglike-zip-each a b body)
-  (expect a (hoqq-siglike a-tables)
-    (error "Expected a to be a hoqq-siglike")
-  #/expect b (hoqq-siglike b-tables)
-    (error "Expected b to be a hoqq-siglike")
+(define (hoqq-spanlike-zip-each a b body)
+  (expect a (hoqq-spanlike a-tables)
+    (error "Expected a to be a hoqq-spanlike")
+  #/expect b (hoqq-spanlike b-tables)
+    (error "Expected b to be a hoqq-spanlike")
   #/list-each (map list a-tables b-tables)
   #/dissectfn (list a-table b-table)
     (hash-kv-each a-table #/lambda (k a-v)
       (body a-v #/hash-ref b-table k))))
 
-(define (hoqq-siglike-dkv-map-maybe siglike func)
-  (expect siglike (hoqq-siglike tables)
-    (error "Expected siglike to be a siglike")
-  #/careful-hoqq-siglike
+(define (hoqq-spanlike-dkv-map-maybe spanlike func)
+  (expect spanlike (hoqq-spanlike tables)
+    (error "Expected spanlike to be a spanlike")
+  #/careful-hoqq-spanlike
   #/list-kv-map tables #/lambda (degree table)
     (hasheq-kv-map-maybe table #/lambda (key value)
       (func degree key value))))
 
-(define (hoqq-siglike-dkv-map siglike func)
-  (expect siglike (hoqq-siglike tables)
-    (error "Expected siglike to be a siglike")
-  #/hoqq-siglike
+(define (hoqq-spanlike-dkv-map spanlike func)
+  (expect spanlike (hoqq-spanlike tables)
+    (error "Expected spanlike to be a spanlike")
+  #/hoqq-spanlike
   #/list-kv-map tables #/lambda (degree table)
     (hasheq-kv-map table #/lambda (key value)
       (func degree key value))))
 
-(define (hoqq-siglike-fmap siglike func)
-  (expect siglike (hoqq-siglike tables)
-    (error "Expected siglike to be a siglike")
-  #/hoqq-siglike
+(define (hoqq-spanlike-fmap spanlike func)
+  (expect spanlike (hoqq-spanlike tables)
+    (error "Expected spanlike to be a spanlike")
+  #/hoqq-spanlike
   #/list-fmap tables #/lambda (table) #/hasheq-fmap table func))
 
-(define (hoqq-siglike-restrict original example)
-  (hoqq-siglike-dkv-map-maybe original #/lambda (degree k v)
-    (if (hoqq-siglike-has-key? example degree k)
+(define (hoqq-spanlike-restrict original example)
+  (hoqq-spanlike-dkv-map-maybe original #/lambda (degree k v)
+    (if (hoqq-spanlike-has-key? example degree k)
       (list v)
       (list))))
 
-(define (hoqq-siglike-merge as bs merge-v)
-  (expect as (hoqq-siglike a-tables)
-    (error "Expected as to be a siglike")
-  #/expect bs (hoqq-siglike b-tables)
-    (error "Expected bs to be a siglike")
+(define (hoqq-spanlike-merge as bs merge-v)
+  (expect as (hoqq-spanlike a-tables)
+    (error "Expected as to be a spanlike")
+  #/expect bs (hoqq-spanlike b-tables)
+    (error "Expected bs to be a spanlike")
   #/expect a-tables (cons a a-rest) bs
   #/expect b-tables (cons b b-rest) as
-  #/hoqq-siglike
+  #/hoqq-spanlike
   #/cons (hash-union a b #:combine #/lambda (a b) #/merge-v a b)
-  #/hoqq-siglike-merge a-rest b-rest))
+  #/hoqq-spanlike-merge a-rest b-rest))
 
-(define (hoqq-siglike-merge-force as bs)
-  (hoqq-siglike-merge as bs #/lambda (a b)
+(define (hoqq-spanlike-merge-force as bs)
+  (hoqq-spanlike-merge as bs #/lambda (a b)
     (error "Expected the hole names of multiple bracroexpand calls to be mutually exclusive")))
 
-(define (hoqq-siglike-has-degree? siglike degree)
-  (expect siglike (hoqq-siglike tables)
-    (error "Expected siglike to be a siglike")
+(define (hoqq-spanlike-has-degree? spanlike degree)
+  (expect spanlike (hoqq-spanlike tables)
+    (error "Expected spanlike to be a spanlike")
   #/lt-length degree tables))
 
-(define (hoqq-siglike-has-key? siglike degree key)
-  (expect siglike (hoqq-siglike tables)
-    (error "Expected siglike to be a siglike")
+(define (hoqq-spanlike-has-key? spanlike degree key)
+  (expect spanlike (hoqq-spanlike tables)
+    (error "Expected spanlike to be a spanlike")
   #/and (lt-length degree tables)
   #/hash-has-key? (list-ref tables degree) key))
 
-(define (hoqq-siglike-ref siglike degree k)
-  (expect siglike (hoqq-siglike tables)
-    (error "Expected siglike to be a siglike")
+(define (hoqq-spanlike-ref spanlike degree k)
+  (expect spanlike (hoqq-spanlike tables)
+    (error "Expected spanlike to be a spanlike")
   #/hash-ref (list-ref tables degree) k))
 
-(define (hoqq-siglike-values siglike)
-  (expect siglike (hoqq-siglike tables)
-    (error "Expected siglike to be a siglike")
+(define (hoqq-spanlike-values spanlike)
+  (expect spanlike (hoqq-spanlike tables)
+    (error "Expected spanlike to be a spanlike")
   #/list-bind tables hash-values))
 
 
 ; ===== Signatures of expressions' higher-order holes ================
 
 (define (hoqq-sig? x)
-  (and (hoqq-siglike? x)
-  #/hoqq-siglike-dkv-all x #/lambda (degree _ subsig)
+  (and (hoqq-spanlike? x)
+  #/hoqq-spanlike-dkv-all x #/lambda (degree _ subsig)
     (and
-      (hoqq-siglike? subsig)
-      (not #/hoqq-siglike-has-degree? subsig degree)
+      (hoqq-spanlike? subsig)
+      (not #/hoqq-spanlike-has-degree? subsig degree)
       (hoqq-sig? subsig))))
 
 (define (print-hoqq-sig port mode sig)
-  (print-hoqq-siglike port mode sig #/lambda (subsig)
+  (print-hoqq-spanlike port mode sig #/lambda (subsig)
     (print-hoqq-sig port mode subsig)))
 
 (define (hoqq-sig-eq? a b)
@@ -236,7 +236,8 @@
     (error "Expected producer to be a hoqq-producer")
     
     (write-string " " port)
-    (print-for-custom #/func #/hoqq-siglike-fmap sig #/lambda (subsig)
+    (print-for-custom #/func
+    #/hoqq-spanlike-fmap sig #/lambda (subsig)
       (careful-hoqq-producer subsig #/lambda (producers)
         (example producers)))))
 
@@ -244,21 +245,21 @@
   (unless (hoqq-sig? sig)
     (error "Expected sig to be a well-formed hoqq sig"))
   (hoqq-producer sig #/lambda (producers)
-    (unless (hoqq-siglike? producers)
-      (error "Expected producers to be a hoqq-siglike"))
-    (hoqq-siglike-zip-each sig producers #/lambda (subsig producer)
+    (unless (hoqq-spanlike? producers)
+      (error "Expected producers to be a hoqq-spanlike"))
+    (hoqq-spanlike-zip-each sig producers #/lambda (subsig producer)
       (expect producers (hoqq-producer producer-subsig func)
         (error "Expected producer to be a producer")
       #/expect (hoqq-sig-eq? subsig producer-subsig) #t
-        (error "Expected a careful-hoqq-producer and the siglike of producers it was given to have the same sig")))
+        (error "Expected a careful-hoqq-producer and the spanlike of producers it was given to have the same sig")))
     (func producers)))
 
 (define (hoqq-producer-instantiate producer)
   (expect producer (hoqq-producer sig func)
     (error "Expected producer to be a hoqq-producer")
-  #/if (hoqq-siglike-has-degree? sig 0)
+  #/if (hoqq-spanlike-has-degree? sig 0)
     (error "Tried to instantiate a hoqq-producer which still had holes in it")
-  #/func #/hoqq-siglike #/list))
+  #/func #/hoqq-spanlike #/list))
 
 ; TODO: See if we should write some kind of `hoqq-producer-compose`
 ; that combines two hole-having data structures seamlessly. We could
@@ -416,7 +417,7 @@
 ;
 ;   `producer`: A `hoqq-producer` generating an escapable expression.
 ;
-;   `closing-brackets`: A `hoqq-siglike` of `hoqq-closing-bracket`
+;   `closing-brackets`: A `hoqq-spanlike` of `hoqq-closing-bracket`
 ;     values. The section enclosed by each of these closing brackets
 ;     will be of degree one greater than its own degree, and its own
 ;     degree is its position in this `hoqq-seqlike`. Brackets
@@ -439,12 +440,12 @@
 (define (careful-hoqq-hatch producer closing-brackets)
   (expect producer (hoqq-producer sig func)
     (error "Expected producer to be a hoqq-producer")
-  #/expect (hoqq-siglike? closing-brackets) #t
-    (error "Expected closing-brackets to be a hoqq-siglike")
-  #/expect (hoqq-siglike-keys-eq? sig closing-brackets) #t
+  #/expect (hoqq-spanlike? closing-brackets) #t
+    (error "Expected closing-brackets to be a hoqq-spanlike")
+  #/expect (hoqq-spanlike-keys-eq? sig closing-brackets) #t
     (error "Expected sig and closing-brackets to have compatible keys")
     
-    (hoqq-siglike-zip-each sig closing-brackets
+    (hoqq-spanlike-zip-each sig closing-brackets
     #/lambda (subsig closing-bracket)
       (expect closing-bracket
         (hoqq-closing-bracket data outer-section inner-sections)
@@ -480,7 +481,7 @@
 ;     by this closing bracket's opening bracket if not for this
 ;     closing bracket being where it is.
 ;
-;   `inner-sections`: A `hoqq-siglike` of `hoqq-hatch` values. These
+;   `inner-sections`: A `hoqq-spanlike` of `hoqq-hatch` values. These
 ;     inner sections represent the parts that were nested inside of
 ;     the closing bracket's opening brackets in the pre-bracroexpanded
 ;     Racket s-expression, but which should ultimately be nested
@@ -508,12 +509,12 @@
   (careful-hoqq-closing-bracket data outer-section inner-sections)
   (expect outer-section (hoqq-producer sig func)
     (error "Expected outer-section to be a hoqq-producer")
-  #/expect inner-sections (hoqq-siglike tables)
-    (error "Expected inner-sections to be a hoqq-siglike")
-  #/expect (hoqq-siglike-keys-eq? sig inner-sections) #t
+  #/expect inner-sections (hoqq-spanlike tables)
+    (error "Expected inner-sections to be a hoqq-spanlike")
+  #/expect (hoqq-spanlike-keys-eq? sig inner-sections) #t
     (error "Expected outer-section and inner-sections to have corresponding keys")
     
-    (hoqq-siglike-zip-each sig inner-sections
+    (hoqq-spanlike-zip-each sig inner-sections
     #/lambda (subsig inner-section)
       (expect inner-section (hoqq-hatch producer closing-brackets)
         (error "Expected inner-section to be a hoqq-hatch")
@@ -525,6 +526,6 @@
 
 (define (hoqq-hatch-simple val)
   (hoqq-hatch
-    (hoqq-producer (hoqq-siglike #/list) #/lambda (producers)
+    (hoqq-producer (hoqq-spanlike #/list) #/lambda (producers)
       (escapable-expression #`#'#,val val))
-  #/hoqq-siglike #/list))
+  #/hoqq-spanlike #/list))
