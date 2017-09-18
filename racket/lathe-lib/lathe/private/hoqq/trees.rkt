@@ -188,21 +188,21 @@
   #/list-bind tables hash-values))
 
 
-; ===== Signatures of expressions' higher-order holes ================
+; ===== Signatures of higher quasiquotation spans ====================
 
-(define (hoqq-sig? x)
+(define (hoqq-spansig? x)
   (and (hoqq-spanlike? x)
   #/hoqq-spanlike-dkv-all x #/lambda (degree _ subsig)
     (and
       (hoqq-spanlike? subsig)
       (not #/hoqq-spanlike-has-degree? subsig degree)
-      (hoqq-sig? subsig))))
+      (hoqq-spansig? subsig))))
 
-(define (print-hoqq-sig port mode sig)
+(define (print-hoqq-spansig port mode sig)
   (print-hoqq-spanlike port mode sig #/lambda (subsig)
-    (print-hoqq-sig port mode subsig)))
+    (print-hoqq-spansig port mode subsig)))
 
-(define (hoqq-sig-eq? a b)
+(define (hoqq-spansig-eq? a b)
   (equal? a b))
 
 
@@ -227,7 +227,7 @@
     (error "Expected this to be a hoqq-producer")
     
     (write-string "#<hoqq-producer" port)
-    (print-hoqq-sig port mode sig)
+    (print-hoqq-spansig port mode sig)
     (print-hoqq-producer-example port mode this)
     (write-string ">" port)))
 
@@ -242,7 +242,7 @@
         (example producers)))))
 
 (define (careful-hoqq-producer sig func)
-  (unless (hoqq-sig? sig)
+  (unless (hoqq-spansig? sig)
     (error "Expected sig to be a well-formed hoqq sig"))
   (hoqq-producer sig #/lambda (producers)
     (unless (hoqq-spanlike? producers)
@@ -250,7 +250,7 @@
     (hoqq-spanlike-zip-each sig producers #/lambda (subsig producer)
       (expect producers (hoqq-producer producer-subsig func)
         (error "Expected producer to be a producer")
-      #/expect (hoqq-sig-eq? subsig producer-subsig) #t
+      #/expect (hoqq-spansig-eq? subsig producer-subsig) #t
         (error "Expected a careful-hoqq-producer and the spanlike of producers it was given to have the same sig")))
     (func producers)))
 
@@ -452,7 +452,7 @@
         (error "Expected closing-bracket to be a hoqq-closing-bracket")
       #/expect outer-section (hoqq-producer sig func)
         (error "Expected outer-section to be a hoqq-producer")
-      #/expect (hoqq-sig-eq? subsig sig) #t
+      #/expect (hoqq-spansig-eq? subsig sig) #t
         (error "Expected producer and closing-brackets to have matching sigs")))
   #/hoqq-hatch producer closing-brackets))
 
@@ -520,7 +520,7 @@
         (error "Expected inner-section to be a hoqq-hatch")
       #/expect producer (hoqq-producer sig func)
         (error "Expected producer to be a hoqq-producer")
-      #/expect (hoqq-sig-eq? subsig sig) #t
+      #/expect (hoqq-spansig-eq? subsig sig) #t
         (error "Expected outer-section and inner-sections to have matching sigs")))
   #/hoqq-closing-bracket data outer-section inner-sections))
 
