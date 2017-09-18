@@ -220,51 +220,51 @@
 
 ; ===== Computations parameterized by higher-order holes =============
 
-(struct hoqq-producer (sig func)
+(struct hoqq-span (sig func)
   #:methods gen:custom-write
 #/ #/define (write-proc this port mode)
-  (expect this (hoqq-producer sig func)
-    (error "Expected this to be a hoqq-producer")
+  (expect this (hoqq-span sig func)
+    (error "Expected this to be a hoqq-span")
     
-    (write-string "#<hoqq-producer" port)
+    (write-string "#<hoqq-span" port)
     (print-hoqq-spansig port mode sig)
-    (print-hoqq-producer-example port mode this)
+    (print-hoqq-span-example port mode this)
     (write-string ">" port)))
 
-(define (print-hoqq-producer-example port mode producer)
-  (expect producer (hoqq-producer sig func)
-    (error "Expected producer to be a hoqq-producer")
+(define (print-hoqq-span-example port mode span)
+  (expect span (hoqq-span sig func)
+    (error "Expected span to be a hoqq-span")
     
     (write-string " " port)
     (print-for-custom #/func
     #/hoqq-spanlike-fmap sig #/lambda (subsig)
-      (careful-hoqq-producer subsig #/lambda (producers)
-        (example producers)))))
+      (careful-hoqq-span subsig #/lambda (spans) #/example spans))))
 
-(define (careful-hoqq-producer sig func)
+(define (careful-hoqq-span sig func)
   (unless (hoqq-spansig? sig)
     (error "Expected sig to be a well-formed hoqq sig"))
-  (hoqq-producer sig #/lambda (producers)
-    (unless (hoqq-spanlike? producers)
-      (error "Expected producers to be a hoqq-spanlike"))
-    (hoqq-spanlike-zip-each sig producers #/lambda (subsig producer)
-      (expect producers (hoqq-producer producer-subsig func)
-        (error "Expected producer to be a producer")
-      #/expect (hoqq-spansig-eq? subsig producer-subsig) #t
-        (error "Expected a careful-hoqq-producer and the spanlike of producers it was given to have the same sig")))
-    (func producers)))
+  (hoqq-span sig #/lambda (spans)
+    (unless (hoqq-spanlike? spans)
+      (error "Expected spans to be a hoqq-spanlike"))
+    (hoqq-spanlike-zip-each sig spans #/lambda (subsig span)
+      ; TODO: Fix this. It should deconstruct `span`, not `spans`.
+      (expect spans (hoqq-span span-subsig func)
+        (error "Expected span to be a span")
+      #/expect (hoqq-spansig-eq? subsig span-subsig) #t
+        (error "Expected a careful-hoqq-span and the spanlike of spans it was given to have the same sig")))
+    (func spans)))
 
-(define (hoqq-producer-instantiate producer)
-  (expect producer (hoqq-producer sig func)
-    (error "Expected producer to be a hoqq-producer")
+(define (hoqq-span-instantiate span)
+  (expect span (hoqq-span sig func)
+    (error "Expected span to be a hoqq-span")
   #/if (hoqq-spanlike-has-degree? sig 0)
-    (error "Tried to instantiate a hoqq-producer which still had holes in it")
+    (error "Tried to instantiate a hoqq-span which still had holes in it")
   #/func #/hoqq-spanlike #/list))
 
-; TODO: See if we should write some kind of `hoqq-producer-compose`
-; that combines two hole-having data structures seamlessly. We could
-; use this followed by `hoqq-producer-instantiate` to make calls in a
-; certain sense.
+; TODO: See if we should write some kind of `hoqq-span-compose` that
+; combines two hole-having data structures seamlessly. We could use
+; this followed by `hoqq-span-instantiate` to make calls in a certain
+; sense.
 
 
 ; ===== Bracroexpansion results ======================================
@@ -331,10 +331,9 @@
 ; very well.
 ;
 ; When we encode the data between the brackets, what we want is
-; something we can use to *build* a `hoqq-producer`, much like we use
-; the `func` of a `hoqq-producer` to build a post-bracroexpansion
-; Racket s-expression. Let's encode it simply by using a very similar
-; `func`.
+; something we can use to *build* a `hoqq-span`, much like we use the
+; `func` of a `hoqq-span` to build a post-bracroexpansion Racket
+; s-expression. Let's encode it simply by using a very similar `func`.
 ;
 ; We will have no opening brackets in this format. When we
 ; bracroexpand a call to an opening bracket, we'll do so by
@@ -415,7 +414,7 @@
 ;
 ; The fields of `hoqq-hatch` are as follows:
 ;
-;   `producer`: A `hoqq-producer` generating an escapable expression.
+;   `span`: A `hoqq-span` generating an escapable expression.
 ;
 ;   `closing-brackets`: A `hoqq-spanlike` of `hoqq-closing-bracket`
 ;     values. The section enclosed by each of these closing brackets
@@ -425,21 +424,21 @@
 ;     degree.
 ;
 ; The sigs of the `closing-brackets` values put together must match
-; the sig of `producer`.
+; the sig of `span`.
 ;
-(struct hoqq-hatch (producer closing-brackets)
+(struct hoqq-hatch (span closing-brackets)
   #:methods gen:custom-write
 #/ #/define (write-proc this port mode)
-  (expect this (hoqq-hatch producer closing-brackets)
+  (expect this (hoqq-hatch span closing-brackets)
     (error "Expected this to be a hoqq-hatch")
     
     (write-string "#<hoqq-hatch" port)
-    (print-all-for-custom port mode #/list producer closing-brackets)
+    (print-all-for-custom port mode #/list span closing-brackets)
     (write-string ">" port)))
 
-(define (careful-hoqq-hatch producer closing-brackets)
-  (expect producer (hoqq-producer sig func)
-    (error "Expected producer to be a hoqq-producer")
+(define (careful-hoqq-hatch span closing-brackets)
+  (expect span (hoqq-span sig func)
+    (error "Expected span to be a hoqq-span")
   #/expect (hoqq-spanlike? closing-brackets) #t
     (error "Expected closing-brackets to be a hoqq-spanlike")
   #/expect (hoqq-spanlike-keys-eq? sig closing-brackets) #t
@@ -450,11 +449,11 @@
       (expect closing-bracket
         (hoqq-closing-bracket data outer-section inner-sections)
         (error "Expected closing-bracket to be a hoqq-closing-bracket")
-      #/expect outer-section (hoqq-producer sig func)
-        (error "Expected outer-section to be a hoqq-producer")
+      #/expect outer-section (hoqq-span sig func)
+        (error "Expected outer-section to be a hoqq-span")
       #/expect (hoqq-spansig-eq? subsig sig) #t
-        (error "Expected producer and closing-brackets to have matching sigs")))
-  #/hoqq-hatch producer closing-brackets))
+        (error "Expected span and closing-brackets to have matching sigs")))
+  #/hoqq-hatch span closing-brackets))
 
 ; The fields of `hoqq-closing-bracket` are as follows:
 ;
@@ -476,10 +475,10 @@
 ;
 ;     - A macro to call when processing this set of matched brackets.
 ;
-;   `outer-section`: A `hoqq-producer` generating an escapable
-;     expression, corresponding to all content that could be enclosed
-;     by this closing bracket's opening bracket if not for this
-;     closing bracket being where it is.
+;   `outer-section`: A `hoqq-span` generating an escapable expression,
+;     corresponding to all content that could be enclosed by this
+;     closing bracket's opening bracket if not for this closing
+;     bracket being where it is.
 ;
 ;   `inner-sections`: A `hoqq-spanlike` of `hoqq-hatch` values. These
 ;     inner sections represent the parts that were nested inside of
@@ -507,8 +506,8 @@
 
 (define
   (careful-hoqq-closing-bracket data outer-section inner-sections)
-  (expect outer-section (hoqq-producer sig func)
-    (error "Expected outer-section to be a hoqq-producer")
+  (expect outer-section (hoqq-span sig func)
+    (error "Expected outer-section to be a hoqq-span")
   #/expect inner-sections (hoqq-spanlike tables)
     (error "Expected inner-sections to be a hoqq-spanlike")
   #/expect (hoqq-spanlike-keys-eq? sig inner-sections) #t
@@ -516,16 +515,16 @@
     
     (hoqq-spanlike-zip-each sig inner-sections
     #/lambda (subsig inner-section)
-      (expect inner-section (hoqq-hatch producer closing-brackets)
+      (expect inner-section (hoqq-hatch span closing-brackets)
         (error "Expected inner-section to be a hoqq-hatch")
-      #/expect producer (hoqq-producer sig func)
-        (error "Expected producer to be a hoqq-producer")
+      #/expect span (hoqq-span sig func)
+        (error "Expected span to be a hoqq-span")
       #/expect (hoqq-spansig-eq? subsig sig) #t
         (error "Expected outer-section and inner-sections to have matching sigs")))
   #/hoqq-closing-bracket data outer-section inner-sections))
 
 (define (hoqq-hatch-simple val)
   (hoqq-hatch
-    (hoqq-producer (hoqq-spanlike #/list) #/lambda (producers)
+    (hoqq-span (hoqq-spanlike #/list) #/lambda (spans)
       (escapable-expression #`#'#,val val))
   #/hoqq-spanlike #/list))
