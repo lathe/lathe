@@ -359,10 +359,10 @@
 
 
 ; A bracro takes a pre-bracroexpanded Racket s-expression as input,
-; and it returns a `hoqq-producer-with-closing-brackets`. Most bracros
-; will introduce zero closing brackets in their results, with the
-; exception being operations that are dedicated to being closing
-; brackets, such as unquote operations.
+; and it returns a `hoqq-hatch`. Most bracros will introduce zero
+; closing brackets in their results, with the exception being
+; operations that are dedicated to being closing brackets, such as
+; unquote operations.
 ;
 ; Many bracros will call the bracroexpander again as they do their
 ; processing, in order to process subexpressions of their input that
@@ -408,7 +408,11 @@
 (struct escapable-expression #/literal expr)
 
 
-; The fields of `hoqq-producer-with-closing-brackets` are as follows:
+; A `hoqq-hatch` represents a partial, inside-out portion of a higher
+; quasiquotation data structure, seen as a branching collection of
+; closing brackets and the ever-higher-order closing brackets beyond.
+;
+; The fields of `hoqq-hatch` are as follows:
 ;
 ;   `producer`: A `hoqq-producer` generating an escapable expression.
 ;
@@ -422,21 +426,17 @@
 ; The sigs of the `closing-brackets` values put together must match
 ; the sig of `producer`.
 ;
-(struct hoqq-producer-with-closing-brackets
-  (producer closing-brackets)
+(struct hoqq-hatch (producer closing-brackets)
   #:methods gen:custom-write
 #/ #/define (write-proc this port mode)
-  (expect this
-    (hoqq-producer-with-closing-brackets producer closing-brackets)
-    (error "Expected this to be a hoqq-producer-with-closing-brackets")
+  (expect this (hoqq-hatch producer closing-brackets)
+    (error "Expected this to be a hoqq-hatch")
     
-    (write-string "#<hoqq-producer-with-closing-brackets" port)
+    (write-string "#<hoqq-hatch" port)
     (print-all-for-custom port mode #/list producer closing-brackets)
     (write-string ">" port)))
 
-(define
-  (careful-hoqq-producer-with-closing-brackets
-    producer closing-brackets)
+(define (careful-hoqq-hatch producer closing-brackets)
   (expect producer (hoqq-producer sig func)
     (error "Expected producer to be a hoqq-producer")
   #/expect (hoqq-siglike? closing-brackets) #t
@@ -453,7 +453,7 @@
         (error "Expected outer-section to be a hoqq-producer")
       #/expect (hoqq-sig-eq? subsig sig) #t
         (error "Expected producer and closing-brackets to have matching sigs")))
-  #/hoqq-producer-with-closing-brackets producer closing-brackets))
+  #/hoqq-hatch producer closing-brackets))
 
 ; The fields of `hoqq-closing-bracket` are as follows:
 ;
@@ -480,10 +480,9 @@
 ;     by this closing bracket's opening bracket if not for this
 ;     closing bracket being where it is.
 ;
-;   `inner-sections`: A `hoqq-siglike` of
-;     `hoqq-producer-with-closing-brackets` values. These inner
-;     sections represent the parts that were nested inside of the
-;     closing bracket's opening brackets in the pre-bracroexpanded
+;   `inner-sections`: A `hoqq-siglike` of `hoqq-hatch` values. These
+;     inner sections represent the parts that were nested inside of
+;     the closing bracket's opening brackets in the pre-bracroexpanded
 ;     Racket s-expression, but which should ultimately be nested
 ;     outside of the closing bracket's enclosed section in the overall
 ;     post-bracroexpanded Racket s-expression.
@@ -516,17 +515,16 @@
     
     (hoqq-siglike-zip-each sig inner-sections
     #/lambda (subsig inner-section)
-      (expect inner-section
-        (hoqq-producer-with-closing-brackets producer closing-brackets)
-        (error "Expected inner-section to be a hoqq-producer-with-closing-brackets")
+      (expect inner-section (hoqq-hatch producer closing-brackets)
+        (error "Expected inner-section to be a hoqq-hatch")
       #/expect producer (hoqq-producer sig func)
         (error "Expected producer to be a hoqq-producer")
       #/expect (hoqq-sig-eq? subsig sig) #t
         (error "Expected outer-section and inner-sections to have matching sigs")))
   #/hoqq-closing-bracket data outer-section inner-sections))
 
-(define (hoqq-producer-with-closing-brackets-simple val)
-  (hoqq-producer-with-closing-brackets
+(define (hoqq-hatch-simple val)
+  (hoqq-hatch
     (hoqq-producer (hoqq-siglike #/list) #/lambda (producers)
       (escapable-expression #`#'#,val val))
   #/hoqq-siglike #/list))

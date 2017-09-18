@@ -44,17 +44,15 @@
   
   ; Calling an `initiate-bracket-syntax` as a Racket macro makes it
   ; call its implementation function and then instantiate the
-  ; resulting hole-free `hoqq-producer-with-closing-brackets` to
-  ; create a post-bracroexpansion Racket s-expression. If the
-  ; `hoqq-producer-with-closing-brackets` has any holes, there's an
+  ; resulting hole-free `hoqq-hatch` to create a post-bracroexpansion
+  ; Racket s-expression. If the `hoqq-hatch` has any holes, there's an
   ; error.
   #:property prop:procedure
   (lambda (this stx)
     (expect this (initiate-bracket-syntax impl)
       (error "Expected this to be an initiate-bracket-syntax")
-    #/expect (impl stx)
-      (hoqq-producer-with-closing-brackets producer closing-brackets)
-      (error "Expected an initiate-bracket-syntax result that was a hoqq-producer-with-closing-brackets")
+    #/expect (impl stx) (hoqq-hatch producer closing-brackets)
+      (error "Expected an initiate-bracket-syntax result that was a hoqq-hatch")
     #/if (hoqq-siglike-has-degree? closing-brackets 0)
       (error "Expected an initiate-bracket-syntax result with no higher quasiquotatoin holes")
     #/hoqq-producer-instantiate producer))
@@ -69,17 +67,15 @@
     [(cons first rest)
     ; TODO: Support splicing.
     #/expect (bracroexpand first)
-      (hoqq-producer-with-closing-brackets
-        (hoqq-producer first-sig first-func)
+      (hoqq-hatch (hoqq-producer first-sig first-func)
         first-closing-brackets)
-      (error "Expected a bracroexpansion result that was a hoqq-producer-with-closing-brackets")
+      (error "Expected a bracroexpansion result that was a hoqq-hatch")
     #/dissect (bracroexpand-list stx rest)
-      (hoqq-producer-with-closing-brackets
-        (hoqq-producer rest-sig rest-func)
+      (hoqq-hatch (hoqq-producer rest-sig rest-func)
         rest-closing-brackets)
     ; TODO: Instead of using `hoqq-siglike-merge-force`, rename the
     ; keys so that they don't have conflicts.
-    #/hoqq-producer-with-closing-brackets
+    #/hoqq-hatch
       (hoqq-producer (hoqq-siglike-merge-force first-sig rest-sig)
       #/lambda (producers)
         (expect
@@ -97,9 +93,7 @@
         #/datum->syntax stx #/cons first-expr rest-expr))
     #/hoqq-siglike-merge-force
       first-closing-brackets rest-closing-brackets]
-    [(list)
-    #/hoqq-producer-with-closing-brackets-simple
-    #/datum->syntax stx lst]
+    [(list) #/hoqq-hatch-simple #/datum->syntax stx lst]
     [_ #/error "Expected a list"]))
 
 (define (bracroexpand stx)
@@ -113,4 +107,4 @@
     ; TODO: We support lists, but let's also support vectors and
     ; prefabricated structs, like Racket's `quasiquote` and
     ; `quasisyntax` do.
-    [_ #/hoqq-producer-with-closing-brackets-simple stx]))
+    [_ #/hoqq-hatch-simple stx]))
