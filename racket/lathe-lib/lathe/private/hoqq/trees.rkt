@@ -228,7 +228,7 @@
     
     (write-string "#<hoqq-span-step" port)
     (print-hoqq-spansig port mode sig)
-    (print-hoqq-span-example port mode this)
+    (print-hoqq-span-step-example port mode this)
     (write-string ">" port)))
 
 (define (print-hoqq-span-step-example port mode span)
