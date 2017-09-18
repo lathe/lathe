@@ -7,7 +7,7 @@
 
 (require "../../main.rkt")
 (require "util.rkt")
-(require "holes.rkt")
+(require "trees.rkt")
 
 (provide #/all-defined-out)
 

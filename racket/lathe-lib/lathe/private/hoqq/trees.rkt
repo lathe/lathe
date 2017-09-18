@@ -1,6 +1,6 @@
 #lang parendown racket
 
-; holes.rkt
+; trees.rkt
 ;
 ; Data structures and syntaxes for encoding the kind of higher-order
 ; holes that occur in higher quasiquotation.
