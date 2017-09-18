@@ -32,7 +32,19 @@
   #/#'func #'arg))
 
 
-; ===== Collections corresponding to higher-order holes ==============
+; ===== Fake nodes for printing things with higher-order holes =======
+
+(struct example (val)
+  #:methods gen:custom-write
+#/ #/define (write-proc this port mode)
+  (expect this (example val)
+    (error "Expected this to be an example")
+    (write-string "#<example " port)
+    (print-for-custom port mode val)
+    (write-string ">" port)))
+
+
+; ===== Low-order building block for higher quasiquotation spans =====
 
 (struct hoqq-spanlike (tables)
   #:methods gen:equal+hash
@@ -206,19 +218,7 @@
   (equal? a b))
 
 
-; ===== Fake nodes for printing things with higher-order holes =======
-
-(struct example (val)
-  #:methods gen:custom-write
-#/ #/define (write-proc this port mode)
-  (expect this (example val)
-    (error "Expected this to be an example")
-    (write-string "#<example " port)
-    (print-for-custom port mode val)
-    (write-string ">" port)))
-
-
-; ===== Computations parameterized by higher-order holes =============
+; ===== Suspended computations over higher quasiquotation spans ======
 
 (struct hoqq-span (sig func)
   #:methods gen:custom-write
@@ -247,8 +247,7 @@
     (unless (hoqq-spanlike? spans)
       (error "Expected spans to be a hoqq-spanlike"))
     (hoqq-spanlike-zip-each sig spans #/lambda (subsig span)
-      ; TODO: Fix this. It should deconstruct `span`, not `spans`.
-      (expect spans (hoqq-span span-subsig func)
+      (expect span (hoqq-span span-subsig func)
         (error "Expected span to be a span")
       #/expect (hoqq-spansig-eq? subsig span-subsig) #t
         (error "Expected a careful-hoqq-span and the spanlike of spans it was given to have the same sig")))
