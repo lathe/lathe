@@ -51,11 +51,11 @@
   (lambda (this stx)
     (expect this (initiate-bracket-syntax impl)
       (error "Expected this to be an initiate-bracket-syntax")
-    #/expect (impl stx) (hoqq-hatch span closing-brackets)
+    #/expect (impl stx) (hoqq-hatch span-step closing-brackets)
       (error "Expected an initiate-bracket-syntax result that was a hoqq-hatch")
     #/if (hoqq-spanlike-has-degree? closing-brackets 0)
       (error "Expected an initiate-bracket-syntax result with no higher quasiquotatoin holes")
-    #/hoqq-span-instantiate span))
+    #/hoqq-span-step-instantiate span-step))
 )
 
 
@@ -67,27 +67,31 @@
     [(cons first rest)
     ; TODO: Support splicing.
     #/expect (bracroexpand first)
-      (hoqq-hatch (hoqq-span first-sig first-func)
+      (hoqq-hatch (hoqq-span-step first-sig first-func)
         first-closing-brackets)
       (error "Expected a bracroexpansion result that was a hoqq-hatch")
     #/dissect (bracroexpand-list stx rest)
-      (hoqq-hatch (hoqq-span rest-sig rest-func)
+      (hoqq-hatch (hoqq-span-step rest-sig rest-func)
         rest-closing-brackets)
     ; TODO: Instead of using `hoqq-spanlike-merge-force`, rename the
     ; keys so that they don't have conflicts.
+    ;
+    ; TODO: See if we should call `careful-hoqq-hatch` and
+    ; `careful-hoqq-span-step` here.
+    ;
     #/hoqq-hatch
-      (hoqq-span (hoqq-spanlike-merge-force first-sig rest-sig)
-      #/lambda (spans)
+      (hoqq-span-step (hoqq-spanlike-merge-force first-sig rest-sig)
+      #/lambda (span-steps)
         (expect
           (first-func
-          #/hoqq-spanlike-restrict spans first-closing-brackets)
+          #/hoqq-spanlike-restrict span-steps first-closing-brackets)
           (escapable-expression first-escaped first-expr)
-          (error "Expected the hoqq-span result to be an escapable-expression")
+          (error "Expected the hoqq-span-step result to be an escapable-expression")
         #/expect
           (rest-func
-          #/hoqq-spanlike-restrict spans rest-closing-brackets)
+          #/hoqq-spanlike-restrict span-steps rest-closing-brackets)
           (escapable-expression rest-escaped rest-expr)
-          (error "Expected the hoqq-span result to be an escapable-expression")
+          (error "Expected the hoqq-span-step result to be an escapable-expression")
         #/escapable-expression
           #`(cons #,first-escaped #,rest-escaped)
         #/datum->syntax stx #/cons first-expr rest-expr))
