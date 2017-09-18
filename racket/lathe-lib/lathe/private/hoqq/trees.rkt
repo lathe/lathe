@@ -360,8 +360,8 @@
 
 
 ; A bracro takes a pre-bracroexpanded Racket s-expression as input,
-; and it returns a `hoqq-hatch`. Most bracros will introduce zero
-; closing brackets in their results, with the exception being
+; and it returns a `hoqq-closing-hatch`. Most bracros will introduce
+; zero closing brackets in their results, with the exception being
 ; operations that are dedicated to being closing brackets, such as
 ; unquote operations.
 ;
@@ -409,11 +409,12 @@
 (struct escapable-expression #/literal expr)
 
 
-; A `hoqq-hatch` represents a partial, inside-out portion of a higher
-; quasiquotation data structure, seen as a branching collection of
-; closing brackets and the ever-higher-order closing brackets beyond.
+; A `hoqq-closing-hatch` represents a partial, inside-out portion of a
+; higher quasiquotation data structure, seen as a branching collection
+; of closing brackets and the ever-higher-order closing brackets
+; beyond.
 ;
-; The fields of `hoqq-hatch` are as follows:
+; The fields of `hoqq-closing-hatch` are as follows:
 ;
 ;   `span-step`: A `hoqq-span-step` generating an escapable
 ;     expression.
@@ -428,17 +429,17 @@
 ; The sigs of the `closing-brackets` values put together must match
 ; the sig of `span`.
 ;
-(struct hoqq-hatch (span-step closing-brackets)
+(struct hoqq-closing-hatch (span-step closing-brackets)
   #:methods gen:custom-write
 #/ #/define (write-proc this port mode)
-  (expect this (hoqq-hatch span-step closing-brackets)
-    (error "Expected this to be a hoqq-hatch")
+  (expect this (hoqq-closing-hatch span-step closing-brackets)
+    (error "Expected this to be a hoqq-closing-hatch")
     
-    (write-string "#<hoqq-hatch" port)
+    (write-string "#<hoqq-closing-hatch" port)
     (print-all-for-custom port mode #/list span-step closing-brackets)
     (write-string ">" port)))
 
-(define (careful-hoqq-hatch span-step closing-brackets)
+(define (careful-hoqq-closing-hatch span-step closing-brackets)
   (expect span-step (hoqq-span-step sig func)
     (error "Expected span-step to be a hoqq-span-step")
   #/expect (hoqq-spanlike? closing-brackets) #t
@@ -455,7 +456,7 @@
         (error "Expected outer-section to be a hoqq-span-step")
       #/expect (hoqq-spansig-eq? subsig sig) #t
         (error "Expected span-step and closing-brackets to have matching sigs")))
-  #/hoqq-hatch span-step closing-brackets))
+  #/hoqq-closing-hatch span-step closing-brackets))
 
 ; The fields of `hoqq-closing-bracket` are as follows:
 ;
@@ -482,12 +483,12 @@
 ;     by this closing bracket's opening bracket if not for this
 ;     closing bracket being where it is.
 ;
-;   `inner-sections`: A `hoqq-spanlike` of `hoqq-hatch` values. These
-;     inner sections represent the parts that were nested inside of
-;     the closing bracket's opening brackets in the pre-bracroexpanded
-;     Racket s-expression, but which should ultimately be nested
-;     outside of the closing bracket's enclosed section in the overall
-;     post-bracroexpanded Racket s-expression.
+;   `inner-sections`: A `hoqq-spanlike` of `hoqq-closing-hatch`
+;     values. These inner sections represent the parts that were
+;     nested inside of the closing bracket's opening brackets in the
+;     pre-bracroexpanded Racket s-expression, but which should
+;     ultimately be nested outside of the closing bracket's enclosed
+;     section in the overall post-bracroexpanded Racket s-expression.
 ;
 ; The sigs of the `inner-sections` values put together must match the
 ; sig of `outer-section`.
@@ -518,16 +519,17 @@
     (hoqq-spanlike-zip-each sig inner-sections
     #/lambda (subsig inner-section)
       ; TODO: Combine these two `expect` patterns.
-      (expect inner-section (hoqq-hatch span-step closing-brackets)
-        (error "Expected inner-section to be a hoqq-hatch")
+      (expect inner-section
+        (hoqq-closing-hatch span-step closing-brackets)
+        (error "Expected inner-section to be a hoqq-closing-hatch")
       #/expect span-step (hoqq-span-step sig func)
         (error "Expected span to be a hoqq-span-step")
       #/expect (hoqq-spansig-eq? subsig sig) #t
         (error "Expected outer-section and inner-sections to have matching sigs")))
   #/hoqq-closing-bracket data outer-section inner-sections))
 
-(define (hoqq-hatch-simple val)
-  (hoqq-hatch
+(define (hoqq-closing-hatch-simple val)
+  (hoqq-closing-hatch
     (hoqq-span-step (hoqq-spanlike #/list) #/lambda (span-steps)
       (escapable-expression #`#'#,val val))
   #/hoqq-spanlike #/list))

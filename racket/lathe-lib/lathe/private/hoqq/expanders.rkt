@@ -44,15 +44,16 @@
   
   ; Calling an `initiate-bracket-syntax` as a Racket macro makes it
   ; call its implementation function and then instantiate the
-  ; resulting hole-free `hoqq-hatch` to create a post-bracroexpansion
-  ; Racket s-expression. If the `hoqq-hatch` has any holes, there's an
-  ; error.
+  ; resulting hole-free `hoqq-closing-hatch` to create a
+  ; post-bracroexpansion Racket s-expression. If the
+  ; `hoqq-closing-hatch` has any holes, there's an error.
   #:property prop:procedure
   (lambda (this stx)
     (expect this (initiate-bracket-syntax impl)
       (error "Expected this to be an initiate-bracket-syntax")
-    #/expect (impl stx) (hoqq-hatch span-step closing-brackets)
-      (error "Expected an initiate-bracket-syntax result that was a hoqq-hatch")
+    #/expect (impl stx)
+      (hoqq-closing-hatch span-step closing-brackets)
+      (error "Expected an initiate-bracket-syntax result that was a hoqq-closing-hatch")
     #/if (hoqq-spanlike-has-degree? closing-brackets 0)
       (error "Expected an initiate-bracket-syntax result with no higher quasiquotatoin holes")
     #/hoqq-span-step-instantiate span-step))
@@ -67,19 +68,19 @@
     [(cons first rest)
     ; TODO: Support splicing.
     #/expect (bracroexpand first)
-      (hoqq-hatch (hoqq-span-step first-sig first-func)
+      (hoqq-closing-hatch (hoqq-span-step first-sig first-func)
         first-closing-brackets)
-      (error "Expected a bracroexpansion result that was a hoqq-hatch")
+      (error "Expected a bracroexpansion result that was a hoqq-closing-hatch")
     #/dissect (bracroexpand-list stx rest)
-      (hoqq-hatch (hoqq-span-step rest-sig rest-func)
+      (hoqq-closing-hatch (hoqq-span-step rest-sig rest-func)
         rest-closing-brackets)
     ; TODO: Instead of using `hoqq-spanlike-merge-force`, rename the
     ; keys so that they don't have conflicts.
     ;
-    ; TODO: See if we should call `careful-hoqq-hatch` and
+    ; TODO: See if we should call `careful-hoqq-closing-hatch` and
     ; `careful-hoqq-span-step` here.
     ;
-    #/hoqq-hatch
+    #/hoqq-closing-hatch
       (hoqq-span-step (hoqq-spanlike-merge-force first-sig rest-sig)
       #/lambda (span-steps)
         (expect
@@ -97,7 +98,7 @@
         #/datum->syntax stx #/cons first-expr rest-expr))
     #/hoqq-spanlike-merge-force
       first-closing-brackets rest-closing-brackets]
-    [(list) #/hoqq-hatch-simple #/datum->syntax stx lst]
+    [(list) #/hoqq-closing-hatch-simple #/datum->syntax stx lst]
     [_ #/error "Expected a list"]))
 
 (define (bracroexpand stx)
@@ -111,4 +112,4 @@
     ; TODO: We support lists, but let's also support vectors and
     ; prefabricated structs, like Racket's `quasiquote` and
     ; `quasisyntax` do.
-    [_ #/hoqq-hatch-simple stx]))
+    [_ #/hoqq-closing-hatch-simple stx]))
