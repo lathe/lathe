@@ -44,7 +44,7 @@
     (write-string ">" port)))
 
 
-; ===== Low-order building block for higher quasiquotation spans =====
+; ===== Low-order building block for higher qq spans and hatches =====
 
 (struct hoqq-tower (tables)
   #:methods gen:equal+hash
@@ -178,10 +178,22 @@
   (hoqq-tower-merge as bs #/lambda (a b)
     (error "Expected the hole names of multiple bracroexpand calls to be mutually exclusive")))
 
-(define (hoqq-tower-has-degree? tower degree)
+(define (hoqq-tower-has-any-of-at-least-degree? tower degree)
   (expect tower (hoqq-tower tables)
     (error "Expected tower to be a tower")
   #/lt-length degree tables))
+
+(define (hoqq-tower-has-any-of-less-than-degree? tower degree)
+  (expect tower (hoqq-tower tables)
+    (error "Expected tower to be a tower")
+  #/let loop ([tables tables] [degree degree])
+    (expect (nat-pred-maybe degree) (list degree) #f
+    #/expect tables (cons table tables) #f
+    #/expect (hash-empty? table) #t #t
+    #/loop tables degree)))
+
+(define (hoqq-tower-has-any? tower)
+  (hoqq-tower-has-any-of-at-least-degree? tower 0))
 
 (define (hoqq-tower-has-key? tower degree key)
   (expect tower (hoqq-tower tables)
@@ -200,21 +212,29 @@
   #/list-bind tables hash-values))
 
 
-; ===== Signatures of higher quasiquotation spans ====================
+; ===== Signatures of higher quasiquotation spans and hatches ========
 
 (define (hoqq-spansig? x)
   (and (hoqq-tower? x)
   #/hoqq-tower-dkv-all x #/lambda (degree _ subsig)
     (and
       (hoqq-tower? subsig)
-      (not #/hoqq-tower-has-degree? subsig degree)
+      (not #/hoqq-tower-has-any-of-at-least-degree? subsig degree)
       (hoqq-spansig? subsig))))
 
-(define (hoqq-spansig-print port mode sig)
-  (hoqq-tower-print port mode sig #/lambda (subsig)
-    (hoqq-spansig-print port mode subsig)))
+(define (hoqq-hatchsig? x)
+  (and (hoqq-tower? x)
+  #/hoqq-tower-dkv-all x #/lambda (degree _ subsig)
+    (and
+      (hoqq-tower? subsig)
+      (not #/hoqq-tower-has-any-of-less-than-degree? subsig degree)
+      (hoqq-hatchsig? subsig))))
 
-(define (hoqq-spansig-eq? a b)
+(define (hoqq-sig-print port mode sig)
+  (hoqq-tower-print port mode sig #/lambda (subsig)
+    (hoqq-sig-print port mode subsig)))
+
+(define (hoqq-sig-eq? a b)
   (equal? a b))
 
 
@@ -227,7 +247,7 @@
     (error "Expected this to be a hoqq-span-step")
     
     (write-string "#<hoqq-span-step" port)
-    (hoqq-spansig-print port mode sig)
+    (hoqq-sig-print port mode sig)
     (hoqq-span-step-print-example port mode this)
     (write-string ">" port)))
 
@@ -250,14 +270,14 @@
     (hoqq-tower-zip-each sig span-steps #/lambda (subsig span-step)
       (expect span-step (hoqq-span-step span-step-subsig func)
         (error "Expected span-step to be a span-step")
-      #/expect (hoqq-spansig-eq? subsig span-step-subsig) #t
+      #/expect (hoqq-sig-eq? subsig span-step-subsig) #t
         (error "Expected a careful-hoqq-span-step and the tower of span-steps it was given to have the same sig")))
     (func span-steps)))
 
 (define (hoqq-span-step-instantiate span)
   (expect span (hoqq-span-step sig func)
     (error "Expected span to be a hoqq-span-step")
-  #/if (hoqq-tower-has-degree? sig 0)
+  #/if (hoqq-tower-has-any? sig)
     (error "Tried to instantiate a hoqq-span-step which still had holes in it")
   #/func #/hoqq-tower #/list))
 
@@ -454,7 +474,7 @@
         (error "Expected closing-bracket to be a hoqq-closing-bracket")
       #/expect outer-section (hoqq-span-step sig func)
         (error "Expected outer-section to be a hoqq-span-step")
-      #/expect (hoqq-spansig-eq? subsig sig) #t
+      #/expect (hoqq-sig-eq? subsig sig) #t
         (error "Expected span-step and closing-brackets to have matching sigs")))
   #/hoqq-closing-hatch span-step closing-brackets))
 
@@ -524,7 +544,7 @@
         (error "Expected inner-section to be a hoqq-closing-hatch")
       #/expect span-step (hoqq-span-step sig func)
         (error "Expected span to be a hoqq-span-step")
-      #/expect (hoqq-spansig-eq? subsig sig) #t
+      #/expect (hoqq-sig-eq? subsig sig) #t
         (error "Expected outer-section and inner-sections to have matching sigs")))
   #/hoqq-closing-bracket data outer-section inner-sections))
 

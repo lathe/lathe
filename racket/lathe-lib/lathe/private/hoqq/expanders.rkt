@@ -54,7 +54,7 @@
     #/expect (impl stx)
       (hoqq-closing-hatch span-step closing-brackets)
       (error "Expected an initiate-bracket-syntax result that was a hoqq-closing-hatch")
-    #/if (hoqq-tower-has-degree? closing-brackets 0)
+    #/if (hoqq-tower-has-any? closing-brackets)
       (error "Expected an initiate-bracket-syntax result with no higher quasiquotatoin holes")
     #/hoqq-span-step-instantiate span-step))
 )

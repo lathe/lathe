@@ -9,6 +9,14 @@
 (provide #/all-defined-out)
 
 
+(define (nat-pred-maybe n)
+  (unless (exact-nonnegative-integer? n)
+    (error "Expected n to be an exact nonnegative integer"))
+  (if (= n 0)
+    (list)
+    (list #/sub1 n)))
+
+
 (define (list-kv-map lst func)
   (map func (range #/length lst) lst))
 
