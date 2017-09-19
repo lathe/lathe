@@ -220,8 +220,18 @@
   #/list-bind tables hash-values))
 
 
-; ===== Signatures of higher quasiquotation spans and hatches ========
+; ===== Signatures of higher quasiquotation spans ====================
 
+; NOTE: We call this "spansig" in particular to leave open the
+; possibility that we'll want to represent sigs that have a different
+; restriction in place of
+; `(not #/hoqq-tower-has-any-of-at-least-degree? subsig degree)`.
+;
+; At one point, hatches looked like they might need their own kind of
+; sig to express the way they become higher-degree (rather than
+; lower-degree) toward the leaves, but this didn't turn out to be
+; needed.
+;
 (define (hoqq-spansig? x)
   (and (hoqq-tower? x)
   #/hoqq-tower-dkv-all x #/lambda (degree _ subsig)
@@ -229,14 +239,6 @@
       (hoqq-tower? subsig)
       (not #/hoqq-tower-has-any-of-at-least-degree? subsig degree)
       (hoqq-spansig? subsig))))
-
-(define (hoqq-hatchsig? x)
-  (and (hoqq-tower? x)
-  #/hoqq-tower-dkv-all x #/lambda (degree _ subsig)
-    (and
-      (hoqq-tower? subsig)
-      (not #/hoqq-tower-has-any-of-less-than-degree? subsig degree)
-      (hoqq-hatchsig? subsig))))
 
 (define (hoqq-sig-print port mode sig)
   (hoqq-tower-print port mode sig #/lambda (subsig)
