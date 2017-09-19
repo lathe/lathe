@@ -46,37 +46,37 @@
 
 ; ===== Low-order building block for higher quasiquotation spans =====
 
-(struct hoqq-spanlike (tables)
+(struct hoqq-tower (tables)
   #:methods gen:equal+hash
   [
     (define (equal-proc a b recursive-equal?)
-      (expect a (hoqq-spanlike a-tables)
-        (error "Expected a to be a hoqq-spanlike")
-      #/expect b (hoqq-spanlike b-tables)
-        (error "Expected b to be a hoqq-spanlike")
+      (expect a (hoqq-tower a-tables)
+        (error "Expected a to be a hoqq-tower")
+      #/expect b (hoqq-tower b-tables)
+        (error "Expected b to be a hoqq-tower")
       #/recursive-equal? a-tables b-tables))
     (define (hash-proc this recursive-equal-hash-code)
-      (expect this (hoqq-spanlike tables)
-        (error "Expected this to be a hoqq-spanlike")
+      (expect this (hoqq-tower tables)
+        (error "Expected this to be a hoqq-tower")
       #/recursive-equal-hash-code tables))
     (define (hash2-proc this recursive-equal-secondary-hash-code)
-      (expect this (hoqq-spanlike tables)
-        (error "Expected this to be a hoqq-spanlike")
+      (expect this (hoqq-tower tables)
+        (error "Expected this to be a hoqq-tower")
       #/recursive-equal-secondary-hash-code tables))]
   #:methods gen:custom-write
   [
     (define (write-proc this port mode)
-      (expect this (hoqq-spanlike tables)
-        (error "Expected this to be a hoqq-spanlike")
+      (expect this (hoqq-tower tables)
+        (error "Expected this to be a hoqq-tower")
         
-        (write-string "#<hoqq-spanlike" port)
-        (hoqq-spanlike-print port mode this #/lambda (v)
+        (write-string "#<hoqq-tower" port)
+        (hoqq-tower-print port mode this #/lambda (v)
           (print-for-custom port mode v))
         (write-string ">" port)))])
 
-(define (hoqq-spanlike-print port mode spanlike print-v)
-  (expect spanlike (hoqq-spanlike tables)
-    (error "Expected spanlike to be a hoqq-spanlike")
+(define (hoqq-tower-print port mode tower print-v)
+  (expect tower (hoqq-tower tables)
+    (error "Expected tower to be a hoqq-tower")
   #/list-each tables #/lambda (table)
     (write-string " (" port)
     (hash-kv-each-sorted symbol<? table #/lambda (k v)
@@ -86,7 +86,7 @@
       (write-string "]" port))
     (write-string ")" port)))
 
-(define (careful-hoqq-spanlike tables)
+(define (careful-hoqq-tower tables)
   (unless (list? tables)
     (error "Expected tables to be a list"))
   (list-each tables #/lambda (table)
@@ -100,118 +100,118 @@
     #/w- tables (simplify tables)
     #/mat tables (cons _ _) (cons table tables)
     #/if (hash-empty? table) (list) (list tables)))
-  (hoqq-spanlike #/simplify tables))
+  (hoqq-tower #/simplify tables))
 
-(define (hoqq-spanlike-dkv-all spanlike func)
-  (expect spanlike (hoqq-spanlike tables)
-    (error "Expected spanlike to be a hoqq-spanlike")
+(define (hoqq-tower-dkv-all tower func)
+  (expect tower (hoqq-tower tables)
+    (error "Expected tower to be a hoqq-tower")
   #/list-kv-all tables #/lambda (degree table)
     (hash-kv-all table #/lambda (key value)
       (func degree key value))))
 
-(define (hoqq-spanlike-dkv-each spanlike body)
-  (hoqq-spanlike-dkv-all #/lambda (d k v)
+(define (hoqq-tower-dkv-each tower body)
+  (hoqq-tower-dkv-all #/lambda (d k v)
     (body d k v)
     #t)
   (void))
 
-(define (hoqq-spanlike-keys-eq? a b)
-  (expect a (hoqq-spanlike a-tables)
-    (error "Expected a to be a hoqq-spanlike")
-  #/expect b (hoqq-spanlike b-tables)
-    (error "Expected b to be a hoqq-spanlike")
+(define (hoqq-tower-keys-eq? a b)
+  (expect a (hoqq-tower a-tables)
+    (error "Expected a to be a hoqq-tower")
+  #/expect b (hoqq-tower b-tables)
+    (error "Expected b to be a hoqq-tower")
   #/and (= (length a-tables) (length b-tables))
   #/list-all (map list a-tables b-tables)
   #/dissectfn (list a-table b-table)
     (hash-keys-eq? a-table b-table)))
 
-(define (hoqq-spanlike-zip-each a b body)
-  (expect a (hoqq-spanlike a-tables)
-    (error "Expected a to be a hoqq-spanlike")
-  #/expect b (hoqq-spanlike b-tables)
-    (error "Expected b to be a hoqq-spanlike")
+(define (hoqq-tower-zip-each a b body)
+  (expect a (hoqq-tower a-tables)
+    (error "Expected a to be a hoqq-tower")
+  #/expect b (hoqq-tower b-tables)
+    (error "Expected b to be a hoqq-tower")
   #/list-each (map list a-tables b-tables)
   #/dissectfn (list a-table b-table)
     (hash-kv-each a-table #/lambda (k a-v)
       (body a-v #/hash-ref b-table k))))
 
-(define (hoqq-spanlike-dkv-map-maybe spanlike func)
-  (expect spanlike (hoqq-spanlike tables)
-    (error "Expected spanlike to be a spanlike")
-  #/careful-hoqq-spanlike
+(define (hoqq-tower-dkv-map-maybe tower func)
+  (expect tower (hoqq-tower tables)
+    (error "Expected tower to be a tower")
+  #/careful-hoqq-tower
   #/list-kv-map tables #/lambda (degree table)
     (hasheq-kv-map-maybe table #/lambda (key value)
       (func degree key value))))
 
-(define (hoqq-spanlike-dkv-map spanlike func)
-  (expect spanlike (hoqq-spanlike tables)
-    (error "Expected spanlike to be a spanlike")
-  #/hoqq-spanlike
+(define (hoqq-tower-dkv-map tower func)
+  (expect tower (hoqq-tower tables)
+    (error "Expected tower to be a tower")
+  #/hoqq-tower
   #/list-kv-map tables #/lambda (degree table)
     (hasheq-kv-map table #/lambda (key value)
       (func degree key value))))
 
-(define (hoqq-spanlike-fmap spanlike func)
-  (expect spanlike (hoqq-spanlike tables)
-    (error "Expected spanlike to be a spanlike")
-  #/hoqq-spanlike
+(define (hoqq-tower-fmap tower func)
+  (expect tower (hoqq-tower tables)
+    (error "Expected tower to be a tower")
+  #/hoqq-tower
   #/list-fmap tables #/lambda (table) #/hasheq-fmap table func))
 
-(define (hoqq-spanlike-restrict original example)
-  (hoqq-spanlike-dkv-map-maybe original #/lambda (degree k v)
-    (if (hoqq-spanlike-has-key? example degree k)
+(define (hoqq-tower-restrict original example)
+  (hoqq-tower-dkv-map-maybe original #/lambda (degree k v)
+    (if (hoqq-tower-has-key? example degree k)
       (list v)
       (list))))
 
-(define (hoqq-spanlike-merge as bs merge-v)
-  (expect as (hoqq-spanlike a-tables)
-    (error "Expected as to be a spanlike")
-  #/expect bs (hoqq-spanlike b-tables)
-    (error "Expected bs to be a spanlike")
+(define (hoqq-tower-merge as bs merge-v)
+  (expect as (hoqq-tower a-tables)
+    (error "Expected as to be a tower")
+  #/expect bs (hoqq-tower b-tables)
+    (error "Expected bs to be a tower")
   #/expect a-tables (cons a a-rest) bs
   #/expect b-tables (cons b b-rest) as
-  #/hoqq-spanlike
+  #/hoqq-tower
   #/cons (hash-union a b #:combine #/lambda (a b) #/merge-v a b)
-  #/hoqq-spanlike-merge a-rest b-rest))
+  #/hoqq-tower-merge a-rest b-rest))
 
-(define (hoqq-spanlike-merge-force as bs)
-  (hoqq-spanlike-merge as bs #/lambda (a b)
+(define (hoqq-tower-merge-force as bs)
+  (hoqq-tower-merge as bs #/lambda (a b)
     (error "Expected the hole names of multiple bracroexpand calls to be mutually exclusive")))
 
-(define (hoqq-spanlike-has-degree? spanlike degree)
-  (expect spanlike (hoqq-spanlike tables)
-    (error "Expected spanlike to be a spanlike")
+(define (hoqq-tower-has-degree? tower degree)
+  (expect tower (hoqq-tower tables)
+    (error "Expected tower to be a tower")
   #/lt-length degree tables))
 
-(define (hoqq-spanlike-has-key? spanlike degree key)
-  (expect spanlike (hoqq-spanlike tables)
-    (error "Expected spanlike to be a spanlike")
+(define (hoqq-tower-has-key? tower degree key)
+  (expect tower (hoqq-tower tables)
+    (error "Expected tower to be a tower")
   #/and (lt-length degree tables)
   #/hash-has-key? (list-ref tables degree) key))
 
-(define (hoqq-spanlike-ref spanlike degree k)
-  (expect spanlike (hoqq-spanlike tables)
-    (error "Expected spanlike to be a spanlike")
+(define (hoqq-tower-ref tower degree k)
+  (expect tower (hoqq-tower tables)
+    (error "Expected tower to be a tower")
   #/hash-ref (list-ref tables degree) k))
 
-(define (hoqq-spanlike-values spanlike)
-  (expect spanlike (hoqq-spanlike tables)
-    (error "Expected spanlike to be a spanlike")
+(define (hoqq-tower-values tower)
+  (expect tower (hoqq-tower tables)
+    (error "Expected tower to be a tower")
   #/list-bind tables hash-values))
 
 
 ; ===== Signatures of higher quasiquotation spans ====================
 
 (define (hoqq-spansig? x)
-  (and (hoqq-spanlike? x)
-  #/hoqq-spanlike-dkv-all x #/lambda (degree _ subsig)
+  (and (hoqq-tower? x)
+  #/hoqq-tower-dkv-all x #/lambda (degree _ subsig)
     (and
-      (hoqq-spanlike? subsig)
-      (not #/hoqq-spanlike-has-degree? subsig degree)
+      (hoqq-tower? subsig)
+      (not #/hoqq-tower-has-degree? subsig degree)
       (hoqq-spansig? subsig))))
 
 (define (hoqq-spansig-print port mode sig)
-  (hoqq-spanlike-print port mode sig #/lambda (subsig)
+  (hoqq-tower-print port mode sig #/lambda (subsig)
     (hoqq-spansig-print port mode subsig)))
 
 (define (hoqq-spansig-eq? a b)
@@ -237,7 +237,7 @@
     
     (write-string " " port)
     (print-for-custom #/func
-    #/hoqq-spanlike-fmap sig #/lambda (subsig)
+    #/hoqq-tower-fmap sig #/lambda (subsig)
       (careful-hoqq-span-step subsig #/lambda (span-steps)
         (example span-steps)))))
 
@@ -245,21 +245,21 @@
   (unless (hoqq-spansig? sig)
     (error "Expected sig to be a well-formed hoqq sig"))
   (hoqq-span-step sig #/lambda (span-steps)
-    (unless (hoqq-spanlike? span-steps)
-      (error "Expected span-steps to be a hoqq-spanlike"))
-    (hoqq-spanlike-zip-each sig span-steps #/lambda (subsig span-step)
+    (unless (hoqq-tower? span-steps)
+      (error "Expected span-steps to be a hoqq-tower"))
+    (hoqq-tower-zip-each sig span-steps #/lambda (subsig span-step)
       (expect span-step (hoqq-span-step span-step-subsig func)
         (error "Expected span-step to be a span-step")
       #/expect (hoqq-spansig-eq? subsig span-step-subsig) #t
-        (error "Expected a careful-hoqq-span-step and the spanlike of span-steps it was given to have the same sig")))
+        (error "Expected a careful-hoqq-span-step and the tower of span-steps it was given to have the same sig")))
     (func span-steps)))
 
 (define (hoqq-span-step-instantiate span)
   (expect span (hoqq-span-step sig func)
     (error "Expected span to be a hoqq-span-step")
-  #/if (hoqq-spanlike-has-degree? sig 0)
+  #/if (hoqq-tower-has-degree? sig 0)
     (error "Tried to instantiate a hoqq-span-step which still had holes in it")
-  #/func #/hoqq-spanlike #/list))
+  #/func #/hoqq-tower #/list))
 
 ; TODO: See if we should write some kind of `hoqq-span-step-compose`
 ; that combines two hole-having data structures seamlessly. We could
@@ -419,7 +419,7 @@
 ;   `span-step`: A `hoqq-span-step` generating an escapable
 ;     expression.
 ;
-;   `closing-brackets`: A `hoqq-spanlike` of `hoqq-closing-bracket`
+;   `closing-brackets`: A `hoqq-tower` of `hoqq-closing-bracket`
 ;     values. The section enclosed by each of these closing brackets
 ;     will be of degree one greater than its own degree, and its own
 ;     degree is its position in this `hoqq-seqlike`. Brackets
@@ -442,12 +442,12 @@
 (define (careful-hoqq-closing-hatch span-step closing-brackets)
   (expect span-step (hoqq-span-step sig func)
     (error "Expected span-step to be a hoqq-span-step")
-  #/expect (hoqq-spanlike? closing-brackets) #t
-    (error "Expected closing-brackets to be a hoqq-spanlike")
-  #/expect (hoqq-spanlike-keys-eq? sig closing-brackets) #t
+  #/expect (hoqq-tower? closing-brackets) #t
+    (error "Expected closing-brackets to be a hoqq-tower")
+  #/expect (hoqq-tower-keys-eq? sig closing-brackets) #t
     (error "Expected sig and closing-brackets to have compatible keys")
     
-    (hoqq-spanlike-zip-each sig closing-brackets
+    (hoqq-tower-zip-each sig closing-brackets
     #/lambda (subsig closing-bracket)
       (expect closing-bracket
         (hoqq-closing-bracket data outer-section inner-sections)
@@ -483,9 +483,9 @@
 ;     by this closing bracket's opening bracket if not for this
 ;     closing bracket being where it is.
 ;
-;   `inner-sections`: A `hoqq-spanlike` of `hoqq-closing-hatch`
-;     values. These inner sections represent the parts that were
-;     nested inside of the closing bracket's opening brackets in the
+;   `inner-sections`: A `hoqq-tower` of `hoqq-closing-hatch` values.
+;     These inner sections represent the parts that were nested inside
+;     of the closing bracket's opening brackets in the
 ;     pre-bracroexpanded Racket s-expression, but which should
 ;     ultimately be nested outside of the closing bracket's enclosed
 ;     section in the overall post-bracroexpanded Racket s-expression.
@@ -511,12 +511,12 @@
   (careful-hoqq-closing-bracket data outer-section inner-sections)
   (expect outer-section (hoqq-span-step sig func)
     (error "Expected outer-section to be a hoqq-span-step")
-  #/expect inner-sections (hoqq-spanlike tables)
-    (error "Expected inner-sections to be a hoqq-spanlike")
-  #/expect (hoqq-spanlike-keys-eq? sig inner-sections) #t
+  #/expect inner-sections (hoqq-tower tables)
+    (error "Expected inner-sections to be a hoqq-tower")
+  #/expect (hoqq-tower-keys-eq? sig inner-sections) #t
     (error "Expected outer-section and inner-sections to have corresponding keys")
     
-    (hoqq-spanlike-zip-each sig inner-sections
+    (hoqq-tower-zip-each sig inner-sections
     #/lambda (subsig inner-section)
       ; TODO: Combine these two `expect` patterns.
       (expect inner-section
@@ -530,6 +530,6 @@
 
 (define (hoqq-closing-hatch-simple val)
   (hoqq-closing-hatch
-    (hoqq-span-step (hoqq-spanlike #/list) #/lambda (span-steps)
+    (hoqq-span-step (hoqq-tower #/list) #/lambda (span-steps)
       (escapable-expression #`#'#,val val))
-  #/hoqq-spanlike #/list))
+  #/hoqq-tower #/list))

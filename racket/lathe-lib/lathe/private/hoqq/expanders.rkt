@@ -54,7 +54,7 @@
     #/expect (impl stx)
       (hoqq-closing-hatch span-step closing-brackets)
       (error "Expected an initiate-bracket-syntax result that was a hoqq-closing-hatch")
-    #/if (hoqq-spanlike-has-degree? closing-brackets 0)
+    #/if (hoqq-tower-has-degree? closing-brackets 0)
       (error "Expected an initiate-bracket-syntax result with no higher quasiquotatoin holes")
     #/hoqq-span-step-instantiate span-step))
 )
@@ -74,29 +74,29 @@
     #/dissect (bracroexpand-list stx rest)
       (hoqq-closing-hatch (hoqq-span-step rest-sig rest-func)
         rest-closing-brackets)
-    ; TODO: Instead of using `hoqq-spanlike-merge-force`, rename the
-    ; keys so that they don't have conflicts.
+    ; TODO: Instead of using `hoqq-tower-merge-force`, rename the keys
+    ; so that they don't have conflicts.
     ;
     ; TODO: See if we should call `careful-hoqq-closing-hatch` and
     ; `careful-hoqq-span-step` here.
     ;
     #/hoqq-closing-hatch
-      (hoqq-span-step (hoqq-spanlike-merge-force first-sig rest-sig)
+      (hoqq-span-step (hoqq-tower-merge-force first-sig rest-sig)
       #/lambda (span-steps)
         (expect
           (first-func
-          #/hoqq-spanlike-restrict span-steps first-closing-brackets)
+          #/hoqq-tower-restrict span-steps first-closing-brackets)
           (escapable-expression first-escaped first-expr)
           (error "Expected the hoqq-span-step result to be an escapable-expression")
         #/expect
           (rest-func
-          #/hoqq-spanlike-restrict span-steps rest-closing-brackets)
+          #/hoqq-tower-restrict span-steps rest-closing-brackets)
           (escapable-expression rest-escaped rest-expr)
           (error "Expected the hoqq-span-step result to be an escapable-expression")
         #/escapable-expression
           #`(cons #,first-escaped #,rest-escaped)
         #/datum->syntax stx #/cons first-expr rest-expr))
-    #/hoqq-spanlike-merge-force
+    #/hoqq-tower-merge-force
       first-closing-brackets rest-closing-brackets]
     [(list) #/hoqq-closing-hatch-simple #/datum->syntax stx lst]
     [_ #/error "Expected a list"]))
