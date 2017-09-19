@@ -70,11 +70,11 @@
         (error "Expected this to be a hoqq-spanlike")
         
         (write-string "#<hoqq-spanlike" port)
-        (print-hoqq-spanlike port mode this #/lambda (v)
+        (hoqq-spanlike-print port mode this #/lambda (v)
           (print-for-custom port mode v))
         (write-string ">" port)))])
 
-(define (print-hoqq-spanlike port mode spanlike print-v)
+(define (hoqq-spanlike-print port mode spanlike print-v)
   (expect spanlike (hoqq-spanlike tables)
     (error "Expected spanlike to be a hoqq-spanlike")
   #/list-each tables #/lambda (table)
@@ -210,9 +210,9 @@
       (not #/hoqq-spanlike-has-degree? subsig degree)
       (hoqq-spansig? subsig))))
 
-(define (print-hoqq-spansig port mode sig)
-  (print-hoqq-spanlike port mode sig #/lambda (subsig)
-    (print-hoqq-spansig port mode subsig)))
+(define (hoqq-spansig-print port mode sig)
+  (hoqq-spanlike-print port mode sig #/lambda (subsig)
+    (hoqq-spansig-print port mode subsig)))
 
 (define (hoqq-spansig-eq? a b)
   (equal? a b))
@@ -227,11 +227,11 @@
     (error "Expected this to be a hoqq-span-step")
     
     (write-string "#<hoqq-span-step" port)
-    (print-hoqq-spansig port mode sig)
-    (print-hoqq-span-step-example port mode this)
+    (hoqq-spansig-print port mode sig)
+    (hoqq-span-step-print-example port mode this)
     (write-string ">" port)))
 
-(define (print-hoqq-span-step-example port mode span)
+(define (hoqq-span-step-print-example port mode span)
   (expect span (hoqq-span-step sig func)
     (error "Expected span to be a hoqq-span-step")
     
