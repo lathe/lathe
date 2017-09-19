@@ -192,6 +192,14 @@
     #/expect (hash-empty? table) #t #t
     #/loop tables degree)))
 
+(define (hoqq-tower-merge-by-degrees-maybe lower upper)
+  (expect lower (hoqq-tower tables)
+    (error "Expected lower to be a tower")
+  #/if (hoqq-tower-has-any-of-less-than-degree? upper #/length tables)
+    (list)
+  #/list #/hoqq-tower-merge lower upper #/lambda (a b)
+    (error "Internal error")))
+
 (define (hoqq-tower-has-any? tower)
   (hoqq-tower-has-any-of-at-least-degree? tower 0))
 
@@ -248,22 +256,15 @@
     
     (write-string "#<hoqq-span-step" port)
     (hoqq-sig-print port mode sig)
-    (hoqq-span-step-print-example port mode this)
-    (write-string ">" port)))
-
-(define (hoqq-span-step-print-example port mode span)
-  (expect span (hoqq-span-step sig func)
-    (error "Expected span to be a hoqq-span-step")
-    
-    (write-string " " port)
-    (print-for-custom #/func
+    (print-all-for-custom port mode #/list #/func
     #/hoqq-tower-fmap sig #/lambda (subsig)
       (careful-hoqq-span-step subsig #/lambda (span-steps)
-        (example span-steps)))))
+        (example span-steps)))
+    (write-string ">" port)))
 
 (define (careful-hoqq-span-step sig func)
   (unless (hoqq-spansig? sig)
-    (error "Expected sig to be a well-formed hoqq sig"))
+    (error "Expected sig to be a well-formed span sig"))
   (hoqq-span-step sig #/lambda (span-steps)
     (unless (hoqq-tower? span-steps)
       (error "Expected span-steps to be a hoqq-tower"))
@@ -290,6 +291,11 @@
 ; ===== Bracroexpansion results ======================================
 
 
+; TODO: We've already completed the redesign described in the below
+; TODO, so it's out of date. Rewrite its examples to be documentation
+; now.
+;
+;
 ; TODO: This data structure is actually rather wrong. As a guiding
 ; example, consider a pattern of closing brackets like this:
 ;
@@ -380,17 +386,19 @@
 
 
 ; A bracro takes a pre-bracroexpanded Racket s-expression as input,
-; and it returns a `hoqq-closing-hatch`. Most bracros will introduce
-; zero closing brackets in their results, with the exception being
-; operations that are dedicated to being closing brackets, such as
-; unquote operations.
+; and it returns a `hoqq-closing-hatch`. A `hoqq-closing-hatch` may
+; have unmatched closing brackets appearing within it. Most bracros
+; will introduce zero closing brackets in their results, with the
+; exception being operations that are dedicated to being closing
+; brackets, such as unquote operations.
 ;
 ; Many bracros will call the bracroexpander again as they do their
 ; processing, in order to process subexpressions of their input that
 ; should be passed through almost directly into the output. When they
-; call the bracroexpander this way, there is always the chance that
-; the intermediate result contains closing brackets, due to closing
-; bracket operations occurring deep within that subexpression.
+; call the bracroexpander this way, if closing bracket operations
+; appear deep within that subexpression, there may be unmatched
+; closing brackets in that intermediate result, so this is where most
+; bracros would have to pay attention to the closing brackets.
 
 
 ; A pre-bracroexpanded Racket s-expression is the kind of s-expression
@@ -401,82 +409,118 @@
 ; A post-bracroexpanded Racket s-expression is an s-expression where
 ; the nested structure of higher quasiquotation has been deduced from
 ; the bracket operators and re-encoded as a nested tree. This is the
-; proper form to pass the rest of the work through Racket's
-; macroexpander, since the encapsulation strategy Racket pursues in
-; the orm of its syntax taint system assumes that the nesting of
-; s-expression syntax corresponds to the lexical nesting of macro
-; calls.
+; form we need for this nested structure to pass through Racket's own
+; macroexpander, since Racket's syntax taint system offers macro
+; authors the ability to encapsulate their macro results but relies on
+; the assumption that wrapping the root of the data structure is
+; sufficient to encapsulate it (rather than also stopping the wrapping
+; operation at the holes).
 
 
-; An escapable expression is a data structure that can create one of
-; two things:
+; An escapable expression is a data structure containing two things:
 ;
 ;   `literal`: An unencapsulated, pre-bracroexpanded Racket
-;     s-expression.
+;     s-expression. This represents the semantics of the operation if
+;     it occurs in a suppressed way in a syntax literal.
 ;
-;   `expr`: A post-bracroexpanded s-expression.
+;   `expr`: A post-bracroexpanded s-expression. This is the normal
+;     result when syntax literals aren't involved.
 ;
-; The point is that these represent operations that come in handy as
-; delimiters or formatters for syntax literals, such as an operator
-; that acts as a string delimiter or a string escape sequence
-; initiator. When they occur in a context that properly suppresses
-; them, these operators can appear inside a string with the same
-; syntax they have outside it but without being construed as anything
-; other than chunks of syntax. This is handy for code generation,
-; since it means we can write syntax literals that mention these
-; operators without escaping each operator each time it occurs.
+; The operators that most need this double result are the ones that
+; act as delimiters or formatters for syntax literals themselves. For
+; instance, an character that acts as a string closing delimiter may
+; sometimes need to appear inside a string, at which point either a
+; synonym of that character must be used (such as a Unicode escape) or
+; a region of the string must have its operator semantics suppressed.
+; It's especially natural for a string literal occurring within a
+; string literal to act as an operator suppression region, and this
+; can make it rare for a user to have to sprinkle escape sequences
+; throughout their data when they're doing code generation.
 ;
 (struct escapable-expression #/literal expr)
 
 
 ; A `hoqq-closing-hatch` represents a partial, inside-out portion of a
 ; higher quasiquotation data structure, seen as a branching collection
-; of closing brackets and the ever-higher-order closing brackets
-; beyond.
+; of closing brackets and the potentially ever-higher-order closing
+; brackets beyond.
 ;
 ; The fields of `hoqq-closing-hatch` are as follows:
 ;
-;   `span-step`: A `hoqq-span-step` generating an escapable
-;     expression.
+;   `lower-spansig`: The signature of the low-degree holes in this
+;     hatch. In a sense these indicate the shape of the closing
+;     brackets that close this hatch itself, rather than the closing
+;     brackets that occur inside it.
 ;
 ;   `closing-brackets`: A `hoqq-tower` of `hoqq-closing-bracket`
-;     values. The section enclosed by each of these closing brackets
-;     will be of degree one greater than its own degree, and its own
-;     degree is its position in this `hoqq-seqlike`. Brackets
-;     only interact with other brackets of the same enclosed section
-;     degree.
+;     values, representing the nearest set of closing brackets in this
+;     hatch. Note that only the lowest occurring degree of closing
+;     brackets is *necessarily* nearest; the higher degrees of closing
+;     brackets are only *possibly* nearest if the lowest-degree ones
+;     don't match up to become their own higher-degree closing
+;     bracket.
 ;
-; The sigs of the `closing-brackets` values put together must match
-; the sig of `span`.
+;   `partial-span-step`: A `hoqq-span-step` which has holes for all
+;     the `lower-spansig` entries as well as holes for all the
+;     `closing-brackets` entries.
 ;
-(struct hoqq-closing-hatch (span-step closing-brackets)
+; The minimum degree occupied in `closing-brackets` must exceed the
+; maximum degree occupied in `lower-spansig`.
+;
+; In the `closing-brackets` tower, the degree of each closing bracket
+; must be in between greater than closing bracket's own maximum
+; degree of `lower-spansig` and less than or equal to its minimum
+; degree of `closing-brackets`.
+;
+; The sigs of the `lower-spansig` and `closing-brackets` put together
+; must match the sig of `partial-span-step`.
+;
+(struct hoqq-closing-hatch
+  (lower-spansig closing-brackets partial-span-step)
   #:methods gen:custom-write
 #/ #/define (write-proc this port mode)
-  (expect this (hoqq-closing-hatch span-step closing-brackets)
+  (expect this
+    (hoqq-closing-hatch
+      lower-spansig closing-brackets partial-span-step)
     (error "Expected this to be a hoqq-closing-hatch")
     
     (write-string "#<hoqq-closing-hatch" port)
-    (print-all-for-custom port mode #/list span-step closing-brackets)
+    (print-all-for-custom port mode
+    #/list closing-brackets partial-span-step)
     (write-string ">" port)))
 
-(define (careful-hoqq-closing-hatch span-step closing-brackets)
-  (expect span-step (hoqq-span-step sig func)
-    (error "Expected span-step to be a hoqq-span-step")
+(define
+  (careful-hoqq-closing-hatch
+    lower-spansig closing-brackets partial-span-step)
+  (unless (hoqq-spansig? lower-spansig)
+    (error "Expected lower-spansig to be a well-formed span sig"))
+  (expect partial-span-step (hoqq-span-step span-step-sig func)
+    (error "Expected partial-span-step to be a hoqq-span-step")
   #/expect (hoqq-tower? closing-brackets) #t
     (error "Expected closing-brackets to be a hoqq-tower")
-  #/expect (hoqq-tower-keys-eq? sig closing-brackets) #t
-    (error "Expected sig and closing-brackets to have compatible keys")
-    
-    (hoqq-tower-zip-each sig closing-brackets
-    #/lambda (subsig closing-bracket)
+  #/w- upper-spansig
+    (hoqq-tower-dkv-map closing-brackets
+    #/lambda (degree key closing-bracket)
       (expect closing-bracket
-        (hoqq-closing-bracket data outer-section inner-sections)
+        (hoqq-closing-bracket data
+        #/hoqq-closing-hatch
+          subsig closing-brackets partial-span-step)
         (error "Expected closing-bracket to be a hoqq-closing-bracket")
-      #/expect outer-section (hoqq-span-step sig func)
-        (error "Expected outer-section to be a hoqq-span-step")
-      #/expect (hoqq-sig-eq? subsig sig) #t
-        (error "Expected span-step and closing-brackets to have matching sigs")))
-  #/hoqq-closing-hatch span-step closing-brackets))
+      #/if (hoqq-tower-has-any-of-at-least-degree? subsig degree)
+        (error "Expected closing-bracket to have no holes of its own degree or greater")
+      #/if
+        (hoqq-tower-has-any-of-less-than-degree?
+          closing-brackets degree)
+        (error "Expected closing-bracket to lead only to more closing brackets of its own degree or greater")
+        subsig))
+  #/expect
+    (hoqq-tower-merge-by-degrees-maybe lower-spansig upper-spansig)
+    (list spansig)
+    (error "Expected lower-spansig to have a maximum degree less than the minimum degree of closing-brackets")
+  #/expect (hoqq-sig-eq? spansig span-step-sig) #t
+    (error "Expected lower-spansig and closing-brackets to be compatible with the sig of partial-span-step")
+  #/hoqq-closing-hatch
+    lower-spansig closing-brackets partial-span-step))
 
 ; The fields of `hoqq-closing-bracket` are as follows:
 ;
@@ -498,58 +542,26 @@
 ;
 ;     - A macro to call when processing this set of matched brackets.
 ;
-;   `outer-section`: A `hoqq-span-step` generating an escapable
-;     expression, corresponding to all content that could be enclosed
-;     by this closing bracket's opening bracket if not for this
-;     closing bracket being where it is.
+;   `closing-hatch`: A `hoqq-closing-hatch` corresponding to all
+;     content that could be part of this closing bracket's enclosed
+;     region if not for this closing bracket being where it is.
 ;
-;   `inner-sections`: A `hoqq-tower` of `hoqq-closing-hatch` values.
-;     These inner sections represent the parts that were nested inside
-;     of the closing bracket's opening brackets in the
-;     pre-bracroexpanded Racket s-expression, but which should
-;     ultimately be nested outside of the closing bracket's enclosed
-;     section in the overall post-bracroexpanded Racket s-expression.
-;
-; The sigs of the `inner-sections` values put together must match the
-; sig of `outer-section`.
-;
-; If a closing bracket has no holes, the enclosed region continues all
-; the way to the end of the document.
-;
-(struct hoqq-closing-bracket (data outer-section inner-sections)
+(struct hoqq-closing-bracket (data closing-hatch)
   #:methods gen:custom-write
 #/ #/define (write-proc this port mode)
-  (expect this (hoqq-closing-bracket data outer-section inner-sections)
+  (expect this (hoqq-closing-bracket data closing-hatch)
     (error "Expected this to be a hoqq-closing-bracket")
     
     (write-string "#<hoqq-closing-bracket" port)
-    (print-all-for-custom port mode
-    #/list data outer-section inner-sections)
+    (print-all-for-custom port mode #/list data closing-hatch)
     (write-string ">" port)))
 
-(define
-  (careful-hoqq-closing-bracket data outer-section inner-sections)
-  (expect outer-section (hoqq-span-step sig func)
-    (error "Expected outer-section to be a hoqq-span-step")
-  #/expect inner-sections (hoqq-tower tables)
-    (error "Expected inner-sections to be a hoqq-tower")
-  #/expect (hoqq-tower-keys-eq? sig inner-sections) #t
-    (error "Expected outer-section and inner-sections to have corresponding keys")
-    
-    (hoqq-tower-zip-each sig inner-sections
-    #/lambda (subsig inner-section)
-      ; TODO: Combine these two `expect` patterns.
-      (expect inner-section
-        (hoqq-closing-hatch span-step closing-brackets)
-        (error "Expected inner-section to be a hoqq-closing-hatch")
-      #/expect span-step (hoqq-span-step sig func)
-        (error "Expected span to be a hoqq-span-step")
-      #/expect (hoqq-sig-eq? subsig sig) #t
-        (error "Expected outer-section and inner-sections to have matching sigs")))
-  #/hoqq-closing-bracket data outer-section inner-sections))
+(define (careful-hoqq-closing-bracket data closing-hatch)
+  (unless (hoqq-closing-hatch? closing-hatch)
+    (error "Expected closing-hatch to be a hoqq-closing-hatch"))
+  (hoqq-closing-bracket data closing-hatch))
 
 (define (hoqq-closing-hatch-simple val)
-  (hoqq-closing-hatch
-    (hoqq-span-step (hoqq-tower #/list) #/lambda (span-steps)
-      (escapable-expression #`#'#,val val))
-  #/hoqq-tower #/list))
+  (hoqq-closing-hatch (hoqq-tower #/list) (hoqq-tower #/list)
+  #/hoqq-span-step (hoqq-tower #/list) #/lambda (span-steps)
+    (escapable-expression #`#'#,val val)))
