@@ -5,10 +5,11 @@
 ; Data structures and syntaxes for encoding the kind of higher-order
 ; holes that occur in higher quasiquotation.
 
+(require #/for-meta -1 #/only-in racket syntax)
+(require #/only-in racket/hash hash-union)
+
 (require "../../main.rkt")
 (require "util.rkt")
-
-(require #/only-in racket/hash hash-union)
 
 (provide #/all-defined-out)
 
@@ -71,6 +72,7 @@
         
         (write-string "#<hoqq-tower" port)
         (hoqq-tower-print port mode this #/lambda (v)
+          (write-string " " port)
           (print-for-custom port mode v))
         (write-string ">" port)))])
 
@@ -99,7 +101,7 @@
     (expect tables (cons table tables) tables
     #/w- tables (simplify tables)
     #/mat tables (cons _ _) (cons table tables)
-    #/if (hash-empty? table) (list) (list tables)))
+    #/if (hash-empty? table) (list) (list table)))
   (hoqq-tower #/simplify tables))
 
 (define (hoqq-tower-dkv-all tower func)
@@ -110,10 +112,14 @@
       (func degree key value))))
 
 (define (hoqq-tower-dkv-each tower body)
-  (hoqq-tower-dkv-all #/lambda (d k v)
+  (hoqq-tower-dkv-all tower #/lambda (d k v)
     (body d k v)
     #t)
   (void))
+
+(define (hoqq-tower-each tower body)
+  (hoqq-tower-dkv-each tower #/lambda (d k v)
+    (body v)))
 
 (define (hoqq-tower-keys-eq? a b)
   (expect a (hoqq-tower a-tables)
@@ -156,6 +162,18 @@
     (error "Expected tower to be a tower")
   #/hoqq-tower
   #/list-fmap tables #/lambda (table) #/hasheq-fmap table func))
+
+(define (hoqq-tower-dkv-split-by tower func)
+  (w- tower
+    (hoqq-tower-dkv-map tower #/lambda (d k v)
+      (if (func d k v)
+        (list (list) (list v))
+        (list (list v) (list))))
+  #/list
+    (hoqq-tower-dkv-map-maybe tower #/lambda (d k v)
+      (dissect v (list vf vt) vf))
+    (hoqq-tower-dkv-map-maybe tower #/lambda (d k v)
+      (dissect v (list vf vt) vt))))
 
 (define (hoqq-tower-restrict original example)
   (hoqq-tower-dkv-map-maybe original #/lambda (degree k v)
@@ -275,11 +293,11 @@
         (error "Expected span-step to be a span-step")
       #/expect (hoqq-sig-eq? subsig span-step-subsig) #t
         (error "Expected a careful-hoqq-span-step and the tower of span-steps it was given to have the same sig")))
-    (func span-steps)))
+  #/func span-steps))
 
-(define (hoqq-span-step-instantiate span)
-  (expect span (hoqq-span-step sig func)
-    (error "Expected span to be a hoqq-span-step")
+(define (hoqq-span-step-instantiate span-step)
+  (expect span-step (hoqq-span-step sig func)
+    (error "Expected span-step to be a hoqq-span-step")
   #/if (hoqq-tower-has-any? sig)
     (error "Tried to instantiate a hoqq-span-step which still had holes in it")
   #/func #/hoqq-tower #/list))
@@ -439,7 +457,15 @@
 ; can make it rare for a user to have to sprinkle escape sequences
 ; throughout their data when they're doing code generation.
 ;
-(struct escapable-expression #/literal expr)
+(struct escapable-expression (literal expr)
+  #:methods gen:custom-write
+#/ #/define (write-proc this port mode)
+  (expect this (escapable-expression literal expr)
+    (error "Expected this to be an escapable-expression")
+    
+    (write-string "#<escapable-expression" port)
+    (print-all-for-custom port mode #/list literal expr)
+    (write-string ">" port)))
 
 
 ; A `hoqq-closing-hatch` represents a partial, inside-out portion of a

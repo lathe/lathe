@@ -5,6 +5,7 @@
 ; Syntax expanders for q-expression-building macros (aka bracros) as
 ; well as an implementation of bracroexpansion.
 
+(require #/for-meta -1 racket)
 (require "../../main.rkt")
 (require "util.rkt")
 (require "trees.rkt")
@@ -60,7 +61,10 @@
       (error "Expected an initiate-bracket-syntax result with no holes")
     #/if (hoqq-tower-has-any? closing-brackets)
       (error "Expected an initiate-bracket-syntax result with no unmatched closing brackets")
-    #/hoqq-span-step-instantiate partial-span-step))
+    #/expect (hoqq-span-step-instantiate partial-span-step)
+      (escapable-expression literal expr)
+      (error "Expected an initiate-bracket-syntax result to be a span step that instantiated to an escapable-expression")
+      expr))
 )
 
 
