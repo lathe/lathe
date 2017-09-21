@@ -87,22 +87,27 @@
 (define-syntax-rule (w-anaphor binds-and-body ...)
   (magic-withlike longhand-w-anaphor binds-and-body ...))
 
-(define-syntax-parameter a idfn)
-(define-syntax-parameter b idfn)
+(: define-syntax-parameter a : lambda (stx)
+  (error "Used syntax parameter `a` without binding it first"))
+
+(: define-syntax-parameter b : lambda (stx)
+  (error "Used syntax parameter `b` without binding it first"))
 
 (define-syntax-rule (abfn body ...)
   (lambda (our-a our-b)
     (w-anaphor (a our-a b our-b)
       body ...)))
 
-(define-syntax-parameter it idfn)
+(: define-syntax-parameter it : lambda (stx)
+  (error "Used syntax parameter `it` without binding it first"))
 
 (define-syntax-rule (zapit! place body ...)
   (w- our-it place
     (w-anaphor it our-it
       (set! place (begin body ...)))))
 
-(define-syntax-parameter next idfn)
+(: define-syntax-parameter next : lambda (stx)
+  (error "Used syntax parameter `next` without binding it first"))
 
 (define-syntax-rule (longhand-nextlet binds body ...)
   (let our-next binds
