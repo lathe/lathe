@@ -109,10 +109,15 @@
     (body k v)))
 
 (define (hash-kv-all hash func)
-  ; TODO: See if there's a more efficient way to do this when the
-  ; match occurs early in the list. We shouldn't have to construct the
-  ; whole list in that case.
-  (list-all (hash->list hash) #/dissectfn (cons k v) #/func k v))
+  ; NOTE: We go to all this trouble just so that when we exit early,
+  ; we avoid the cost of a full `hash->list`.
+  (nextlet cursor (hash-iterate-first hash)
+    (if (eq? #f cursor) #t
+    #/dissect (hash-iterate-pair hash cursor) (cons k v)
+    #/w- result (func k v)
+    #/if result
+      (next #/hash-iterate-next hash cursor)
+      result)))
 
 
 (define (print-for-custom port mode value)
