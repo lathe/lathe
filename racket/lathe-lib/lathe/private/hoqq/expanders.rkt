@@ -135,6 +135,24 @@
       (bracroexpand-list stx stx)
     #/expect (q-expr-syntax-maybe local) (list q-expr-syntax)
       (bracroexpand-list stx stx)
+    
+    ; TODO: See if we can call this more like a Racket syntax
+    ; transformer. We'll need to do at least this:
+    ;
+    ;   - Disarm `stx`. The caller may not have permission to do this,
+    ;     in which case we may need to devise a way to trampoline to
+    ;     the Racket macroexpander by first having the caller expand
+    ;     to a syntax that calls this code on a second pass.
+    ;
+    ;   - Remove any `'taint-mode` and `'certify-mode` syntax
+    ;     properties from `stx`.
+    ;
+    ;   - Rearm the result, and apply syntax properties to the result
+    ;     that correspond to the syntax properties of `stx`. Since the
+    ;     result is a `hoqq-closing-bracket`, these steps would be
+    ;     performed by post-composing an operation onto the end of the
+    ;     `func` of the `partial-span-step`.
+    ;
     #/q-expr-syntax local stx]
     ; TODO: We support lists, but let's also support vectors and
     ; prefabricated structs, like Racket's `quasiquote` and

@@ -3,7 +3,9 @@
 ; qq.rkt
 ;
 ; Implementations of familiar quasiquotation operators in terms of
-; higher quasiquotation.
+; higher quasiquotation. These aren't quite like their Racket versions
+; in every respect, such as how many cons cells they generate.
+; Instead, they err on the simpler side.
 
 (require #/for-meta 1 "../../main.rkt")
 (require #/for-meta 1 "util.rkt")
@@ -12,51 +14,6 @@
 
 (provide #/all-defined-out)
 
-
-
-; TODO: Implement `-quasiquote`. The code here is copied from
-; ../../macros2.rkt. Our Implementation details may be much different
-; here than they were there, and we may or may not need to
-; implement `quasiquote-q`.
-;
-; We should see if we need to use `call-stx` from ./trees.rkt as well.
-; If not, we probably won't miss it if we delete it.
-;
-#|
-
-(define-syntax -quasiquote #/initiate-bracket-syntax #/lambda (stx)
-  (syntax-case stx () #/ (_ body)
-  #/w- g-body (gensym "body")
-  #/careful-q-expr-layer
-    (lambda (fills) #`#/quasiquote-q #,#/holes-ref fills 0 g-body)
-  #/list
-  #/hasheq g-body
-  #/careful-q-expr-layer (lambda (fills) #/initiating-open 1 #'body)
-  #/list))
-
-; TODO: Implement this for real. This currently doesn't have splicing.
-(define-syntax quasiquote-q #/lambda (stx)
-  (syntax-case stx () #/ (_ body)
-  #/dissect (syntax-e #'body) (q-expr-layer body rests)
-  #/dissect (fill-out-holes 1 rests) (list rests)
-    (struct foreign (val) #:prefab)
-    (define (expand-qq s-expr)
-      ; TODO: Implement splicing.
-      (if (syntax? s-expr)
-        (expand-qq #/syntax-e s-expr)
-      #/match s-expr
-        [(foreign s-expr) s-expr]
-        [(cons first rest)
-        #`#/cons #,(expand-qq first) #,(expand-qq rest)]
-        [(list) #'#/list]
-        [_ #`'#,s-expr]))
-    (expand-qq #/body
-    #/list
-    #/hasheq-fmap rests #/dissectfn (q-expr-layer make-rest sub-rests)
-      (careful-q-expr-layer
-        (lambda (fills) #/foreign #/make-rest fills)
-        sub-rests))))
-|#
 
 (define-syntax -quasiquote
   #/w- impl
@@ -199,3 +156,62 @@
   #/lambda (span-steps)
     (hoqq-span-step-instantiate
     #/hoqq-tower-ref span-steps 0 g-body)))
+
+; TODO: Define `-unquote-splicing`.
+
+; TODO: Define `-quasisyntax`, `-unsyntax`, and `-unsyntax-splicing`.
+; Actually, we're already doing something like those with
+; `-quasiquote`, so we should update `-quasiquote` so that it
+; generates non-syntax data instead. Although `-unquote` and
+; `-unsyntax` may be basically equivalent, let's consider treating
+; them as different brackets that are arbitrarily incompatible with
+; each other.
+
+
+; TODO: Perhaps begin a new file for the rest of these.
+
+; TODO: Define q-expression-building macros that help with expressing
+; s-expressions:
+;
+;   (escape-s-expr s-expr)
+;   (splice-s-expr s-exprs)
+;
+; (If the syntax monad were (Writer String) rather than s-expressions,
+; we'd also want friendly character escapes for Unicode characters,
+; friendly character escapes for brackets, whitespace normalization
+; control, an escaped version of the escape character, and one or more
+; weak parens that ensure their strong counterparts are inserted at
+; the other side of the string if they're unmatched.)
+
+; TODO: Define q-expression-building macros that permit the full
+; range of q-expressions:
+;
+;   (bracket open/close degree s-expr)
+
+; TODO: Define new q-expression-building macros that provide the
+; ability to unwind all parens which don't match a specified name:
+;
+;   (define-bracket-label degree new-var existing-var s-expr)
+;   (define-current-bracket-label degree new-var s-expr)
+;   (unwind-up-to-bracket-label open/close degree existing-var s-expr)
+;   (unwind-past-bracket-label open/close degree existing-var s-expr)
+;
+; Most of these are brackets except for `define-bracket-label` and
+; `define-current-bracket-level`, which define variables whose lexical
+; scope begins with the nearest opening bracket of the given degree
+; and ends with all the nearest closing brackets of strictly lesser
+; degree. All variable bindings defined within a single bracket family
+; must be mutually consistent.
+
+; Almost all of these features mentioned have examples already in
+; Cene, although some things are different in Cene:
+;
+;   - Cene doesn't have higher quasiquotation or reader macros yet.
+;   - It doesn't have bracket labels that are bound at a deeper
+;     s-expression location than where they're used
+;   - It has some inconsistent quirks around labels' lexical scope
+;     boundaries and whether to unwind "up to" or "past" a label's
+;     introduction.
+;
+; Part of the goal of this Racket library is to work through all of
+; those design topics as a proof of concept for improving Cene.

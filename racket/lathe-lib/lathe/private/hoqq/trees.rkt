@@ -14,25 +14,6 @@
 (provide #/all-defined-out)
 
 
-; ===== Representing higher-order holes in Racket syntax =============
-
-; TODO: This is part of the way we intend to encode higher
-; quasiquotation in Racket s-expressions once our higher
-; quasiquotation macros have expanded. See if we'll actually use it
-; that way. If we do, see if we should move this to another file.
-(define-syntax call-stx #/lambda (stx)
-  (syntax-case stx () #/ (_ func arg)
-  ; TODO LATER: Disarm `arg`.
-  ; TODO LATER: Remove any `'taint-mode` and `'certify-mode` syntax
-  ; properties from `arg`.
-  ; TODO LATER: Rearm the result.
-  ; TODO LATER: Apply syntax properties to the result that correspond
-  ; to the syntax properties of `arg`.
-  ; TODO LATER: See if the above steps really are sufficient to
-  ; simulate calling `func` as a syntax transformer.
-  #/#'func #'arg))
-
-
 ; ===== Fake nodes for printing things with higher-order holes =======
 
 (struct example (val)
