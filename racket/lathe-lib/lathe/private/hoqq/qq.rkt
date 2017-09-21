@@ -118,7 +118,7 @@
               #/liner composed-lowest))
             (escapable-expression literal expr)
             (error "Expected the instantiation of the partial span step to be an escapable-expression")
-            #`(-quasiquote #,literal))
+            #`#`(-quasiquote #,#,literal))
           ; We alter them so that their literal version is now equal
           ; to their expr version, we call `func` with that, and we
           ; take its literal version.
