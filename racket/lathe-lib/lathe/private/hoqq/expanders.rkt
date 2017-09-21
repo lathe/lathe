@@ -100,30 +100,23 @@
     #/dissect (bracroexpand-list stx rest)
       (hoqq-closing-hatch rest-lower-spansig rest-closing-brackets
       #/hoqq-span-step rest-sig rest-func)
-    ; TODO: Instead of using `hoqq-tower-merge-force`, rename the keys
-    ; so that they don't have conflicts.
-    ;
-    ; TODO: See if we should call `careful-hoqq-closing-hatch` and
-    ; `careful-hoqq-span-step` here.
-    ;
-    #/hoqq-closing-hatch
-      (hoqq-tower-merge-force first-lower-spansig rest-lower-spansig)
-      (hoqq-tower-merge-force
+    #/dissect (hoqq-tower-pair-ab first-sig rest-sig)
+      (list sig de-pair)
+    #/careful-hoqq-closing-hatch
+      (hoqq-tower-merge-ab first-lower-spansig rest-lower-spansig)
+      (hoqq-tower-merge-ab
         first-closing-brackets rest-closing-brackets)
-    #/hoqq-span-step (hoqq-tower-merge-force first-sig rest-sig)
-    #/lambda (span-steps)
-      (expect
-        (first-func
-        #/hoqq-tower-restrict span-steps first-closing-brackets)
-        (escapable-expression first-escaped first-expr)
+    #/careful-hoqq-span-step sig #/lambda (span-steps)
+      (dissect (de-pair span-steps)
+        (list first-span-steps rest-span-steps)
+      #/expect (first-func first-span-steps)
+        (escapable-expression first-literal first-expr)
         (error "Expected the hoqq-span-step result to be an escapable-expression")
-      #/expect
-        (rest-func
-        #/hoqq-tower-restrict span-steps rest-closing-brackets)
-        (escapable-expression rest-escaped rest-expr)
+      #/expect (rest-func rest-span-steps)
+        (escapable-expression rest-literal rest-expr)
         (error "Expected the hoqq-span-step result to be an escapable-expression")
       #/escapable-expression
-        #`#`(#,#,first-escaped . #,#,rest-escaped)
+        #`#`(#,#,first-literal . #,#,rest-literal)
       #/datum->syntax stx #/cons first-expr rest-expr)]
     [(list) #/hoqq-closing-hatch-simple #/datum->syntax stx lst]
     [_ #/error "Expected a list"]))

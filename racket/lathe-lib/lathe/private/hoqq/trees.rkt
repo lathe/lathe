@@ -5,6 +5,10 @@
 ; Data structures and syntaxes for encoding the kind of higher-order
 ; holes that occur in higher quasiquotation.
 
+; NOTE: Just in case we want to switch back to `eq?` hashes, we refer
+; to `equal?` hashes more explicitly.
+(require #/only-in racket [hash hashequal])
+
 (require #/for-meta -1 racket)
 (require #/only-in racket/hash hash-union)
 
@@ -27,6 +31,45 @@
 
 
 ; ===== Low-order building block for higher qq spans and hatches =====
+
+(struct hoqq-tower-key-derived (a b)
+  #:methods gen:equal+hash
+  [
+    (define (equal-proc a b recursive-equal?)
+      (expect a (hoqq-tower-key-derived aa ab)
+        (error "Expected a to be a hoqq-tower-key-derived")
+      #/expect b (hoqq-tower-key-derived ba bb)
+        (error "Expected b to be a hoqq-tower-key-derived")
+      #/and
+        (recursive-equal? aa ba)
+        (recursive-equal? ab bb)))
+    (define (hash-proc this recursive-equal-hash-code)
+      (expect this (hoqq-tower-key-derived a b)
+        (error "Expected this to be a hoqq-tower-key-derived")
+      #/recursive-equal-hash-code #/list a b))
+    (define (hash2-proc this recursive-equal-secondary-hash-code)
+      (expect this (hoqq-tower-key-derived a b)
+        (error "Expected this to be a hoqq-tower-key-derived")
+      #/recursive-equal-secondary-hash-code #/list a b))]
+  #:methods gen:custom-write
+  [
+    (define (write-proc this port mode)
+      (expect this (hoqq-tower-key-derived a b)
+        (error "Expected this to be a hoqq-tower-key-derived")
+        
+        (write-string "#<hoqq-tower-key-derived" port)
+        (print-all-for-custom port mode #/list a b)
+        (write-string ">" port)))])
+
+(define (careful-hoqq-tower-key-derived a b)
+  (unless (hoqq-tower-key? a)
+    (error "Expected a to be a valid hoqq tower key"))
+  (unless (hoqq-tower-key? b)
+    (error "Expected b to be a valid hoqq tower key"))
+  (hoqq-tower-key-derived a b))
+
+(define (hoqq-tower-key? x)
+  (or (symbol? x) (hoqq-tower-key-derived? x)))
 
 (struct hoqq-tower (tables)
   #:methods gen:equal+hash
@@ -73,11 +116,11 @@
   (unless (list? tables)
     (error "Expected tables to be a list"))
   (list-each tables #/lambda (table)
-    (unless (hasheq-immutable? table)
-      (error "Expected table to be an immutable eq? hash"))
+    (unless (hashequal-immutable? table)
+      (error "Expected table to be an immutable equal? hash"))
     (hash-kv-each table #/lambda (k v)
-      (unless (symbol? k)
-        (error "Expected k to be a symbol"))))
+      (unless (hoqq-tower-key? k)
+        (error "Expected k to be a valid tower key"))))
   (define (simplify tables)
     (expect tables (cons table tables) tables
     #/w- tables (simplify tables)
@@ -102,14 +145,14 @@
   (hoqq-tower-dkv-each tower #/lambda (d k v)
     (body v)))
 
-(define (hoqq-tower-keys-eq? a b)
+(define (hoqq-tower-keys-same? a b)
   (expect a (hoqq-tower a-tables)
     (error "Expected a to be a hoqq-tower")
   #/expect b (hoqq-tower b-tables)
     (error "Expected b to be a hoqq-tower")
   #/and (= (length a-tables) (length b-tables))
   #/list-zip-all a-tables b-tables #/lambda (a-table b-table)
-    (hash-keys-eq? a-table b-table)))
+    (hash-keys-same? a-table b-table)))
 
 (define (hoqq-tower-zip-each a b body)
   (expect a (hoqq-tower a-tables)
@@ -127,7 +170,7 @@
     (error "Expected b to be a hoqq-tower")
   #/hoqq-tower
   #/list-zip-map a-tables b-tables #/lambda (a-table b-table)
-    (hasheq-kv-map a-table #/lambda (k a-v)
+    (hashequal-kv-map a-table #/lambda (k a-v)
       (func a-v #/hash-ref b-table k))))
 
 (define (hoqq-tower-dkv-map-maybe tower func)
@@ -135,7 +178,7 @@
     (error "Expected tower to be a tower")
   #/careful-hoqq-tower
   #/list-kv-map tables #/lambda (degree table)
-    (hasheq-kv-map-maybe table #/lambda (key value)
+    (hashequal-kv-map-maybe table #/lambda (key value)
       (func degree key value))))
 
 (define (hoqq-tower-dkv-map tower func)
@@ -143,14 +186,22 @@
     (error "Expected tower to be a tower")
   #/hoqq-tower
   #/list-kv-map tables #/lambda (degree table)
-    (hasheq-kv-map table #/lambda (key value)
+    (hashequal-kv-map table #/lambda (key value)
       (func degree key value))))
 
 (define (hoqq-tower-fmap tower func)
   (expect tower (hoqq-tower tables)
     (error "Expected tower to be a tower")
   #/hoqq-tower
-  #/list-fmap tables #/lambda (table) #/hasheq-fmap table func))
+  #/list-fmap tables #/lambda (table) #/hashequal-fmap table func))
+
+(define (hoqq-tower-map-keys tower func)
+  (expect tower (hoqq-tower tables)
+    (error "Expected tower to be a tower")
+  #/hoqq-tower
+  #/list-fmap tables #/lambda (table)
+    (hashequal-kv-map-kv table #/lambda (k v)
+      (list (func k) v))))
 
 (define (hoqq-tower-dkv-split-by tower func)
   (w- tower
@@ -179,11 +230,77 @@
   #/expect b-tables (cons b b-rest) as
   #/hoqq-tower
   #/cons (hash-union a b #:combine #/lambda (a b) #/merge-v a b)
-  #/hoqq-tower-merge a-rest b-rest))
+  #/hoqq-tower-merge a-rest b-rest merge-v))
 
-(define (hoqq-tower-merge-force as bs)
-  (hoqq-tower-merge as bs #/lambda (a b)
-    (error "Expected the hole names of multiple bracroexpand calls to be mutually exclusive")))
+(define (hoqq-tower-prefix prefix tower)
+  (unless (hoqq-tower-key? prefix)
+    (error "Expected prefix to be a valid tower key"))
+  (hoqq-tower-map-keys tower #/lambda (k)
+    (careful-hoqq-tower-key-derived prefix k)))
+
+(define (hoqq-tower-merge-prefix a-prefix as b-prefix bs)
+  (unless (hoqq-tower-key? a-prefix)
+    (error "Expected a-prefix to be a valid tower key"))
+  (unless (hoqq-tower-key? b-prefix)
+    (error "Expected b-prefix to be a valid tower key"))
+  (unless (hoqq-tower? as)
+    (error "Expected as to be a tower"))
+  (unless (hoqq-tower? bs)
+    (error "Expected bs to be a tower"))
+  (hoqq-tower-merge
+    (hoqq-tower-prefix a-prefix as)
+    (hoqq-tower-prefix b-prefix bs)
+  #/lambda (a b)
+    (error "Internal error")))
+
+(define (hoqq-tower-deprefix prefix tower)
+  (unless (hoqq-tower-key? prefix)
+    (error "Expected prefix to be a valid tower key"))
+  (hoqq-tower-map-keys tower #/expectfn
+    (hoqq-tower-key-derived found-prefix k)
+    (error "Expected each key of tower to be a hoqq-tower-key-derived")
+    (unless (equal? prefix found-prefix)
+      (error "Expected each key of tower to have a certain prefix"))
+    k))
+
+(define (hoqq-tower-merge-ab as bs)
+  (hoqq-tower-merge-prefix 'a as 'b bs))
+
+(define (hoqq-tower-table table-of-towers)
+  (unless (hashequal-immutable? table-of-towers)
+    (error "Expected table-of-towers to be an immutable equal? hash"))
+  (w- table-of-prefixed-towers
+    (hashequal-kv-map table-of-towers #/lambda (k v)
+      (unless (hoqq-tower-key? k)
+        (error "Expected each key of table-of-towers to be a valid tower key"))
+      (unless (hoqq-tower? v)
+        (error "Expected each value of table-of-towers to be a hoqq-tower"))
+      (hoqq-tower-prefix k v))
+  #/w- merged
+    (foldl
+      (lambda (a b)
+        (hoqq-tower-merge a b #/lambda (a b)
+          (error "Internal error")))
+      (careful-hoqq-tower #/list)
+    #/hash-values table-of-prefixed-towers)
+  #/list merged #/lambda (corresponding)
+    (unless (hoqq-tower? corresponding)
+      (error "Expected corresponding to be a hoqq-tower"))
+    (unless (hoqq-tower-keys-same? merged corresponding)
+      (error "Expected corresponding to be a hoqq-tower with the same keys as the hoqq-tower-pair-prefix merged result"))
+    (hashequal-kv-map table-of-prefixed-towers #/lambda (k v)
+      (hoqq-tower-deprefix k #/hoqq-tower-restrict corresponding v))))
+
+(define (hoqq-tower-pair-ab as bs)
+  (dissect (hoqq-tower-table #/hashequal 'a as 'b bs)
+    (list merged de-table)
+  #/list merged #/lambda (corresponding)
+    (unless (hoqq-tower? corresponding)
+      (error "Expected corresponding to be a hoqq-tower"))
+    (unless (hoqq-tower-keys-same? merged corresponding)
+      (error "Expected corresponding to be a hoqq-tower with the same keys as the hoqq-tower-pair-prefix merged result"))
+    (w- table (de-table corresponding)
+    #/list (hash-ref table 'a) (hash-ref table 'b))))
 
 (define (hoqq-tower-has-any-of-at-least-degree? tower degree)
   (expect tower (hoqq-tower tables)
@@ -193,11 +310,11 @@
 (define (hoqq-tower-has-any-of-less-than-degree? tower degree)
   (expect tower (hoqq-tower tables)
     (error "Expected tower to be a tower")
-  #/let loop ([tables tables] [degree degree])
+  #/nextlet tables tables degree degree
     (expect (nat-pred-maybe degree) (list degree) #f
     #/expect tables (cons table tables) #f
     #/expect (hash-empty? table) #t #t
-    #/loop tables degree)))
+    #/next tables degree)))
 
 (define (hoqq-tower-merge-by-degrees-maybe lower upper)
   (expect lower (hoqq-tower tables)
@@ -216,10 +333,21 @@
   #/and (lt-length degree tables)
   #/hash-has-key? (list-ref tables degree) key))
 
-(define (hoqq-tower-ref tower degree k)
+(define (hoqq-tower-ref-degree tower degree)
   (expect tower (hoqq-tower tables)
     (error "Expected tower to be a tower")
-  #/hash-ref (list-ref tables degree) k))
+  #/expect (exact-nonnegative-integer? degree) #t
+    (error "Expected degree to be an exact nonnegative integer")
+  #/expect (lt-length degree tables) #t (hashequal)
+  #/list-ref tables degree))
+
+(define (hoqq-tower-ref tower degree k)
+  (w- table (hoqq-tower-ref-degree tower degree)
+  #/expect (hoqq-tower-key? k) #t
+    (error "Expected k to be a valid tower key")
+  #/expect (hash-has-key? table k) #t
+    (error "Expected k to be a key existing in the tower")
+  #/hash-ref table k))
 
 (define (hoqq-tower-values tower)
   (expect tower (hoqq-tower tables)

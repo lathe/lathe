@@ -4,6 +4,11 @@
 ;
 ; Miscellaneous utilities
 
+; NOTE: Just in case we want to switch back to `eq?` hashes, we refer
+; to `equal?` hashes more explicitly.
+(require #/only-in racket
+  [make-immutable-hash make-immutable-hashequal])
+
 (require "../../main.rkt")
 
 (provide #/all-defined-out)
@@ -54,28 +59,42 @@
   (not #/length-lte lst n))
 
 
-(define (hasheq-immutable? x)
-  ((and/c hash? hash-eq? immutable?) x))
+(define (hashequal-immutable? x)
+  ((and/c hash? hash-equal? immutable?) x))
 
-(define (hasheq-kv-map-maybe hash func)
-  (make-immutable-hasheq #/list-bind (hash->list hash)
+(define (hashequal-kv-map-maybe-kv hash func)
+  (make-immutable-hashequal #/list-bind (hash->list hash)
+  #/dissectfn (cons k v)
+    (match (func k v)
+      [(list) (list)]
+      [(list #/list k v) (list #/cons k v)]
+      [_ (error "Expected the func result to be a maybe of a two-element list")])))
+
+(define (hashequal-kv-map-maybe hash func)
+  (make-immutable-hashequal #/list-bind (hash->list hash)
   #/dissectfn (cons k v)
     (match (func k v)
       [(list) (list)]
       [(list v) (list #/cons k v)]
       [_ (error "Expected the func result to be a maybe")])))
 
-(define (hasheq-kv-map hash func)
-  (hasheq-kv-map-maybe hash #/lambda (k v) #/list #/func k v))
+(define (hashequal-kv-map hash func)
+  (hashequal-kv-map-maybe hash #/lambda (k v) #/list #/func k v))
 
-(define (hasheq-fmap hash func)
-  (hasheq-kv-map hash #/lambda (k v) #/func v))
+(define (hashequal-kv-map-kv hash func)
+  (hashequal-kv-map-maybe-kv hash #/lambda (k v)
+    (expect (func k v) (list k v)
+      (error "Expected the func result to be a two-element list")
+    #/list #/list k v)))
 
-(define (hash-keys-eq? a b)
+(define (hashequal-fmap hash func)
+  (hashequal-kv-map hash #/lambda (k v) #/func v))
+
+(define (hash-keys-same? a b)
   (and (= (hash-count a) (hash-count b)) #/hash-keys-subset? a b))
 
-(define (hasheq-restrict original example)
-  (hasheq-kv-map-maybe original #/lambda (k v)
+(define (hashequal-restrict original example)
+  (hashequal-kv-map-maybe original #/lambda (k v)
     (if (hash-has-key? example k)
       (list v)
       (list))))
