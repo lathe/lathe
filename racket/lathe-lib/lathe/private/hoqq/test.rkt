@@ -49,11 +49,7 @@
     (a (b (-unquote #/-quasiquote #/1 2 #/-unquote #/+ 1 2 3)) z))
   '(a (b (1 2 6)) z)
   "Unquoting another quasiquotation")
-
-; TODO: Make this test pass. It seems we'll probably want to redesign
-; `escapable-expression` to allow for arbitrary quoting depths to make
-; this work.
-#;(check-equal?
+(check-equal?
   (destx
   #/-quasiquote
     (a (b (-quasiquote #/1 #/-unquote #/+ 2 #/-unquote #/+ 1 2 3)) z))

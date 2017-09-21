@@ -32,6 +32,7 @@
       (error "Expected this to be a bracket-syntax")
     #/impl stx)))
 
+; TODO: See if we'll use this.
 (struct initiate-bracket-syntax (impl)
   
   ; Calling an `initiate-bracket-syntax` as a q-expression-building
@@ -65,6 +66,23 @@
       (escapable-expression literal expr)
       (error "Expected an initiate-bracket-syntax result to be a span step that instantiated to an escapable-expression")
       expr))
+)
+
+(struct syntax-and-bracket-syntax (syntax-impl bracket-syntax-impl)
+  
+  #:property prop:procedure
+  (lambda (this stx)
+    (expect this
+      (syntax-and-bracket-syntax syntax-impl bracket-syntax-impl)
+      (error "Expected this to be a syntax-and-bracket-syntax")
+    #/syntax-impl stx))
+  
+  #:property prop:q-expr-syntax
+  (lambda (this stx)
+    (expect this
+      (syntax-and-bracket-syntax syntax-impl bracket-syntax-impl)
+      (error "Expected this to be a syntax-and-bracket-syntax")
+    #/bracket-syntax-impl stx))
 )
 
 
@@ -104,7 +122,8 @@
         #/hoqq-tower-restrict span-steps rest-closing-brackets)
         (escapable-expression rest-escaped rest-expr)
         (error "Expected the hoqq-span-step result to be an escapable-expression")
-      #/escapable-expression #`(cons #,first-escaped #,rest-escaped)
+      #/escapable-expression
+        #`#`(#,#,first-escaped . #,#,rest-escaped)
       #/datum->syntax stx #/cons first-expr rest-expr)]
     [(list) #/hoqq-closing-hatch-simple #/datum->syntax stx lst]
     [_ #/error "Expected a list"]))

@@ -35,6 +35,15 @@
 (define (list-all lst func)
   (andmap func lst))
 
+(define (list-zip-map a b func)
+  (list-fmap (map list a b) #/dissectfn (list a b) #/func a b))
+
+(define (list-zip-all a b func)
+  (list-all (map list a b) #/dissectfn (list a b) #/func a b))
+
+(define (list-zip-each a b body)
+  (list-each (map list a b) #/dissectfn (list a b) #/body a b))
+
 (define (length-lte lst n)
   (if (< n 0)
     #f
@@ -107,3 +116,9 @@
       (list)
       (list local))
     (list)))
+
+
+(define (debug-log label result)
+  (displayln label)
+  (writeln result)
+  result)

@@ -5,7 +5,7 @@
 ; Data structures and syntaxes for encoding the kind of higher-order
 ; holes that occur in higher quasiquotation.
 
-(require #/for-meta -1 #/only-in racket syntax)
+(require #/for-meta -1 racket)
 (require #/only-in racket/hash hash-union)
 
 (require "../../main.rkt")
@@ -127,8 +127,7 @@
   #/expect b (hoqq-tower b-tables)
     (error "Expected b to be a hoqq-tower")
   #/and (= (length a-tables) (length b-tables))
-  #/list-all (map list a-tables b-tables)
-  #/dissectfn (list a-table b-table)
+  #/list-zip-all a-tables b-tables #/lambda (a-table b-table)
     (hash-keys-eq? a-table b-table)))
 
 (define (hoqq-tower-zip-each a b body)
@@ -136,10 +135,19 @@
     (error "Expected a to be a hoqq-tower")
   #/expect b (hoqq-tower b-tables)
     (error "Expected b to be a hoqq-tower")
-  #/list-each (map list a-tables b-tables)
-  #/dissectfn (list a-table b-table)
+  #/list-zip-each a-tables b-tables #/lambda (a-table b-table)
     (hash-kv-each a-table #/lambda (k a-v)
       (body a-v #/hash-ref b-table k))))
+
+(define (hoqq-tower-zip-map a b func)
+  (expect a (hoqq-tower a-tables)
+    (error "Expected a to be a hoqq-tower")
+  #/expect b (hoqq-tower b-tables)
+    (error "Expected b to be a hoqq-tower")
+  #/hoqq-tower
+  #/list-zip-map a-tables b-tables #/lambda (a-table b-table)
+    (hasheq-kv-map a-table #/lambda (k a-v)
+      (func a-v #/hash-ref b-table k))))
 
 (define (hoqq-tower-dkv-map-maybe tower func)
   (expect tower (hoqq-tower tables)
@@ -279,7 +287,10 @@
     (print-all-for-custom port mode #/list #/func
     #/hoqq-tower-fmap sig #/lambda (subsig)
       (careful-hoqq-span-step subsig #/lambda (span-steps)
-        (example span-steps)))
+        ; TODO: Hmm, this seems to be a mess. Shouldn't we be
+        ; instantiating the span-steps or something?
+        (w- result (example span-steps)
+        #/escapable-expression result result)))
     (write-string ">" port)))
 
 (define (careful-hoqq-span-step sig func)
@@ -290,7 +301,7 @@
       (error "Expected span-steps to be a hoqq-tower"))
     (hoqq-tower-zip-each sig span-steps #/lambda (subsig span-step)
       (expect span-step (hoqq-span-step span-step-subsig func)
-        (error "Expected span-step to be a span-step")
+        (error "Expected span-step to be a hoqq-span-step")
       #/expect (hoqq-sig-eq? subsig span-step-subsig) #t
         (error "Expected a careful-hoqq-span-step and the tower of span-steps it was given to have the same sig")))
   #/func span-steps))
@@ -437,6 +448,10 @@
 ; operation at the holes).
 
 
+; (TODO: The way we use `escapable-expression` may have changed a
+; little since we wrote this comment. See if this comment is still up
+; to date.)
+;
 ; An escapable expression is a data structure containing two things:
 ;
 ;   `literal`: An unencapsulated, pre-bracroexpanded Racket
@@ -530,7 +545,7 @@
     (hoqq-tower-dkv-map closing-brackets
     #/lambda (degree key closing-bracket)
       (expect closing-bracket
-        (hoqq-closing-bracket data
+        (hoqq-closing-bracket data liner
         #/hoqq-closing-hatch
           subsig closing-brackets partial-span-step)
         (error "Expected closing-bracket to be a hoqq-closing-bracket")
@@ -570,26 +585,44 @@
 ;
 ;     - A macro to call when processing this set of matched brackets.
 ;
+;   `liner`: A function which takes a `hoqq-span-step` value and
+;     returns it augmented with the syntax for this closing bracket.
+;     The sig of the input should be equal to the `lower-spansig` of
+;     the `closing-hatch`, and the sig of the output should be the
+;     same.
+;
 ;   `closing-hatch`: A `hoqq-closing-hatch` corresponding to all
 ;     content that could be part of this closing bracket's enclosed
 ;     region if not for this closing bracket being where it is.
 ;
-(struct hoqq-closing-bracket (data closing-hatch)
+(struct hoqq-closing-bracket (data liner closing-hatch)
   #:methods gen:custom-write
 #/ #/define (write-proc this port mode)
-  (expect this (hoqq-closing-bracket data closing-hatch)
+  (expect this (hoqq-closing-bracket data liner closing-hatch)
     (error "Expected this to be a hoqq-closing-bracket")
     
     (write-string "#<hoqq-closing-bracket" port)
-    (print-all-for-custom port mode #/list data closing-hatch)
+    (print-all-for-custom port mode #/list data liner closing-hatch)
     (write-string ">" port)))
 
-(define (careful-hoqq-closing-bracket data closing-hatch)
-  (unless (hoqq-closing-hatch? closing-hatch)
-    (error "Expected closing-hatch to be a hoqq-closing-hatch"))
-  (hoqq-closing-bracket data closing-hatch))
+(define (careful-hoqq-closing-bracket data liner closing-hatch)
+  (expect closing-hatch
+    (hoqq-closing-hatch
+      lower-spansig closing-brackets partial-span-step)
+    (error "Expected closing-hatch to be a hoqq-closing-hatch")
+  #/hoqq-closing-bracket data
+    (lambda (span-step)
+      (expect span-step (hoqq-span-step given-sig func)
+        (error "Expected span-step to be a span-step")
+      #/expect (hoqq-sig-eq? lower-spansig given-sig) #t
+        (error "Expected span-step to have the same sig as closing-hatch")
+      #/liner span-step))
+    closing-hatch))
 
 (define (hoqq-closing-hatch-simple val)
-  (hoqq-closing-hatch (hoqq-tower #/list) (hoqq-tower #/list)
-  #/hoqq-span-step (hoqq-tower #/list) #/lambda (span-steps)
+  (careful-hoqq-closing-hatch
+    (careful-hoqq-tower #/list)
+    (careful-hoqq-tower #/list)
+  #/careful-hoqq-span-step (careful-hoqq-tower #/list)
+  #/lambda (span-steps)
     (escapable-expression #`#'#,val val)))
