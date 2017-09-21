@@ -124,7 +124,7 @@
         (error "Expected the hoqq-span-step result to be an escapable-expression")
       #/escapable-expression
         #`#`(#,#,first-escaped . #,#,rest-escaped)
-        #`(#,first-expr . #,rest-expr))]
+      #/datum->syntax stx #/cons first-expr rest-expr)]
     [(list) #/hoqq-closing-hatch-simple #/datum->syntax stx lst]
     [_ #/error "Expected a list"]))
 
