@@ -525,61 +525,236 @@
 ; they match up, in which case we repeat this process.
 
 
-; A bracro takes a pre-bracroexpanded Racket s-expression as input,
-; and it returns a `hoqq-closing-hatch`. A `hoqq-closing-hatch` may
-; have unmatched closing brackets appearing within it. Most bracros
-; will introduce zero closing brackets in their results, with the
-; exception being operations that are dedicated to being closing
-; brackets, such as unquote operations.
+; A bracro is a new kind of syntax transformer which may discover
+; unmatched closing brackets as it expands. It's useful for
+; representing operators like `unquote` which themselves represent
+; closing brackets. Opening brackets such as `quasiquote` may be
+; bracros that process the closing brackets they find. Other bracros
+; may simply forward along whatever closing brackets exist in their
+; bodies without either adding to them or subtracting from them.
 ;
-; Many bracros will call the bracroexpander again as they do their
-; processing, in order to process subexpressions of their input that
-; should be passed through almost directly into the output. When they
-; call the bracroexpander this way, if closing bracket operations
-; appear deep within that subexpression, there may be unmatched
-; closing brackets in that intermediate result, so this is where most
-; bracros would have to pay attention to the closing brackets.
+; Intervals beget intervals. When we match up an opening parenthesis
+; with a closing parenthesis in a stream of text, we get a sequence of
+; content in between, and that content may contain its own concentric
+; parentheses that form a nesting of s-expressions. When we match up
+; `quasiquote` and `unquote` in an s-expression, we get a particular
+; area of syntax that gets quoted, while everything "outside" the
+; `quasiquote` and "inside" the `unquote` is unaffected. In the Scheme
+; family (including Racket, but not Common Lisp), one matching set of
+; quasiquote/unquote may appear entirely within the quoted section of
+; another, nesting much like s-expressions.
+;
+;   Nested s-expressions:    (  (  )  )
+;
+;   Nested quasiquotation:  `( `( ,( ,( ) ) ) )
+;
+; In general, intervals are ordered by containment, and an ordering is
+; enough to define another kind of interval by specifying a collection
+; of upper and lower bounds. So, wherever we have a notion that
+; lexical syntax has an ordering to it (such as the ordering of text
+; or imperative commands), we might be inspired to make it more
+; structured using intervals (such as parentheses, indentation levels,
+; loops, expressions, and string literals) and intervals of those
+; intervals (such as lambdas, interpolated strings, and
+; quasiquotations).
+;
+; Macro systems in Lisp dialects (including Common Lisp as well as
+; many Scheme dialects such as Racket) typically dedicate to being
+; reader macros which process text streams, or regular old macros
+; which process s-expressions. Both exist in a single language,
+; duplicating effort and leading to imparities between features
+; supported. Racket has a highly developed hygienic systems in support
+; of defining custom syntaxes over s-expressions, but Racket's reader
+; extensions are still very unhygienic; the hygiene information Racket
+; bundles with each node of its s-expressions can't be similarly
+; bundled into each node of its text streams. I'm not aware of any
+; existing language where `unquote` can be defined as a macro at all,
+; and Racket's interactions between `quasiquote` and `quasisyntax`
+; reveal that those operations' respective support for nested
+; quasiquotation has been unhygienically hardcoded for their own
+; purposes, as neither of those operations respect the other's nesting
+; structure.
+;
+;   Racket's `quasiqyntax` doesn't let `quasiquote` nest: #`'#,0
+;
+;   Racket's `quasiquote` doesn't let `quasisyntax` nest: `#',0
+;
+; If even `unquote` isn't user-definable or hygienic, there's little
+; hope for user-defined syntaxes over higher degrees of lexical
+; structure.
+;
+; Bracros generalize all those degrees of lexical structure into a
+; single system. To support each degree, we need to let users
+; specify closing brackets of a degree one less, and indeed bracros
+; can expand into closing brackets of any degree.
+;
+; Our implementation of bracros for Racket takes a Racket syntax value
+; as input, so the minimum degree a bracro can discover is that of
+; `unquote`. (We are intentionally not supporting the lower degree of
+; closing parentheses just yet, because we're trying to demonstrate
+; bracros and experiment with them in the context of Racket's hygiene
+; features.) A bracro returns a `hoqq-closing-hatch` value to
+; represent the structure of all the closing brackets it has found.
+;
+; We call all those intervals "spans" in this system. When we
+; represent a span as data, it has a well-defined root node, but it
+; span-shaped holes at the leaves. (A single span can represent an
+; interval of any degree higher than the span's highest-degree hole.)
+; In order to double-check that the shape of those holes interlocks
+; properly with other data we're using, we tag our spans with "sigs,"
+; which are signatures that are comprised of a list of hashes of
+; progressively higher-degree sigs. In a span, a hole of degree 0
+; can't have any holes of its own, a hole of degree 1 can have only
+; degree-0 holes, and so on, so a sig gets more complex toward its
+; higher degrees.
+;
+; A sig is recursively specified as a list of hashes of
+; degree-constrained sigs, but one layer of that recursion is also
+; useful. We refer to a list of hashes as a "tower" and manipulate it
+; with the `hoqq-tower` struct. A sig is represented directly as a
+; `hoqq-tower` struct containing other `hoqq-tower` structs, ad
+; infinitum.
+;
+; To recover traditional tree-shaped data from a span, the holes must
+; be filled in using a tower of other spans of compatible shapes. The
+; original span and the tower of spans passed to it automatically
+; interleave, each filling in the other, until what remains is a
+; well-founded tree that data can be constructed by. All we use
+; span-shaped data for, so far, is constructing tree-shaped data this
+; way, so we have a `hoqq-span-step` structure that's simply comprised
+; of a sig and a function. We instantiate a `hoqq-span-step` into a
+; tree-shaped result by calling its function with a tower of other
+; `hoqq-span-step` structures, at which point the function can
+; instantiatte those arguments itself and construct its result from
+; theirs.
+;
+; We've now described enough to explain the way we've implemented the
+; structure of a `hoqq-closing-hatch`. A hatch is a sig describing
+; the shape of its holes (of low degree), a tower of
+; `hoqq-closing-bracket` structs representing the closing brackets
+; it's found (which must be of higher degree than any of the holes),
+; and a `hoqq-span-step` representing all the syntactic data that
+; comes in between the root and those holes and brackets. Each
+; `hoqq-closing-bracket` contains some arbitrary information
+; describing what kind of bracket it is, along with another hatch
+; representing the area beyond the closing bracket (such as an
+; unquoted expression).
+
+; TODO: Change `hoqq-closing-hatch` to leak less information to the
+; caller and to do less overeager traversal into the syntax:
+;
+;   - Be shy. After a closing bracket of degree 0 (yes, specifically
+;     0), do no bracroexpansion. This way, bracro definitions
+;     occurring before that closing bracket can be invoked after it,
+;     much like defining a reader macro at a REPL.
+;
+;   - In a similar spirit, don't expand further-away matchups of
+;     degree N until the nearer ones are expanded. This means we'll
+;     have to represent degree-N matchups using opening brackets after
+;     all. (It's up to each bracro that processes degree-N closing
+;     brackets to decide in what order it should then bracroexpand the
+;     next-further brackets of degree N and the nearby brackets of
+;     degree N+1. That said, bracros should usually expand all the
+;     degree-N brackets before the degree-N+1 brackets to be sure the
+;     degree-N+1 operator names are user-overridable using degree-N+1
+;     lexical bindings.)
+;
+;   - Only show the lowest degree of closing brackets in the initial
+;     result. This is just a byproduct of the last point, since we
+;     won't know that any bracro call of a higher degree is a closing
+;     bracket if we don't interpret it yet.
+;
+; TODO: Make `liner` more like a span sig or a tower of span sigs, and
+; write a function that composes a span sig with a compatible liner.
+;
+; TODO: Separate `partial-span-step` into `span-step-of-literal` and
+; `span-step-of-expr`. That way, we can throw errors instead of
+; putting error sentinel values in `escapable-expression`.
+;
+;
+; Altogether, the structs would probably look like this:
+;
+;   (struct hoqq-closing-hatch #/
+;     lower-spansig degree table-of-closing-brackets
+;     table-of-opening-brackets span-step-of-literal
+;     span-step-of-expr)
+;   (struct hoqq-closing-bracket #/data sig liner pre-b-expr)
+;   (struct hoqq-opening-bracket #/
+;     macro-name data sig degree table-of-opening-brackets liner
+;     span-step-of-literal span-step-of-expr)
+;
+; The `pre-b-expr` at degree 0 is a Racket expression. At other
+; degrees, it's this `hoqq-closed-hatch` tree derived from a previous
+; `hoqq-opening-bracket` tree, and the sig must match the sig expected
+; by the bracro caller:
+;
+;   (struct hoqq-closed-hatch #/
+;     macro-name data sig degree table-of-closed-hatches
+;     juxtaposition-arena-over-table-of-closed-hatches)
+;   (struct hoqq-juxtaposition-arena-zero-or-one #/)
+;   (struct hoqq-juxtaposition-arena-two-or-more #/
+;     
+;     ; By tracking the degree and making sure it's never accepted
+;     ; below a certain number, we can make sure the juxtapositions
+;     ; are representable in concrete syntax, rather than going down
+;     ; to the -1000th degree to finally give an ordering to an
+;     ; until-then unordered pair.
+;     ;
+;     ; TODO: Right now these struct designs make it impossible to
+;     ; represent a truly unordered pair. See if we want that. This
+;     ; way is more faithful to Racket syntax, but a more serious
+;     ; advantage it has is that we don't have to think about states
+;     ; in between ordered and unordered -- particularly, a state of
+;     ; unknown ordering which can only be resolved by discovering
+;     ; knowledge in an unforeseeable place.
+;     ;
+;     degree
+;     
+;     free-vars
+;     table-of-juxtaposition-seats
+;     juxtaposition-arena-over-table-of-juxtaposition-seats)
+;   (struct hoqq-juxtaposition-seat #/
+;     table-of-juxtaposition-arenas
+;     var)
+;
+;
+; TODO: Perhaps we'll want to use the `hoqq-juxtaposition-` operations
+; to change span steps into something more traversable. On the other
+; hand, this added structure could leak information to the caller.
 
 
-; A pre-bracroexpanded Racket s-expression is the kind of s-expression
-; a user maintains, where higher quasiquotation operations are still
-; represented as a bunch of disjointed opening bracket and closing
-; bracket operators like `-quasiquote` and `-unquote`.
+; The `escapable-expression` struct is the final layer of complexity
+; in the bracroexpansion process. It contains two Racket syntax
+; values, either of which could be useful depending on whether the
+; caller is an operation that quotes or does not quote its body:
 ;
-; A post-bracroexpanded Racket s-expression is an s-expression where
-; the nested structure of higher quasiquotation has been deduced from
-; the bracket operators and re-encoded as a nested tree. This is the
-; form we need for this nested structure to pass through Racket's own
-; macroexpander, since Racket's syntax taint system offers macro
-; authors the ability to encapsulate their macro results but relies on
-; the assumption that wrapping the root of the data structure is
-; sufficient to encapsulate it (rather than also stopping the wrapping
-; operation at the holes).
-
-
-; (TODO: The way we use `escapable-expression` may have changed a
-; little since we wrote this comment. See if this comment is still up
-; to date.)
+;   `literal`: A Racket expression that when executed would return
+;     another Racket syntax value which was similar to the bracro call
+;     itself. Callers that quote their argument will pay attention to
+;     this result.
 ;
-; An escapable expression is a data structure containing two things:
+;   `expr`: A Racket syntax value that is the end result of full
+;     bracroexpansion. Callers that do not quote their argument will
+;     pay attention to this result.
 ;
-;   `literal`: An unencapsulated, pre-bracroexpanded Racket
-;     s-expression. This represents the semantics of the operation if
-;     it occurs in a suppressed way in a syntax literal.
+; Like quotation operators, quasiquotation operators will also use the
+; result in the `literal` slot. In order to see to it that certain
+; places in that result interpolate unquoted expressions, a
+; quasiquotation operator will instantiate its root span step using
+; carefully constructed span steps as arguments. The custom arguments'
+; `escapable-expression` results will have `literal` slots that
+; contain Racket expressions taken from the `expr` slots of the
+; unquoted expressions.
 ;
-;   `expr`: A post-bracroexpanded s-expression. This is the normal
-;     result when syntax literals aren't involved.
-;
-; The operators that most need this double result are the ones that
-; act as delimiters or formatters for syntax literals themselves. For
-; instance, an character that acts as a string closing delimiter may
-; sometimes need to appear inside a string, at which point either a
-; synonym of that character must be used (such as a Unicode escape) or
-; a region of the string must have its operator semantics suppressed.
-; It's especially natural for a string literal occurring within a
-; string literal to act as an operator suppression region, and this
-; can make it rare for a user to have to sprinkle escape sequences
-; throughout their data when they're doing code generation.
+; It's because of such interpolation that we need this double result
+; in the first place. The quasiquotation operator must use
+; bracroexpansion to detect where the unquotes appear in its body
+; because unquote operations are bracros themselves, and users may
+; define custom synonyms and abstractions of them. Hence, the bracros
+; in the quasiquotation's body are expanded -- they're just expanded
+; to an alternative literal representation that almost always
+; resembles the original bracro calls. The `escapable-expression`
+; struct carries that alternative along with the regular result.
 ;
 (struct escapable-expression (literal expr)
   #:methods gen:custom-write

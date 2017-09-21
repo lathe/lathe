@@ -46,10 +46,9 @@
   
   ; Calling an `initiate-bracket-syntax` as a Racket macro makes it
   ; call its implementation function and then instantiate the
-  ; resulting hole-free `hoqq-closing-hatch` to create a
-  ; post-bracroexpansion Racket s-expression. If the
-  ; `hoqq-closing-hatch` has any holes or unmatched closing brackets,
-  ; there's an error.
+  ; resulting hole-free `hoqq-closing-hatch` to create a Racket
+  ; syntax value. If the `hoqq-closing-hatch` has any holes or
+  ; unmatched closing brackets, there's an error.
   #:property prop:procedure
   (lambda (this stx)
     (expect this (initiate-bracket-syntax impl)
