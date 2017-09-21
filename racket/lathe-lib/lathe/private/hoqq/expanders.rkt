@@ -32,6 +32,7 @@
       (error "Expected this to be a bracket-syntax")
     #/impl stx)))
 
+; TODO: See if we'll use this.
 (struct initiate-bracket-syntax (impl)
   
   ; Calling an `initiate-bracket-syntax` as a q-expression-building
@@ -61,10 +62,24 @@
       (error "Expected an initiate-bracket-syntax result with no holes")
     #/if (hoqq-tower-has-any? closing-brackets)
       (error "Expected an initiate-bracket-syntax result with no unmatched closing brackets")
-    #/expect (hoqq-span-step-instantiate partial-span-step)
-      (escapable-expression literal expr)
-      (error "Expected an initiate-bracket-syntax result to be a span step that instantiated to an escapable-expression")
-      expr))
+    #/hoqq-span-step-instantiate partial-span-step))
+)
+
+(struct syntax-and-bracket-syntax (syntax-impl bracket-syntax-impl)
+  
+  #:property prop:procedure
+  (lambda (this stx)
+    (expect this
+      (syntax-and-bracket-syntax syntax-impl bracket-syntax-impl)
+      (error "Expected this to be a syntax-and-bracket-syntax")
+    #/syntax-impl stx))
+  
+  #:property prop:q-expr-syntax
+  (lambda (this stx)
+    (expect this
+      (syntax-and-bracket-syntax syntax-impl bracket-syntax-impl)
+      (error "Expected this to be a syntax-and-bracket-syntax")
+    #/bracket-syntax-impl stx))
 )
 
 
@@ -94,18 +109,12 @@
         first-closing-brackets rest-closing-brackets)
     #/hoqq-span-step (hoqq-tower-merge-force first-sig rest-sig)
     #/lambda (span-steps)
-      (expect
-        (first-func
-        #/hoqq-tower-restrict span-steps first-closing-brackets)
-        (escapable-expression first-escaped first-expr)
-        (error "Expected the hoqq-span-step result to be an escapable-expression")
-      #/expect
-        (rest-func
-        #/hoqq-tower-restrict span-steps rest-closing-brackets)
-        (escapable-expression rest-escaped rest-expr)
-        (error "Expected the hoqq-span-step result to be an escapable-expression")
-      #/escapable-expression #`(cons #,first-escaped #,rest-escaped)
-      #/datum->syntax stx #/cons first-expr rest-expr)]
+      #`#`(
+        #,#,(first-func
+          (hoqq-tower-restrict span-steps first-closing-brackets))
+        .
+        #,#,(rest-func
+          (hoqq-tower-restrict span-steps rest-closing-brackets)))]
     [(list) #/hoqq-closing-hatch-simple #/datum->syntax stx lst]
     [_ #/error "Expected a list"]))
 

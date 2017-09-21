@@ -58,92 +58,91 @@
         sub-rests))))
 |#
 
-(define-syntax -quasiquote #/initiate-bracket-syntax #/lambda (stx)
-  (syntax-case stx () #/ (_ body)
-  #/w- g-body (gensym "body")
-  #/expect (bracroexpand #'body)
-    (hoqq-closing-hatch (hoqq-tower #/list) body-closing-brackets
-    #/hoqq-span-step sig func)
-    (error "Expected the bracroexpansion result to be a hoqq-closing-hatch without holes")
-  ; TODO: Compute `closing-brackets` as a combination of the
-  ; higher-degree closing brackets of `body-closing-brackets` and all
-  ; the closing brackets under the lowest-degree closing brackets.
-  #/dissect
-    (hoqq-tower-dkv-split-by body-closing-brackets #/lambda (d k v)
-      (< 0 d))
-    (list lower-brackets upper-brackets)
-    
-  #/w- closing-brackets
-    (foldl hoqq-tower-merge-force upper-brackets
-    #/list-fmap (hoqq-tower-values lower-brackets) #/expectfn
-      (hoqq-closing-bracket data
-      #/hoqq-closing-hatch
-        lower-spansig closing-brackets partial-span-step)
-      (error "Expected each of the lowest-order closing brackets to be a hoqq-closing-bracket")
-      closing-brackets)
-  #/careful-hoqq-closing-hatch (careful-hoqq-tower #/list)
-    closing-brackets
-  #/careful-hoqq-span-step
-    (hoqq-tower-fmap closing-brackets #/expectfn
-      (hoqq-closing-bracket data
-      #/hoqq-closing-hatch
-        lower-spansig closing-brackets partial-span-step)
-      (error "Expected each of the overall closing brackets to be a hoqq-closing-bracket")
-      lower-spansig)
-  #/lambda (span-steps)
-    ; We instantiate all the low-degree closing brackets.
-    (w- instantiated-lowest
-      (hoqq-tower-fmap lower-brackets #/expectfn
-        (hoqq-closing-bracket data
-        #/hoqq-closing-hatch (hoqq-tower #/list)
-          closing-brackets
+(define-syntax -quasiquote
+  #/w- impl
+    (lambda (stx is-bracket)
+      (syntax-case stx () #/ (_ body)
+      #/w- g-body (gensym "body")
+      #/expect (bracroexpand #'body)
+        (hoqq-closing-hatch (hoqq-tower #/list) body-closing-brackets
+        #/hoqq-span-step sig func)
+        (error "Expected the bracroexpansion result to be a hoqq-closing-hatch without holes")
+      #/dissect
+        (hoqq-tower-dkv-split-by body-closing-brackets
+        #/lambda (d k v)
+          (< 0 d))
+        (list lower-brackets upper-brackets)
+      ; We compute `closing-brackets` as a combination of the
+      ; higher-degree closing brackets of `body-closing-brackets` and
+      ; all the closing brackets under the lowest-degree closing
+      ; brackets.
+      #/w- closing-brackets
+        (foldl hoqq-tower-merge-force upper-brackets
+        #/list-fmap (hoqq-tower-values lower-brackets) #/expectfn
+          (hoqq-closing-bracket data liner
+          #/hoqq-closing-hatch
+            lower-spansig closing-brackets partial-span-step)
+          (error "Expected each of the lowest-order closing brackets to be a hoqq-closing-bracket")
+          closing-brackets)
+      #/careful-hoqq-closing-hatch (careful-hoqq-tower #/list)
+        closing-brackets
+      #/careful-hoqq-span-step
+        (hoqq-tower-fmap closing-brackets #/expectfn
+          (hoqq-closing-bracket data liner
+          #/hoqq-closing-hatch
+            lower-spansig closing-brackets partial-span-step)
+          (error "Expected each of the overall closing brackets to be a hoqq-closing-bracket")
+          lower-spansig)
+      #/lambda (span-steps)
+        ; We instantiate all the low-degree closing brackets and call
+        ; `func` with that.
+        (w- result
+          (func #/hoqq-tower-fmap lower-brackets #/expectfn
+            (hoqq-closing-bracket data liner
+            #/hoqq-closing-hatch (hoqq-tower #/list) closing-brackets
+            #/hoqq-span-step sig func)
+            (error "Expected each of the lowest-order closing brackets to be a hoqq-closing-bracket with no holes")
+            (w- composed-span-step
+              (careful-hoqq-span-step (careful-hoqq-tower #/list)
+              #/dissectfn (hoqq-tower #/list)
+                (func
+                #/hoqq-tower-restrict span-steps closing-brackets))
+#|
+            (expect
+              (if is-bracket
+                (liner partial-span-step)
+                partial-span-step)
+              (hoqq-span-step (hoqq-tower #/list) func)
+              (error "Expected partial-span-step to be a hoqq-span-step")
+            #/func #/hoqq-tower #/list))
+|#
+            #/if is-bracket
+              (liner composed-span-step)
+              composed-span-step))
+        ; We modify it to add the `-quasiquote` call if appropriate.
+        #/if is-bracket
+          #`#`(-quasiquote #,#,result)
+          result)))
+  #/syntax-and-bracket-syntax
+    (lambda (stx)
+      (expect (impl stx #f)
+        (hoqq-closing-hatch (hoqq-tower #/list) (hoqq-tower #/list)
         #/hoqq-span-step (hoqq-tower #/list) func)
-        (error "Expected each of the lowest-order closing brackets to be a hoqq-closing-bracket with no holes")
-        (func #/hoqq-tower #/list))
-    #/escapable-expression
-      ; We take their literal version, call `func` with that, take its
-      ; literal version, and modify it to add the `-quasiquote` call.
-      (expect
-        (func #/hoqq-tower-fmap instantiated-lowest #/expectfn
-          (escapable-expression literal expr)
-          (error "Expected each of the lowest-order closing brackets' instantiated closing hatches to be an escapable-expression")
-          (careful-hoqq-span-step (careful-hoqq-tower #/list)
-          #/lambda (span-steps)
-            ; TODO: See if it's appropriate to just clobber the expr
-            ; like this.
-            (escapable-expression
-              literal
-              literal)))
-        (escapable-expression literal expr)
-        (error "Expected the instantiation of the partial span step to be an escapable-expression")
-        #`(-quasiquote #,literal))
-      ; We take their expression version, call `func` with that, and
-      ; take its literal version.
-      (expect
-        (func #/hoqq-tower-fmap instantiated-lowest #/expectfn
-          (escapable-expression literal expr)
-          (error "Expected each of the lowest-order closing brackets' instantiated closing hatches to be an escapable-expression")
-          (careful-hoqq-span-step (careful-hoqq-tower #/list)
-          #/lambda (span-steps)
-            ; TODO: See if it's appropriate to just clobber the
-            ; literal like this.
-            (escapable-expression
-              expr
-              expr)))
-        (escapable-expression literal expr)
-        (error "Expected the instantiation of the partial span step to be an escapable-expression")
-        literal))))
+        (error "Expected a -quasiquote result that had no closing brackets or holes")
+      #/func #/careful-hoqq-tower #/list))
+    (lambda (stx) #/impl stx #t))
 
 (define-syntax -unquote #/bracket-syntax #/lambda (stx)
   (syntax-case stx () #/ (_ body)
   #/w- g-body (gensym "body")
   #/expect (bracroexpand #'body)
     (hoqq-closing-hatch (hoqq-tower #/list) closing-brackets
+;      partial-span-step)
     #/hoqq-span-step sig func)
     (error "Expected the bracroexpansion result to be a hoqq-closing-hatch without holes")
   #/begin
     (hoqq-tower-each closing-brackets #/expectfn
-      (hoqq-closing-bracket data
+      (hoqq-closing-bracket data liner
       #/hoqq-closing-hatch (hoqq-tower #/list)
         closing-brackets partial-span-step)
       (error "Expected the bracroexpansion result's closing brackets to have no holes beyond them"))
@@ -152,15 +151,16 @@
   #/careful-hoqq-closing-hatch (careful-hoqq-tower #/list)
     (careful-hoqq-tower #/list #/hasheq g-body
     #/careful-hoqq-closing-bracket bracket-data
+      (expectfn (hoqq-span-step (hoqq-tower #/list) func)
+        (error "Expected a liner input that was a hoqq-span-step")
+        (careful-hoqq-span-step (careful-hoqq-tower #/list)
+        #/lambda (span-steps)
+          #`#`(-unquote #,#,#/func span-steps)))
     #/careful-hoqq-closing-hatch (careful-hoqq-tower #/list)
+;      closing-brackets partial-span-step)
       closing-brackets
     #/careful-hoqq-span-step sig #/lambda (span-steps)
-      (expect (func span-steps)
-        (escapable-expression literal expr)
-        (error "Expected the result of instantiating a partial span step to be an escapable-expression")
-      #/escapable-expression
-        #`(list '-unquotf #,literal)
-        expr))
+      (func span-steps))
   #/careful-hoqq-span-step
     (careful-hoqq-tower #/list #/hasheq g-body
     #/careful-hoqq-tower #/list)

@@ -5,7 +5,7 @@
 ; Data structures and syntaxes for encoding the kind of higher-order
 ; holes that occur in higher quasiquotation.
 
-(require #/for-meta -1 #/only-in racket syntax)
+(require #/for-meta -1 racket)
 (require #/only-in racket/hash hash-union)
 
 (require "../../main.rkt")
@@ -290,7 +290,7 @@
       (error "Expected span-steps to be a hoqq-tower"))
     (hoqq-tower-zip-each sig span-steps #/lambda (subsig span-step)
       (expect span-step (hoqq-span-step span-step-subsig func)
-        (error "Expected span-step to be a span-step")
+        (error "Expected span-step to be a hoqq-span-step")
       #/expect (hoqq-sig-eq? subsig span-step-subsig) #t
         (error "Expected a careful-hoqq-span-step and the tower of span-steps it was given to have the same sig")))
   #/func span-steps))
@@ -437,37 +437,6 @@
 ; operation at the holes).
 
 
-; An escapable expression is a data structure containing two things:
-;
-;   `literal`: An unencapsulated, pre-bracroexpanded Racket
-;     s-expression. This represents the semantics of the operation if
-;     it occurs in a suppressed way in a syntax literal.
-;
-;   `expr`: A post-bracroexpanded s-expression. This is the normal
-;     result when syntax literals aren't involved.
-;
-; The operators that most need this double result are the ones that
-; act as delimiters or formatters for syntax literals themselves. For
-; instance, an character that acts as a string closing delimiter may
-; sometimes need to appear inside a string, at which point either a
-; synonym of that character must be used (such as a Unicode escape) or
-; a region of the string must have its operator semantics suppressed.
-; It's especially natural for a string literal occurring within a
-; string literal to act as an operator suppression region, and this
-; can make it rare for a user to have to sprinkle escape sequences
-; throughout their data when they're doing code generation.
-;
-(struct escapable-expression (literal expr)
-  #:methods gen:custom-write
-#/ #/define (write-proc this port mode)
-  (expect this (escapable-expression literal expr)
-    (error "Expected this to be an escapable-expression")
-    
-    (write-string "#<escapable-expression" port)
-    (print-all-for-custom port mode #/list literal expr)
-    (write-string ">" port)))
-
-
 ; A `hoqq-closing-hatch` represents a partial, inside-out portion of a
 ; higher quasiquotation data structure, seen as a branching collection
 ; of closing brackets and the potentially ever-higher-order closing
@@ -530,7 +499,7 @@
     (hoqq-tower-dkv-map closing-brackets
     #/lambda (degree key closing-bracket)
       (expect closing-bracket
-        (hoqq-closing-bracket data
+        (hoqq-closing-bracket data liner
         #/hoqq-closing-hatch
           subsig closing-brackets partial-span-step)
         (error "Expected closing-bracket to be a hoqq-closing-bracket")
@@ -570,26 +539,43 @@
 ;
 ;     - A macro to call when processing this set of matched brackets.
 ;
+;   `liner`: A function which takes a `hoqq-span-step` value and
+;     returns it augmented with the syntax for this closing bracket.
+;     The sig of the input should be equal to the `lower-spansig` of
+;     the `closing-hatch`, and the sig of the output should be the
+;     same.
+;
 ;   `closing-hatch`: A `hoqq-closing-hatch` corresponding to all
 ;     content that could be part of this closing bracket's enclosed
 ;     region if not for this closing bracket being where it is.
 ;
-(struct hoqq-closing-bracket (data closing-hatch)
+(struct hoqq-closing-bracket (data liner closing-hatch)
   #:methods gen:custom-write
 #/ #/define (write-proc this port mode)
-  (expect this (hoqq-closing-bracket data closing-hatch)
+  (expect this (hoqq-closing-bracket data liner closing-hatch)
     (error "Expected this to be a hoqq-closing-bracket")
     
     (write-string "#<hoqq-closing-bracket" port)
-    (print-all-for-custom port mode #/list data closing-hatch)
+    (print-all-for-custom port mode #/list data liner closing-hatch)
     (write-string ">" port)))
 
-(define (careful-hoqq-closing-bracket data closing-hatch)
-  (unless (hoqq-closing-hatch? closing-hatch)
-    (error "Expected closing-hatch to be a hoqq-closing-hatch"))
-  (hoqq-closing-bracket data closing-hatch))
+(define (careful-hoqq-closing-bracket data liner closing-hatch)
+  (expect closing-hatch
+    (hoqq-closing-hatch
+      lower-spansig closing-brackets partial-span-step)
+    (error "Expected closing-hatch to be a hoqq-closing-hatch")
+  #/hoqq-closing-bracket data
+    (lambda (span-step)
+      (expect span-step (hoqq-span-step given-sig func)
+        (error "Expected span-step to be a span-step")
+      #/expect (hoqq-sig-eq? lower-spansig given-sig) #t
+        (error "Expected span-step to have the same sig as closing-hatch")
+      #/liner span-step))
+    closing-hatch))
 
 (define (hoqq-closing-hatch-simple val)
-  (hoqq-closing-hatch (hoqq-tower #/list) (hoqq-tower #/list)
-  #/hoqq-span-step (hoqq-tower #/list) #/lambda (span-steps)
-    (escapable-expression #`#'#,val val)))
+  (careful-hoqq-closing-hatch
+    (careful-hoqq-tower #/list)
+    (careful-hoqq-tower #/list)
+  #/careful-hoqq-span-step (careful-hoqq-tower #/list)
+  #/lambda (span-steps) #`#'#,val))
