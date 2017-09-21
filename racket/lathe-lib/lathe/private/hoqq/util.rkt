@@ -116,3 +116,9 @@
       (list)
       (list local))
     (list)))
+
+
+(define (debug-log label result)
+  (displayln label)
+  (writeln result)
+  result)
