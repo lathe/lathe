@@ -62,7 +62,10 @@
       (error "Expected an initiate-bracket-syntax result with no holes")
     #/if (hoqq-tower-has-any? closing-brackets)
       (error "Expected an initiate-bracket-syntax result with no unmatched closing brackets")
-    #/hoqq-span-step-instantiate partial-span-step))
+    #/expect (hoqq-span-step-instantiate partial-span-step)
+      (escapable-expression literal expr)
+      (error "Expected an initiate-bracket-syntax result to be a span step that instantiated to an escapable-expression")
+      expr))
 )
 
 (struct syntax-and-bracket-syntax (syntax-impl bracket-syntax-impl)
@@ -109,12 +112,19 @@
         first-closing-brackets rest-closing-brackets)
     #/hoqq-span-step (hoqq-tower-merge-force first-sig rest-sig)
     #/lambda (span-steps)
-      #`#`(
-        #,#,(first-func
-          (hoqq-tower-restrict span-steps first-closing-brackets))
-        .
-        #,#,(rest-func
-          (hoqq-tower-restrict span-steps rest-closing-brackets)))]
+      (expect
+        (first-func
+        #/hoqq-tower-restrict span-steps first-closing-brackets)
+        (escapable-expression first-escaped first-expr)
+        (error "Expected the hoqq-span-step result to be an escapable-expression")
+      #/expect
+        (rest-func
+        #/hoqq-tower-restrict span-steps rest-closing-brackets)
+        (escapable-expression rest-escaped rest-expr)
+        (error "Expected the hoqq-span-step result to be an escapable-expression")
+      #/escapable-expression
+        #`#`(#,#,first-escaped . #,#,rest-escaped)
+        #`(#,first-expr . #,rest-expr))]
     [(list) #/hoqq-closing-hatch-simple #/datum->syntax stx lst]
     [_ #/error "Expected a list"]))
 

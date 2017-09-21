@@ -127,8 +127,7 @@
   #/expect b (hoqq-tower b-tables)
     (error "Expected b to be a hoqq-tower")
   #/and (= (length a-tables) (length b-tables))
-  #/list-all (map list a-tables b-tables)
-  #/dissectfn (list a-table b-table)
+  #/list-zip-all a-tables b-tables #/lambda (a-table b-table)
     (hash-keys-eq? a-table b-table)))
 
 (define (hoqq-tower-zip-each a b body)
@@ -136,10 +135,19 @@
     (error "Expected a to be a hoqq-tower")
   #/expect b (hoqq-tower b-tables)
     (error "Expected b to be a hoqq-tower")
-  #/list-each (map list a-tables b-tables)
-  #/dissectfn (list a-table b-table)
+  #/list-zip-each a-tables b-tables #/lambda (a-table b-table)
     (hash-kv-each a-table #/lambda (k a-v)
       (body a-v #/hash-ref b-table k))))
+
+(define (hoqq-tower-zip-map a b func)
+  (expect a (hoqq-tower a-tables)
+    (error "Expected a to be a hoqq-tower")
+  #/expect b (hoqq-tower b-tables)
+    (error "Expected b to be a hoqq-tower")
+  #/hoqq-tower
+  #/list-zip-map a-tables b-tables #/lambda (a-table b-table)
+    (hasheq-kv-map a-table #/lambda (k a-v)
+      (func a-v #/hash-ref b-table k))))
 
 (define (hoqq-tower-dkv-map-maybe tower func)
   (expect tower (hoqq-tower tables)
@@ -279,7 +287,10 @@
     (print-all-for-custom port mode #/list #/func
     #/hoqq-tower-fmap sig #/lambda (subsig)
       (careful-hoqq-span-step subsig #/lambda (span-steps)
-        (example span-steps)))
+        ; TODO: Hmm, this seems to be a mess. Shouldn't we be
+        ; instantiating the span-steps or something?
+        (w- result (example span-steps)
+        #/escapable-expression result result)))
     (write-string ">" port)))
 
 (define (careful-hoqq-span-step sig func)
@@ -437,6 +448,41 @@
 ; operation at the holes).
 
 
+; (TODO: The way we use `escapable-expression` may have changed a
+; little since we wrote this comment. See if this comment is still up
+; to date.)
+;
+; An escapable expression is a data structure containing two things:
+;
+;   `literal`: An unencapsulated, pre-bracroexpanded Racket
+;     s-expression. This represents the semantics of the operation if
+;     it occurs in a suppressed way in a syntax literal.
+;
+;   `expr`: A post-bracroexpanded s-expression. This is the normal
+;     result when syntax literals aren't involved.
+;
+; The operators that most need this double result are the ones that
+; act as delimiters or formatters for syntax literals themselves. For
+; instance, an character that acts as a string closing delimiter may
+; sometimes need to appear inside a string, at which point either a
+; synonym of that character must be used (such as a Unicode escape) or
+; a region of the string must have its operator semantics suppressed.
+; It's especially natural for a string literal occurring within a
+; string literal to act as an operator suppression region, and this
+; can make it rare for a user to have to sprinkle escape sequences
+; throughout their data when they're doing code generation.
+;
+(struct escapable-expression (literal expr)
+  #:methods gen:custom-write
+#/ #/define (write-proc this port mode)
+  (expect this (escapable-expression literal expr)
+    (error "Expected this to be an escapable-expression")
+    
+    (write-string "#<escapable-expression" port)
+    (print-all-for-custom port mode #/list literal expr)
+    (write-string ">" port)))
+
+
 ; A `hoqq-closing-hatch` represents a partial, inside-out portion of a
 ; higher quasiquotation data structure, seen as a branching collection
 ; of closing brackets and the potentially ever-higher-order closing
@@ -578,4 +624,5 @@
     (careful-hoqq-tower #/list)
     (careful-hoqq-tower #/list)
   #/careful-hoqq-span-step (careful-hoqq-tower #/list)
-  #/lambda (span-steps) #`#'#,val))
+  #/lambda (span-steps)
+    (escapable-expression #`#'#,val val)))
