@@ -55,3 +55,25 @@
     (a (b (-quasiquote #/1 #/-unquote #/+ 2 #/-unquote #/+ 1 2 3)) z))
   '(a (b (-quasiquote #/1 #/-unquote #/+ 2 6)) z)
   "Nesting quasiquotations")
+
+
+; This is a set of unit tests we used in a previous incarnation of
+; this code.
+(check-equal?
+  (destx #/-quasiquote #/foo (bar baz) () qux)
+  '(foo (bar baz) () qux)
+  "Quasiquoting a nested list again")
+(check-equal?
+  (destx #/-quasiquote #/foo (bar baz) (-quasiquote ()) qux)
+  '(foo (bar baz) (-quasiquote ()) qux)
+  "Quasiquoting a nested list containing a quasiquoted empty list")
+(check-equal?
+  (destx #/-quasiquote #/foo (bar baz) (-unquote (* 1 123456)) qux)
+  '(foo (bar baz) 123456 qux)
+  "Unquoting an expression again")
+(check-equal?
+  (destx
+  #/-quasiquote #/foo
+  #/-quasiquote #/bar #/-unquote #/baz #/-unquote #/* 1 123456)
+  '(foo #/-quasiquote #/bar #/-unquote #/baz 123456)
+  "Nesting quasiquotations again")
