@@ -20,46 +20,13 @@
 
 ; ===== Fake nodes for printing things with higher-order holes =======
 
-(struct example (val)
-  #:methods gen:custom-write
-#/ #/define (write-proc this port mode)
-  (expect this (example val)
-    (error "Expected this to be an example")
-    (write-string "#<example " port)
-    (print-for-custom port mode val)
-    (write-string ">" port)))
+(struct-easy example "an example" (val))
 
 
 ; ===== Low-order building block for higher qq spans and hatches =====
 
-(struct hoqq-tower-key-derived (a b)
-  #:methods gen:equal+hash
-  [
-    (define (equal-proc a b recursive-equal?)
-      (expect a (hoqq-tower-key-derived aa ab)
-        (error "Expected a to be a hoqq-tower-key-derived")
-      #/expect b (hoqq-tower-key-derived ba bb)
-        (error "Expected b to be a hoqq-tower-key-derived")
-      #/and
-        (recursive-equal? aa ba)
-        (recursive-equal? ab bb)))
-    (define (hash-proc this recursive-equal-hash-code)
-      (expect this (hoqq-tower-key-derived a b)
-        (error "Expected this to be a hoqq-tower-key-derived")
-      #/recursive-equal-hash-code #/list a b))
-    (define (hash2-proc this recursive-equal-secondary-hash-code)
-      (expect this (hoqq-tower-key-derived a b)
-        (error "Expected this to be a hoqq-tower-key-derived")
-      #/recursive-equal-secondary-hash-code #/list a b))]
-  #:methods gen:custom-write
-  [
-    (define (write-proc this port mode)
-      (expect this (hoqq-tower-key-derived a b)
-        (error "Expected this to be a hoqq-tower-key-derived")
-        
-        (write-string "#<hoqq-tower-key-derived" port)
-        (print-all-for-custom port mode #/list a b)
-        (write-string ">" port)))])
+(struct-easy hoqq-tower-key-derived "a hoqq-tower-key-derived" (a b)
+  #:equal)
 
 (define (careful-hoqq-tower-key-derived a b)
   (unless (hoqq-tower-key? a)
@@ -71,34 +38,11 @@
 (define (hoqq-tower-key? x)
   (or (symbol? x) (hoqq-tower-key-derived? x)))
 
-(struct hoqq-tower (tables)
-  #:methods gen:equal+hash
-  [
-    (define (equal-proc a b recursive-equal?)
-      (expect a (hoqq-tower a-tables)
-        (error "Expected a to be a hoqq-tower")
-      #/expect b (hoqq-tower b-tables)
-        (error "Expected b to be a hoqq-tower")
-      #/recursive-equal? a-tables b-tables))
-    (define (hash-proc this recursive-equal-hash-code)
-      (expect this (hoqq-tower tables)
-        (error "Expected this to be a hoqq-tower")
-      #/recursive-equal-hash-code tables))
-    (define (hash2-proc this recursive-equal-secondary-hash-code)
-      (expect this (hoqq-tower tables)
-        (error "Expected this to be a hoqq-tower")
-      #/recursive-equal-secondary-hash-code tables))]
-  #:methods gen:custom-write
-  [
-    (define (write-proc this port mode)
-      (expect this (hoqq-tower tables)
-        (error "Expected this to be a hoqq-tower")
-        
-        (write-string "#<hoqq-tower" port)
-        (hoqq-tower-print port mode this #/lambda (v)
-          (write-string " " port)
-          (print-for-custom port mode v))
-        (write-string ">" port)))])
+(struct-easy hoqq-tower "a hoqq-tower" (tables) #:equal #:write
+#/lambda (this port mode)
+  (hoqq-tower-print port mode this #/lambda (v)
+    (write-string " " port)
+    (print-for-custom port mode v)))
 
 (define (hoqq-tower-print port mode tower print-v)
   (expect tower (hoqq-tower tables)
@@ -385,22 +329,16 @@
 
 ; ===== Suspended computations over higher quasiquotation spans ======
 
-(struct hoqq-span-step (sig func)
-  #:methods gen:custom-write
-#/ #/define (write-proc this port mode)
-  (expect this (hoqq-span-step sig func)
-    (error "Expected this to be a hoqq-span-step")
-    
-    (write-string "#<hoqq-span-step" port)
-    (hoqq-sig-print port mode sig)
-    (print-all-for-custom port mode #/list #/func
-    #/hoqq-tower-fmap sig #/lambda (subsig)
-      (careful-hoqq-span-step subsig #/lambda (span-steps)
-        ; TODO: Hmm, this seems to be a mess. Shouldn't we be
-        ; instantiating the span-steps or something?
-        (w- result (example span-steps)
-        #/escapable-expression result result)))
-    (write-string ">" port)))
+(struct-easy hoqq-span-step "a hoqq-span-step" (sig func) #:write
+#/lambda (this port mode)
+  (hoqq-sig-print port mode sig)
+  (print-all-for-custom port mode #/list #/func
+  #/hoqq-tower-fmap sig #/lambda (subsig)
+    (careful-hoqq-span-step subsig #/lambda (span-steps)
+      ; TODO: Hmm, this seems to be a mess. Shouldn't we be
+      ; instantiating the span-steps or something?
+      (w- result (example span-steps)
+      #/escapable-expression result result))))
 
 (define (careful-hoqq-span-step sig func)
   (unless (hoqq-spansig? sig)
@@ -756,15 +694,8 @@
 ; resembles the original bracro calls. The `escapable-expression`
 ; struct carries that alternative along with the regular result.
 ;
-(struct escapable-expression (literal expr)
-  #:methods gen:custom-write
-#/ #/define (write-proc this port mode)
-  (expect this (escapable-expression literal expr)
-    (error "Expected this to be an escapable-expression")
-    
-    (write-string "#<escapable-expression" port)
-    (print-all-for-custom port mode #/list literal expr)
-    (write-string ">" port)))
+(struct-easy escapable-expression "an escapable-expression"
+  (literal expr))
 
 
 ; A `hoqq-closing-hatch` represents a partial, inside-out portion of a
@@ -802,19 +733,8 @@
 ; The sigs of the `lower-spansig` and `closing-brackets` put together
 ; must match the sig of `partial-span-step`.
 ;
-(struct hoqq-closing-hatch
-  (lower-spansig closing-brackets partial-span-step)
-  #:methods gen:custom-write
-#/ #/define (write-proc this port mode)
-  (expect this
-    (hoqq-closing-hatch
-      lower-spansig closing-brackets partial-span-step)
-    (error "Expected this to be a hoqq-closing-hatch")
-    
-    (write-string "#<hoqq-closing-hatch" port)
-    (print-all-for-custom port mode
-    #/list closing-brackets partial-span-step)
-    (write-string ">" port)))
+(struct-easy hoqq-closing-hatch "a hoqq-closing-hatch"
+  (lower-spansig closing-brackets partial-span-step))
 
 (define
   (careful-hoqq-closing-hatch
@@ -879,15 +799,8 @@
 ;     content that could be part of this closing bracket's enclosed
 ;     region if not for this closing bracket being where it is.
 ;
-(struct hoqq-closing-bracket (data liner closing-hatch)
-  #:methods gen:custom-write
-#/ #/define (write-proc this port mode)
-  (expect this (hoqq-closing-bracket data liner closing-hatch)
-    (error "Expected this to be a hoqq-closing-bracket")
-    
-    (write-string "#<hoqq-closing-bracket" port)
-    (print-all-for-custom port mode #/list data liner closing-hatch)
-    (write-string ">" port)))
+(struct-easy hoqq-closing-bracket "a hoqq-closing-bracket"
+  (data liner closing-hatch))
 
 (define (careful-hoqq-closing-bracket data liner closing-hatch)
   (expect closing-hatch
