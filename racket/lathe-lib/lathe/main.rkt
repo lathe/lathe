@@ -16,13 +16,13 @@
   (set! place (func place args ...)))
 
 (define-syntax (w- stx)
-  (as-non-syntax stx (fn-as-non-syntax stx cdr)
-    (delisting body stx
-           voidval
-      var  var
-      val  (if (: symbol? : non-syntax var)
-             #`(: let ([#,var #,val]) : w- #,@body)
-             #`(: begin #,var : w- #,val #,@body)))))
+  (syntax-case stx ()
+    [(_ result) #'result]
+    [ (_ var val body ...)
+      (identifier? #'var)
+      #'(let ([var val]) (w- body ...))]
+    [(_ command body ...)
+      #`(let () command (w- body ...))]))
 
 ; NOTE: Racket already has something named 'do, and 'begin is too
 ; verbose.
@@ -43,20 +43,19 @@
       body ...)))
 
 (define-syntax (namedlet stx)
-  (: as-non-syntax stx stx : delisting binds-and-body stx
-          (error)
-    _     (error)
-    next  (letfirst binds body (parse-magic-withlike binds-and-body)
-            #`(let #,next #,binds #,@body))))
+  (syntax-case stx ()
+    [ (_ next binds-and-body ...)
+      (identifier? #'next)
+      (syntax-case (parse-magic-withlike #'(binds-and-body ...)) ()
+        [ (binds body ...)
+          #'(let next binds body ...)])]))
 
 (define-syntax (magic-withlike stx)
-  (: as-non-syntax stx stx : delisting binds-and-body stx
-        (error)
-    _   (error)
-    op  (letfirst binds body (parse-magic-withlike binds-and-body)
-          #`(#,op #,binds
-              voidval
-              #,@body))))
+  (syntax-case stx ()
+    [ (_ op binds-and-body ...)
+      (syntax-case (parse-magic-withlike #'(binds-and-body ...)) ()
+        [ (binds body ...)
+          #'(op binds body ...)])]))
 
 (define-syntax-rule (=fn var parms body ...)
   (set! var (fn parms body ...)))
