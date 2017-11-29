@@ -526,7 +526,6 @@ my.arrTuple = function ( size, arr ) {
             }
         } );
     } );
-    return result;
 };
 
 my.arrPair = function ( arr ) {
