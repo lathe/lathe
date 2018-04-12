@@ -136,30 +136,6 @@ you might consider making your library into a module. Take a look at a
 few of the modules included with Lathe to see how to do that.
 
 
-## Racket
-
-
-### Features
-
-Lathe for Racket is just a simple utility library. It's likely to stay
-pretty unexciting; if it contained anything notable, I would rather
-release that part as a separate Racket library anyway. Right now,
-Lathe just includes some syntaxes that reduce parentheses in simple
-ways.
-
-
-### Setup
-
-Since Racket already has a module system and a package manager, you
-can run `raco pkg install lathe` at a command line and then import
-Lathe in your program like so:
-
-```
-(require lathe)
-(require (for-syntax lathe))
-```
-
-
 ## JavaScript
 
 
